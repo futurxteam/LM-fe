@@ -1,5 +1,5 @@
 // API Service Handler for Backend Communication (Pure Real Backend - No Mocks)
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://lm-be-yx0a.onrender.com/api'
 
 // Helper for HTTP requests with automatic token attachment
 async function request(endpoint, options = {}) {
