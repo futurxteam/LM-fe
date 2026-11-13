@@ -110,6 +110,14 @@ export const api = {
     })
   },
 
+  // Database Reset / Clean Leads Handlers
+  resetLeadDatabase: async (mode = 'clean') => {
+    return await request('/leads/reset-db', {
+      method: 'POST',
+      body: JSON.stringify({ mode }),
+    })
+  },
+
   // Analytics & Dashboard Stats Handlers
   getStats: async () => {
     return await request('/stats', {

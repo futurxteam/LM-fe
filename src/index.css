@@ -995,20 +995,121 @@ body {
   gap: 10px;
 }
 
-/* File Upload Zone */
+/* File Upload Zone - Centered Drag & Drop Area */
 .upload-dropzone {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
   border: 2px dashed #94a3b8;
-  border-radius: 8px;
-  padding: 28px 18px;
+  border-radius: 12px;
+  padding: 34px 24px;
   text-align: center;
   background: #f8fafc;
   cursor: pointer;
   transition: all 0.2s ease;
+  user-select: none;
 }
 
-.upload-dropzone:hover {
-  border-color: var(--cyan-dark);
+.upload-dropzone:hover,
+.upload-dropzone.dragging {
+  border-color: #0284c7;
   background: #f0f9ff;
+  border-style: dashed;
+}
+
+.upload-icon-circle {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #e0f2fe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.upload-dropzone:hover .upload-icon-circle,
+.upload-dropzone.dragging .upload-icon-circle {
+  transform: scale(1.08);
+  background: #bae6fd;
+}
+
+/* Data Loading Spinner / Skeleton Overlay */
+.data-loader-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 50px 20px;
+  gap: 14px;
+  width: 100%;
+  min-height: 200px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.data-loader-spinner {
+  width: 38px;
+  height: 38px;
+  border: 3.5px solid #e2e8f0;
+  border-top-color: #0284c7;
+  border-right-color: #1b2b6b;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+.data-loader-text {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #334155;
+  letter-spacing: 0.2px;
+}
+
+.data-loader-sub {
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* Modal Processing Overlay */
+.modal-loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.94);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  border-radius: 8px;
+  gap: 14px;
+  backdrop-filter: blur(2px);
+  padding: 24px;
+  text-align: center;
+}
+
+/* Danger Button for DB Clean / Reset */
+.btn-pulse-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-pulse-danger:hover {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
 }
 
 /* Sub-nav Tabs */

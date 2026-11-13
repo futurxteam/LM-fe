@@ -340,7 +340,13 @@ export default function SalesDashboard({ user, onLogout }) {
               <span className="header-badge">Direct Contact Queue</span>
             </div>
             <div className="template-card-body" style={{ padding: 0 }}>
-              {filteredLeads.length === 0 ? (
+              {loading ? (
+                <div className="data-loader-container">
+                  <div className="data-loader-spinner" />
+                  <div className="data-loader-text">Loading assigned leads queue...</div>
+                  <div className="data-loader-sub">Fetching counselor pipeline from database</div>
+                </div>
+              ) : filteredLeads.length === 0 ? (
                 <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748b' }}>
                   <p style={{ fontWeight: 600 }}>No leads matching this filter.</p>
                 </div>

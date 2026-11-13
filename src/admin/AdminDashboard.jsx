@@ -29,6 +29,8 @@ import {
   PieChart,
   Activity,
   Menu,
+  Trash2,
+  RotateCcw,
 } from 'lucide-react'
 import { api } from '../api'
 
@@ -64,6 +66,9 @@ export default function AdminDashboard({ user, onLogout }) {
   // Modals & Notifications
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [showPasteModal, setShowPasteModal] = useState(false)
+  const [showResetModal, setShowResetModal] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
   const [pasteContent, setPasteContent] = useState('')
   const [activeLeadModal, setActiveLeadModal] = useState(null)
   const [notification, setNotification] = useState(null)
@@ -207,9 +212,16 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   }
 
-  // File Upload (XLSX, XLS, CSV, TSV)
-  const handleFileUpload = async e => {
-    const file = e.target.files?.[0]
+  // File Upload (XLSX, XLS, CSV, TSV) - supports file input change & drag-and-drop
+  const handleFileUpload = async eventOrFile => {
+    let file = null
+    if (eventOrFile?.target?.files?.[0]) {
+      file = eventOrFile.target.files[0]
+    } else if (eventOrFile instanceof File) {
+      file = eventOrFile
+    } else if (eventOrFile?.dataTransfer?.files?.[0]) {
+      file = eventOrFile.dataTransfer.files[0]
+    }
     if (!file) return
 
     setUploading(true)
@@ -217,13 +229,30 @@ export default function AdminDashboard({ user, onLogout }) {
       const res = await api.uploadLeadsFile(file)
       showNotify('success', res.message || `Imported ${res.addedCount} new leads from ${file.name}`)
       setShowUploadModal(false)
+      setIsDragging(false)
       await loadOverviewData()
       if (activeTab === 'all-leads') await loadMasterLeads(1)
     } catch (err) {
       showNotify('error', err.message || 'File upload failed')
     } finally {
       setUploading(false)
-      e.target.value = ''
+      if (eventOrFile?.target) eventOrFile.target.value = ''
+    }
+  }
+
+  // Temporary Tool: Reset / Clean Lead Database
+  const handleResetDb = async (mode = 'clean') => {
+    setResetting(true)
+    try {
+      const res = await api.resetLeadDatabase(mode)
+      showNotify('success', res.message || 'Lead database updated successfully')
+      setShowResetModal(false)
+      await loadOverviewData()
+      if (activeTab === 'all-leads') await loadMasterLeads(1)
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to reset database')
+    } finally {
+      setResetting(false)
     }
   }
 
@@ -458,6 +487,15 @@ export default function AdminDashboard({ user, onLogout }) {
               Shows the Live Ingestion & Conversion Pipeline (ONLY HERE!)
               ======================================================== */}
           {activeTab === 'dashboard' && (
+            loading ? (
+              <div className="template-card">
+                <div className="data-loader-container">
+                  <div className="data-loader-spinner" />
+                  <div className="data-loader-text">Loading Real-Time CRM Analytics & Pipeline...</div>
+                  <div className="data-loader-sub">Connecting to MongoDB Atlas database</div>
+                </div>
+              </div>
+            ) : (
             <div>
               {/* LIVE INGESTION & CONVERSION PIPELINE (Only on Dashboard Overview!) */}
               <div className="template-card" style={{ marginBottom: 20 }}>
@@ -608,6 +646,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 </div>
               </div>
             </div>
+            )
           )}
 
           {/* ========================================================
@@ -631,6 +670,15 @@ export default function AdminDashboard({ user, onLogout }) {
                   <button className="btn-pulse-secondary" onClick={() => setShowPasteModal(true)}>
                     <ClipboardPaste size={14} />
                     <span>Paste Meta Data</span>
+                  </button>
+                  {/* Temporary Dev Tool: Clean / Reset Database */}
+                  <button
+                    className="btn-pulse-danger"
+                    onClick={() => setShowResetModal(true)}
+                    title="Temporary tool to clean or reset lead database"
+                  >
+                    <Trash2 size={14} />
+                    <span>Clean / Reset DB</span>
                   </button>
                 </div>
 
@@ -697,7 +745,13 @@ export default function AdminDashboard({ user, onLogout }) {
                   <span className="header-badge">{poolLeads.length} Available to Allocate</span>
                 </div>
                 <div className="template-card-body" style={{ padding: 0 }}>
-                  {poolLeads.length === 0 ? (
+                  {loading ? (
+                    <div className="data-loader-container">
+                      <div className="data-loader-spinner" />
+                      <div className="data-loader-text">Loading unassigned lead pool...</div>
+                      <div className="data-loader-sub">Fetching leads from database</div>
+                    </div>
+                  ) : poolLeads.length === 0 ? (
                     <div style={{ padding: '48px 20px', textAlign: 'center', color: '#64748b' }}>
                       <CheckCircle2 size={40} color="#10b981" style={{ margin: '0 auto 12px' }} />
                       <p style={{ fontWeight: 700, fontSize: 16, color: '#1e293b' }}>
@@ -886,8 +940,20 @@ export default function AdminDashboard({ user, onLogout }) {
                   </span>
                 </div>
                 <div className="template-card-body" style={{ padding: 0 }}>
-                  <div className="leads-table-container">
-                    <table className="leads-table">
+                  {loading ? (
+                    <div className="data-loader-container">
+                      <div className="data-loader-spinner" />
+                      <div className="data-loader-text">Loading Page {page} leads...</div>
+                      <div className="data-loader-sub">Querying MongoDB Atlas database</div>
+                    </div>
+                  ) : masterLeads.length === 0 ? (
+                    <div style={{ padding: '48px 20px', textAlign: 'center', color: '#64748b' }}>
+                      <Search size={36} color="#94a3b8" style={{ margin: '0 auto 12px' }} />
+                      <p style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>No leads match the selected filters</p>
+                    </div>
+                  ) : (
+                    <div className="leads-table-container">
+                      <table className="leads-table">
                       <thead>
                         <tr>
                           <th>Lead ID</th>
@@ -980,6 +1046,7 @@ export default function AdminDashboard({ user, onLogout }) {
                       </tbody>
                     </table>
                   </div>
+                  )}
 
                   {/* Backend Pagination Bar (30 items per page) */}
                   <div className="pagination-container">
@@ -1032,6 +1099,15 @@ export default function AdminDashboard({ user, onLogout }) {
               NO live ingestion pipeline card here!
               ======================================================== */}
           {activeTab === 'reports' && (
+            loading ? (
+              <div className="template-card">
+                <div className="data-loader-container">
+                  <div className="data-loader-spinner" />
+                  <div className="data-loader-text">Compiling Executive Reports & Analytics...</div>
+                  <div className="data-loader-sub">Calculating conversion rates, demographic splits & counselor metrics</div>
+                </div>
+              </div>
+            ) : (
             <div>
               {/* Report Sub-tabs Header */}
               <div className="admin-tab-nav">
@@ -1335,6 +1411,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 </div>
               )}
             </div>
+            )
           )}
         </div>
       </main>
@@ -1345,14 +1422,25 @@ export default function AdminDashboard({ user, onLogout }) {
           ======================================================== */}
       {showUploadModal && (
         <div className="modal-overlay">
-          <div className="modal-card">
+          <div className="modal-card" style={{ position: 'relative' }}>
+            {uploading && (
+              <div className="modal-loading-overlay">
+                <div className="data-loader-spinner" />
+                <div className="data-loader-text">Extracting & Normalizing Leads...</div>
+                <div className="data-loader-sub">Parsing Meta columns, Malayalam cities & saving to MongoDB</div>
+              </div>
+            )}
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <FileSpreadsheet size={18} />
                 <h3 style={{ margin: 0, fontSize: 16 }}>Import Meta Lead Ads File</h3>
               </div>
               <button
-                onClick={() => setShowUploadModal(false)}
+                onClick={() => {
+                  setShowUploadModal(false)
+                  setIsDragging(false)
+                }}
+                disabled={uploading}
                 style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}
               >
                 <X size={18} />
@@ -1363,7 +1451,27 @@ export default function AdminDashboard({ user, onLogout }) {
                 Upload any Facebook/Instagram lead export file. Supports <strong>.xlsx</strong>, <strong>.xls</strong>, <strong>.csv</strong>, and <strong>.tsv</strong> formats.
               </p>
 
-              <label className="upload-dropzone">
+              <label
+                className={`upload-dropzone ${isDragging ? 'dragging' : ''}`}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setIsDragging(true)
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setIsDragging(false)
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setIsDragging(false)
+                  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleFileUpload(e.dataTransfer.files[0])
+                  }
+                }}
+              >
                 <input
                   type="file"
                   accept=".xlsx,.xls,.csv,.tsv"
@@ -1371,9 +1479,11 @@ export default function AdminDashboard({ user, onLogout }) {
                   style={{ display: 'none' }}
                   disabled={uploading}
                 />
-                <Upload size={32} color="#0284c7" style={{ margin: '0 auto 10px' }} />
-                <div style={{ fontWeight: 600, color: '#1e293b', marginBottom: 4 }}>
-                  {uploading ? 'Processing & Extracting Leads...' : 'Click to select or drag & drop file'}
+                <div className="upload-icon-circle">
+                  <Upload size={28} color="#0284c7" />
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b', marginBottom: 4 }}>
+                  {uploading ? 'Processing & Extracting Leads...' : isDragging ? 'Drop file to upload' : 'Click to select or drag & drop file'}
                 </div>
                 <div style={{ fontSize: 12, color: '#64748b' }}>
                   Meta Lead Ads CSV, Excel (.xlsx/.xls) or Tab-separated (.tsv)
@@ -1391,7 +1501,14 @@ export default function AdminDashboard({ user, onLogout }) {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn-pulse-secondary" onClick={() => setShowUploadModal(false)}>
+              <button
+                className="btn-pulse-secondary"
+                onClick={() => {
+                  setShowUploadModal(false)
+                  setIsDragging(false)
+                }}
+                disabled={uploading}
+              >
                 Close
               </button>
             </div>
@@ -1405,7 +1522,14 @@ export default function AdminDashboard({ user, onLogout }) {
           ======================================================== */}
       {showPasteModal && (
         <div className="modal-overlay">
-          <div className="modal-card">
+          <div className="modal-card" style={{ position: 'relative' }}>
+            {uploading && (
+              <div className="modal-loading-overlay">
+                <div className="data-loader-spinner" />
+                <div className="data-loader-text">Parsing & Ingesting Leads into MongoDB...</div>
+                <div className="data-loader-sub">Extracting fields & deduplicating phone numbers</div>
+              </div>
+            )}
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <ClipboardPaste size={18} />
@@ -1413,6 +1537,7 @@ export default function AdminDashboard({ user, onLogout }) {
               </div>
               <button
                 onClick={() => setShowPasteModal(false)}
+                disabled={uploading}
                 style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}
               >
                 <X size={18} />
@@ -1440,7 +1565,11 @@ export default function AdminDashboard({ user, onLogout }) {
               />
             </div>
             <div className="modal-footer">
-              <button className="btn-pulse-secondary" onClick={() => setShowPasteModal(false)}>
+              <button
+                className="btn-pulse-secondary"
+                onClick={() => setShowPasteModal(false)}
+                disabled={uploading}
+              >
                 Cancel
               </button>
               <button
@@ -1449,6 +1578,86 @@ export default function AdminDashboard({ user, onLogout }) {
                 disabled={uploading || !pasteContent.trim()}
               >
                 {uploading ? 'Processing...' : 'Parse & Ingest into Pool'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL: TEMPORARY DEV TOOL TO RESET / CLEAN LEAD DB
+          ======================================================== */}
+      {showResetModal && (
+        <div className="modal-overlay">
+          <div className="modal-card" style={{ maxWidth: 520, position: 'relative' }}>
+            {resetting && (
+              <div className="modal-loading-overlay">
+                <div className="data-loader-spinner" />
+                <div className="data-loader-text">Resetting Lead Database...</div>
+                <div className="data-loader-sub">Updating MongoDB Atlas collections</div>
+              </div>
+            )}
+            <div className="modal-header" style={{ background: '#991b1b' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Trash2 size={18} />
+                <h3 style={{ margin: 0, fontSize: 16 }}>Dev Tool: Clean / Reset Lead Database</h3>
+              </div>
+              <button
+                onClick={() => setShowResetModal(false)}
+                style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}
+                disabled={resetting}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: 13, color: '#334155', marginBottom: 16 }}>
+                Use this temporary utility to test fresh Meta Lead imports or reset to baseline demo data:
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Option 1: Clean All Leads */}
+                <div style={{ border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 8, padding: 14 }}>
+                  <div style={{ fontWeight: 700, color: '#991b1b', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Trash2 size={15} /> Option 1: Wipe All Leads (Empty Database)
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+                    Deletes all leads in the database (unassigned & assigned). Use this to start with a completely empty pool to test uploading brand new XLSX/CSV files.
+                  </div>
+                  <button
+                    className="btn-pulse-danger"
+                    onClick={() => handleResetDb('clean')}
+                    disabled={resetting}
+                  >
+                    Wipe All Leads (Set to 0)
+                  </button>
+                </div>
+
+                {/* Option 2: Reseed Default 34 Meta Leads */}
+                <div style={{ border: '1px solid #bfdbfe', background: '#eff6ff', borderRadius: 8, padding: 14 }}>
+                  <div style={{ fontWeight: 700, color: '#1e40af', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <RotateCcw size={15} /> Option 2: Reset & Reseed Demo Leads (34 Leads)
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+                    Restores the initial 34 extracted Meta leads and default counselor assignments across Kerala & GCC territories.
+                  </div>
+                  <button
+                    className="btn-pulse"
+                    onClick={() => handleResetDb('reseed')}
+                    disabled={resetting}
+                  >
+                    Reseed 34 Baseline Leads
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn-pulse-secondary"
+                onClick={() => setShowResetModal(false)}
+                disabled={resetting}
+              >
+                Cancel
               </button>
             </div>
           </div>
