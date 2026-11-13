@@ -324,6 +324,17 @@ export default function AdminDashboard({ user, onLogout }) {
       {/* 1. Left Sidebar (Fixed desktop / Slide-over mobile drawer) */}
       <aside className={`sidebar ${mobileMenuOpen ? 'sidebar-mobile-open' : ''}`}>
         <div className="sidebar-brand">
+          <div className="sidebar-drawer-top">
+            <span className="sidebar-drawer-badge">Admin Navigation</span>
+            <button
+              className="sidebar-close-btn"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-label="Close Navigation"
+              title="Close Menu"
+            >
+              <X size={18} />
+            </button>
+          </div>
           <div className="brand-logo-container">
             <img src="/logo-brand-white.png" alt="Futureace Academy Logo" className="brand-logo-img" />
           </div>
@@ -331,14 +342,6 @@ export default function AdminDashboard({ user, onLogout }) {
             <h2>Futureace Academy CRM</h2>
             <span>Admin Portal</span>
           </div>
-          <button
-            className="sidebar-close-btn"
-            onClick={() => setMobileMenuOpen(false)}
-            aria-label="Close Navigation"
-            title="Close Menu"
-          >
-            <X size={18} />
-          </button>
         </div>
 
         <nav className="sidebar-nav">

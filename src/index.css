@@ -31,10 +31,17 @@
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+html {
+  height: 100%;
+  height: 100dvh;
+}
+
 body {
   background-color: var(--app-bg);
   color: var(--text-main);
-  height: 100vh;
+  height: 100%;
+  height: 100dvh;
+  min-height: -webkit-fill-available;
   overflow: hidden;
 }
 
@@ -43,15 +50,18 @@ body {
    ======================================================== */
 .app-container {
   display: flex;
-  height: 100vh;
+  height: 100%;
+  height: 100dvh;
   width: 100vw;
+  max-width: 100%;
   overflow: hidden;
 }
 
 /* Sidebar (Left - Fixed exactly one page size) */
 .sidebar {
   width: 260px;
-  height: 100vh;
+  height: 100%;
+  height: 100dvh;
   background: linear-gradient(180deg, #0b1536 0%, #080e26 100%);
   color: #ffffff;
   display: flex;
@@ -60,6 +70,7 @@ body {
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 2px 0 16px rgba(0, 0, 0, 0.12);
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .sidebar-brand {
@@ -208,12 +219,14 @@ body {
 .main-content,
 .main-wrapper {
   flex: 1;
-  height: 100vh;
+  height: 100%;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
   background-color: var(--app-bg);
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Minimalist Clean Header Row (Replaces the thick block header) */
@@ -1356,6 +1369,10 @@ body {
 /* ========================================================
    Mobile & Tablet Responsive Breakpoints
    ======================================================== */
+.sidebar-drawer-top {
+  display: none;
+}
+
 @media (max-width: 992px) {
   .btn-hamburger {
     display: inline-flex;
@@ -1366,35 +1383,65 @@ body {
     top: 0;
     left: 0;
     bottom: 0;
-    width: 280px;
-    max-width: 85vw;
+    height: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    width: 290px;
+    max-width: 86vw;
     z-index: 999;
     transform: translateX(-100%);
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   .sidebar.sidebar-mobile-open {
     transform: translateX(0);
   }
 
+  /* Dedicated header bar in mobile drawer so close icon NEVER overlaps logo */
+  .sidebar-drawer-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .sidebar-drawer-badge {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #38bdf8;
+  }
+
   .sidebar-close-btn {
+    position: static !important;
     display: inline-flex;
+    margin-left: auto;
   }
 
   .sidebar-brand {
     position: relative;
-    padding-top: 20px;
+    padding: 16px 16px 14px;
   }
 
-  .sidebar-brand .sidebar-close-btn {
-    position: absolute;
-    top: 14px;
-    right: 14px;
+  .sidebar-footer {
+    padding: 14px 14px calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+    flex-shrink: 0;
+    background: #080e26;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   .content-area {
-    padding: 18px 20px 40px;
+    padding: 18px 20px 60px;
     gap: 16px;
   }
 
@@ -1404,9 +1451,11 @@ body {
 }
 
 @media (max-width: 768px) {
+  /* Generous bottom padding to prevent mobile browser navigation / gesture bar cutoff */
   .content-area {
-    padding: 14px 12px 36px;
-    gap: 14px;
+    padding: 14px 12px calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+    gap: 16px;
+    min-height: 100%;
   }
 
   .page-header-row {
@@ -1505,16 +1554,20 @@ body {
     justify-content: center;
   }
 
+  /* Pagination Bar on mobile with dedicated bottom clearance */
   .pagination-container {
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     text-align: center;
+    padding: 18px 12px calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+    margin-bottom: 16px;
   }
 
   .pagination-controls {
     flex-wrap: wrap;
     justify-content: center;
+    gap: 6px;
   }
 
   .stage-report-grid {
