@@ -173,6 +173,20 @@ export const api = {
       body: JSON.stringify(payload),
     })
   },
+
+  previewFormLeads: async formId => {
+    return await request('/meta/preview-form-leads', {
+      method: 'POST',
+      body: JSON.stringify({ formId }),
+    })
+  },
+
+  importSelectedLeads: async leads => {
+    return await request('/meta/import-selected-leads', {
+      method: 'POST',
+      body: JSON.stringify({ leads }),
+    })
+  },
 }
 
 export default api

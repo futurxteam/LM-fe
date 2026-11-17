@@ -106,3 +106,4 @@ export function sendDesktopNotification(title, body, tag = 'crm-new-lead') {
     return null
   }
 }
+

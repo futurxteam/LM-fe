@@ -38,6 +38,12 @@ import {
   Zap,
   Send,
   ExternalLink,
+  Radio,
+  Eye,
+  EyeOff,
+  CheckSquare,
+  Square,
+  Download,
 } from 'lucide-react'
 import { api } from '../api'
 import { playChime, requestNotificationPermission, sendDesktopNotification } from '../utils/alertUtils'
@@ -108,6 +114,15 @@ export default function AdminDashboard({ user, onLogout }) {
   const [browserPermissionState, setBrowserPermissionState] = useState(
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
   )
+
+  // Form Leads Preview & Optional Ingestion State
+  const [showFormPreviewModal, setShowFormPreviewModal] = useState(false)
+  const [previewFormId, setPreviewFormId] = useState('')
+  const [previewFormName, setPreviewFormName] = useState('')
+  const [previewLeads, setPreviewLeads] = useState([])
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewSelectedIds, setPreviewSelectedIds] = useState([])
+  const [importingPreview, setImportingPreview] = useState(false)
 
   const prevPoolCountRef = useRef(null)
 
@@ -581,6 +596,88 @@ export default function AdminDashboard({ user, onLogout }) {
       showNotify('error', err.message || 'Failed to save alert settings')
     } finally {
       setSavingMetaConfig(false)
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Form Leads Preview & Optional Ingestion Handlers
+  // -------------------------------------------------------------
+  const handleOpenFormPreview = async (formId, formName) => {
+    setPreviewFormId(formId)
+    setPreviewFormName(formName)
+    setShowFormPreviewModal(true)
+    setPreviewLoading(true)
+    setPreviewLeads([])
+    setPreviewSelectedIds([])
+
+    try {
+      const res = await api.previewFormLeads(formId)
+      if (res?.leads) {
+        setPreviewLeads(res.leads)
+        // Auto-select candidates who are NOT already in the database
+        const newLeadIds = res.leads.filter(l => !l.isExistingInDb).map(l => l.metaLeadId)
+        setPreviewSelectedIds(newLeadIds)
+      }
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to preview leads for this form')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  const handleTogglePreviewSelect = metaLeadId => {
+    setPreviewSelectedIds(prev =>
+      prev.includes(metaLeadId) ? prev.filter(id => id !== metaLeadId) : [...prev, metaLeadId]
+    )
+  }
+
+  const handleSelectAllPreview = (onlyNew = false) => {
+    if (onlyNew) {
+      setPreviewSelectedIds(previewLeads.filter(l => !l.isExistingInDb).map(l => l.metaLeadId))
+    } else {
+      setPreviewSelectedIds(previewLeads.map(l => l.metaLeadId))
+    }
+  }
+
+  const handleDeselectAllPreview = () => {
+    setPreviewSelectedIds([])
+  }
+
+  const handleImportSelectedLeads = async () => {
+    if (previewSelectedIds.length === 0) {
+      showNotify('error', 'Select at least one lead to add to the pool')
+      return
+    }
+
+    const selectedLeadObjects = previewLeads.filter(l => previewSelectedIds.includes(l.metaLeadId))
+    setImportingPreview(true)
+
+    try {
+      const res = await api.importSelectedLeads(selectedLeadObjects)
+      const added = res.addedCount || 0
+      showNotify('success', res.message || `Added ${added} lead(s) to unassigned pool!`)
+      if (added > 0 && metaAlerts.soundAlert) {
+        playChime()
+      }
+      if (added > 0 && metaAlerts.browserNotifications) {
+        sendDesktopNotification(
+          'Leads Added to Pool!',
+          `${added} candidate lead(s) added to the unassigned pool!`
+        )
+      }
+
+      // Mark the imported leads as existing in DB
+      setPreviewLeads(prev =>
+        prev.map(l => (previewSelectedIds.includes(l.metaLeadId) ? { ...l, isExistingInDb: true } : l))
+      )
+      setPreviewSelectedIds([])
+
+      await loadOverviewData()
+      if (activeTab === 'all-leads') await loadMasterLeads(1)
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to import selected leads')
+    } finally {
+      setImportingPreview(false)
     }
   }
 
@@ -2345,18 +2442,44 @@ export default function AdminDashboard({ user, onLogout }) {
                               {form.locale && <span>🌐 {form.locale}</span>}
                             </div>
                           </div>
-                          <label
-                            className="toggle-switch"
-                            onClick={e => e.stopPropagation()}
-                            style={{ marginLeft: 16 }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={!!form.active}
-                              onChange={() => handleToggleForm(form.formId)}
-                            />
-                            <span className="toggle-slider" />
-                          </label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 16 }}>
+                            <button
+                              type="button"
+                              className="btn-pulse-secondary"
+                              onClick={e => {
+                                e.stopPropagation()
+                                handleOpenFormPreview(form.formId, form.formName)
+                              }}
+                              style={{
+                                fontSize: 12,
+                                padding: '5px 11px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                background: '#eff6ff',
+                                borderColor: '#bfdbfe',
+                                color: '#1d4ed8',
+                                fontWeight: 600,
+                              }}
+                              title="Inspect leads from this form in UI and optionally add to pool"
+                            >
+                              <Eye size={13} />
+                              <span>View Leads</span>
+                            </button>
+
+                            <label
+                              className="toggle-switch"
+                              onClick={e => e.stopPropagation()}
+                              title="Toggle active for auto sync"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={!!form.active}
+                                onChange={() => handleToggleForm(form.formId)}
+                              />
+                              <span className="toggle-slider" />
+                            </label>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2758,6 +2881,260 @@ export default function AdminDashboard({ user, onLogout }) {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL: FORM LEADS PREVIEW & OPTIONAL POOL INGESTION
+          ======================================================== */}
+      {showFormPreviewModal && (
+        <div className="modal-overlay" style={{ zIndex: 10001 }}>
+          <div className="modal-card" style={{ maxWidth: 960, width: '95%', maxHeight: '92vh', position: 'relative' }}>
+            {previewLoading && (
+              <div className="modal-loading-overlay">
+                <div className="data-loader-spinner" />
+                <div className="data-loader-text">Fetching Live Form Leads from Meta Graph API...</div>
+                <div className="data-loader-sub">Extracting candidate data, Malayalam cities & checking CRM status</div>
+              </div>
+            )}
+            {importingPreview && (
+              <div className="modal-loading-overlay">
+                <div className="data-loader-spinner" />
+                <div className="data-loader-text">Adding Selected Leads to Pool...</div>
+                <div className="data-loader-sub">Saving unassigned leads into MongoDB Atlas</div>
+              </div>
+            )}
+
+            <div className="modal-header" style={{ background: '#0f172a' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <FileSpreadsheet size={18} color="#38bdf8" />
+                  <h3 style={{ margin: 0, fontSize: 16 }}>Form Lead Data Preview: {previewFormName}</h3>
+                </div>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                  Form ID: <code>{previewFormId}</code> • Inspect candidate submissions before adding to pool
+                </div>
+              </div>
+              <button
+                onClick={() => setShowFormPreviewModal(false)}
+                disabled={importingPreview}
+                style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Action / Selection Bar */}
+            <div
+              style={{
+                padding: '12px 18px',
+                background: '#f8fafc',
+                borderBottom: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 10,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                <span className="meta-badge-count" style={{ background: '#e0f2fe', color: '#0369a1' }}>
+                  Total on Meta: {previewLeads.length}
+                </span>
+                <span className="meta-badge-count" style={{ background: '#dcfce7', color: '#15803d' }}>
+                  New (Ready to Ingest): {previewLeads.filter(l => !l.isExistingInDb).length}
+                </span>
+                <span className="meta-badge-count" style={{ background: '#f1f5f9', color: '#64748b' }}>
+                  Already in CRM: {previewLeads.filter(l => l.isExistingInDb).length}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn-pulse-secondary"
+                  onClick={() => handleSelectAllPreview(true)}
+                  style={{ fontSize: 11, padding: '5px 10px' }}
+                >
+                  Select All New ({previewLeads.filter(l => !l.isExistingInDb).length})
+                </button>
+                <button
+                  type="button"
+                  className="btn-pulse-secondary"
+                  onClick={() => handleSelectAllPreview(false)}
+                  style={{ fontSize: 11, padding: '5px 10px' }}
+                >
+                  Select All ({previewLeads.length})
+                </button>
+                <button
+                  type="button"
+                  className="btn-pulse-secondary"
+                  onClick={handleDeselectAllPreview}
+                  style={{ fontSize: 11, padding: '5px 10px' }}
+                >
+                  Clear Selection
+                </button>
+                <button
+                  type="button"
+                  className="btn-pulse"
+                  onClick={handleImportSelectedLeads}
+                  disabled={previewSelectedIds.length === 0 || importingPreview}
+                  style={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    fontSize: 12,
+                    padding: '6px 14px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontWeight: 700,
+                  }}
+                >
+                  <Download size={14} />
+                  <span>Add Selected ({previewSelectedIds.length}) to Pool</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Leads Table */}
+            <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto', padding: 0 }}>
+              {previewLeads.length === 0 && !previewLoading ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+                  No lead submissions found for this form on Meta.
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="leads-table" style={{ width: '100%', minWidth: 720, margin: 0 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 40, textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={previewSelectedIds.length > 0 && previewSelectedIds.length === previewLeads.length}
+                            onChange={e =>
+                              e.target.checked ? handleSelectAllPreview(false) : handleDeselectAllPreview()
+                            }
+                          />
+                        </th>
+                        <th>Candidate Name</th>
+                        <th>Phone & Email</th>
+                        <th>Educational Qualification</th>
+                        <th>Preferred City</th>
+                        <th>Submitted At</th>
+                        <th>CRM Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewLeads.map(lead => {
+                        const isSelected = previewSelectedIds.includes(lead.metaLeadId)
+                        return (
+                          <tr
+                            key={lead.metaLeadId}
+                            style={{
+                              background: isSelected ? '#f0f9ff' : lead.isExistingInDb ? '#fafafa' : '#fff',
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => handleTogglePreviewSelect(lead.metaLeadId)}
+                          >
+                            <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleTogglePreviewSelect(lead.metaLeadId)}
+                              />
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 700, color: '#0f172a' }}>{lead.fullName}</div>
+                              <div style={{ fontSize: 10, color: '#94a3b8' }}>ID: {lead.metaLeadId}</div>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 600, color: '#0284c7' }}>{lead.phone}</div>
+                              <div style={{ fontSize: 11, color: '#64748b' }}>{lead.email || '—'}</div>
+                            </td>
+                            <td>
+                              <span style={{ fontSize: 12, color: '#334155' }}>{lead.qualification}</span>
+                            </td>
+                            <td>
+                              <span style={{ fontSize: 12, color: '#334155' }}>📍 {lead.preferredLocation}</span>
+                            </td>
+                            <td style={{ fontSize: 11, color: '#64748b' }}>
+                              {lead.createdTime ? new Date(lead.createdTime).toLocaleString() : 'Recent'}
+                            </td>
+                            <td>
+                              {lead.isExistingInDb ? (
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    padding: '3px 8px',
+                                    borderRadius: 12,
+                                    background: '#e0f2fe',
+                                    color: '#0369a1',
+                                    display: 'inline-block',
+                                  }}
+                                >
+                                  ✓ In CRM ({lead.existingAssignment || lead.existingStatus || 'Pool'})
+                                </span>
+                              ) : (
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    padding: '3px 8px',
+                                    borderRadius: 12,
+                                    background: '#dcfce7',
+                                    color: '#15803d',
+                                    display: 'inline-block',
+                                  }}
+                                >
+                                  + Ready to Ingest
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div
+              className="modal-footer"
+              style={{
+                borderTop: '1px solid #e2e8f0',
+                padding: '12px 18px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div style={{ fontSize: 12, color: '#64748b' }}>
+                Selected: <strong>{previewSelectedIds.length}</strong> of <strong>{previewLeads.length}</strong> leads
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  className="btn-pulse-secondary"
+                  onClick={() => setShowFormPreviewModal(false)}
+                  disabled={importingPreview}
+                >
+                  Close
+                </button>
+                <button
+                  className="btn-pulse"
+                  onClick={handleImportSelectedLeads}
+                  disabled={previewSelectedIds.length === 0 || importingPreview}
+                  style={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    fontWeight: 700,
+                  }}
+                >
+                  {importingPreview ? 'Adding to Pool...' : `Add Selected (${previewSelectedIds.length}) to Pool`}
+                </button>
+              </div>
             </div>
           </div>
         </div>
