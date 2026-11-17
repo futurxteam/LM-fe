@@ -22,6 +22,7 @@ import {
   Menu,
 } from 'lucide-react'
 import { api } from '../api'
+import { formatArrivalTime } from '../utils/alertUtils'
 
 export default function SalesDashboard({ user, onLogout }) {
   const [activeNav, setActiveNav] = useState('Dashboard')
@@ -382,6 +383,10 @@ export default function SalesDashboard({ user, onLogout }) {
                                 </a>
                               </div>
                               <div style={{ fontSize: 11, color: '#94a3b8' }}>{lead.email}</div>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#64748b', marginTop: 3 }}>
+                                <Clock size={11} color="#0284c7" />
+                                <span>{formatArrivalTime(lead.createdTime || lead.createdAt)}</span>
+                              </div>
                             </td>
                             <td>
                               <div style={{ fontSize: 12, fontWeight: 500 }}>{lead.qualification}</div>

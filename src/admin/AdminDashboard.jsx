@@ -44,9 +44,10 @@ import {
   CheckSquare,
   Square,
   Download,
+  Clock,
 } from 'lucide-react'
 import { api } from '../api'
-import { playChime, requestNotificationPermission, sendDesktopNotification } from '../utils/alertUtils'
+import { playChime, requestNotificationPermission, sendDesktopNotification, formatArrivalTime } from '../utils/alertUtils'
 
 export default function AdminDashboard({ user, onLogout }) {
   // Navigation Tabs: 'dashboard' | 'pool' | 'all-leads' | 'reports'
@@ -60,8 +61,9 @@ export default function AdminDashboard({ user, onLogout }) {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // Master List Backend Pagination (by 30)
+  // Master List Pagination / View Mode ('all' | '30' | '50' | '100')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState('all') // Default to 'all' shown as requested
   const [totalPages, setTotalPages] = useState(1)
   const [totalLeadsCount, setTotalLeadsCount] = useState(0)
 
@@ -164,12 +166,12 @@ export default function AdminDashboard({ user, onLogout }) {
     return () => clearInterval(pollInterval)
   }, [metaAlerts])
 
-  // Load paginated master list whenever page or filters change
+  // Load master list whenever page, pageSize or filters change
   useEffect(() => {
     if (activeTab === 'all-leads') {
-      loadMasterLeads(page)
+      loadMasterLeads(page, pageSize)
     }
-  }, [page, statusFilter, qualFilter, searchQuery, activeTab])
+  }, [page, pageSize, statusFilter, qualFilter, searchQuery, activeTab])
 
   // Overview loader
   const loadOverviewData = async (isBackgroundPoll = false) => {
@@ -216,27 +218,33 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   }
 
-  // Master leads loader (Backend-paginated by 30)
-  const loadMasterLeads = async targetPage => {
+  // Master leads loader (Backend-paginated by 30 or Show All)
+  const loadMasterLeads = async (targetPage = page, sizeOption = pageSize) => {
     setLoading(true)
     try {
-      const res = await api.getLeads({
-        page: targetPage,
-        limit: 30,
+      const isAll = sizeOption === 'all'
+      const queryParams = {
         status: statusFilter !== 'All' ? statusFilter : undefined,
         qualification: qualFilter !== 'All' ? qualFilter : undefined,
         search: searchQuery.trim() || undefined,
-      })
+      }
+
+      if (!isAll) {
+        queryParams.page = targetPage
+        queryParams.limit = parseInt(sizeOption) || 30
+      }
+
+      const res = await api.getLeads(queryParams)
 
       if (res && res.leads) {
         setMasterLeads(res.leads)
         setTotalLeadsCount(res.total)
-        setTotalPages(res.totalPages || 1)
-        setPage(res.page || 1)
+        setTotalPages(isAll ? 1 : (res.totalPages || 1))
+        setPage(isAll ? 1 : (res.page || 1))
       } else if (Array.isArray(res)) {
-        setMasterLeads(res.slice(0, 30))
+        setMasterLeads(res)
         setTotalLeadsCount(res.length)
-        setTotalPages(Math.ceil(res.length / 30) || 1)
+        setTotalPages(1)
         setPage(1)
       }
     } catch (err) {
@@ -1199,6 +1207,7 @@ export default function AdminDashboard({ user, onLogout }) {
                               />
                             </th>
                             <th>Candidate / Contact</th>
+                            <th>Time of Arrival</th>
                             <th>Qualification & Degree</th>
                             <th>Preferred Location</th>
                             <th>Mode / Role</th>
@@ -1230,6 +1239,15 @@ export default function AdminDashboard({ user, onLogout }) {
                                   </div>
                                   <div style={{ fontSize: 12, color: '#475569' }}>{lead.phone}</div>
                                   <div style={{ fontSize: 11, color: '#94a3b8' }}>{lead.email}</div>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
+                                    <Clock size={13} color="#0284c7" />
+                                    <span>{formatArrivalTime(lead.createdTime || lead.createdAt)}</span>
+                                  </div>
+                                  <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                                    {lead.createdTime ? new Date(lead.createdTime).toLocaleDateString([], { month: 'short', day: 'numeric' }) : ''}
+                                  </div>
                                 </td>
                                 <td>
                                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#f1f5f9', padding: '3px 8px', borderRadius: 4, fontSize: 12, fontWeight: 500 }}>
@@ -1353,6 +1371,24 @@ export default function AdminDashboard({ user, onLogout }) {
                     <option value="Post Graduation">Post Graduation</option>
                     <option value="Graduation / Degree">Graduation / Degree</option>
                   </select>
+
+                  {/* View Mode: Show All vs Paginated */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+                    <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Display:</span>
+                    <select
+                      value={pageSize}
+                      onChange={e => {
+                        setPageSize(e.target.value)
+                        setPage(1)
+                      }}
+                      style={{ padding: '5px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 600, background: '#fff' }}
+                    >
+                      <option value="all">All Leads (Show All)</option>
+                      <option value="30">30 per page</option>
+                      <option value="50">50 per page</option>
+                      <option value="100">100 per page</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -1361,14 +1397,16 @@ export default function AdminDashboard({ user, onLogout }) {
                 <div className="template-card-header">
                   <h3>Master Ingested Leads List</h3>
                   <span className="header-badge">
-                    Page {page} of {totalPages} ({totalLeadsCount} total leads)
+                    {pageSize === 'all'
+                      ? `All ${masterLeads.length} Leads Shown`
+                      : `Page ${page} of ${totalPages} (${totalLeadsCount} total leads)`}
                   </span>
                 </div>
                 <div className="template-card-body" style={{ padding: 0 }}>
                   {loading ? (
                     <div className="data-loader-container">
                       <div className="data-loader-spinner" />
-                      <div className="data-loader-text">Loading Page {page} leads...</div>
+                      <div className="data-loader-text">Loading {pageSize === 'all' ? 'all' : `Page ${page}`} leads...</div>
                       <div className="data-loader-sub">Querying MongoDB Atlas database</div>
                     </div>
                   ) : masterLeads.length === 0 ? (
@@ -1383,6 +1421,7 @@ export default function AdminDashboard({ user, onLogout }) {
                         <tr>
                           <th>Lead ID</th>
                           <th>Candidate & Contacts</th>
+                          <th>Time of Arrival</th>
                           <th>Qualification / City</th>
                           <th>Assignment State</th>
                           <th>Contact Status</th>
@@ -1407,6 +1446,15 @@ export default function AdminDashboard({ user, onLogout }) {
                                 </div>
                                 <div style={{ fontSize: 12, color: '#475569' }}>{lead.phone}</div>
                                 <div style={{ fontSize: 11, color: '#94a3b8' }}>{lead.email}</div>
+                              </td>
+                              <td>
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
+                                  <Clock size={13} color="#0284c7" />
+                                  <span>{formatArrivalTime(lead.createdTime || lead.createdAt)}</span>
+                                </div>
+                                <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                                  {lead.createdTime ? new Date(lead.createdTime).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                                </div>
                               </td>
                               <td>
                                 <div style={{ fontSize: 12, fontWeight: 500 }}>{lead.qualification}</div>
@@ -1473,46 +1521,55 @@ export default function AdminDashboard({ user, onLogout }) {
                   </div>
                   )}
 
-                  {/* Backend Pagination Bar (30 items per page) */}
-                  <div className="pagination-container">
-                    <div>
-                      Showing{' '}
-                      <strong>
-                        {totalLeadsCount === 0 ? 0 : (page - 1) * 30 + 1} - {Math.min(page * 30, totalLeadsCount)}
-                      </strong>{' '}
-                      of <strong>{totalLeadsCount}</strong> total leads (Page {page} of {totalPages})
+                  {/* Pagination Bar or All Leads Indicator */}
+                  {pageSize === 'all' ? (
+                    <div className="pagination-container" style={{ justifyContent: 'center' }}>
+                      <div style={{ fontSize: 13, color: '#475569' }}>
+                        Showing all <strong>{masterLeads.length}</strong> leads in master directory (Full list displayed).
+                      </div>
                     </div>
-                    <div className="pagination-controls">
-                      <button
-                        className="btn-pagination"
-                        onClick={() => setPage(p => Math.max(p - 1, 1))}
-                        disabled={page <= 1 || loading}
-                      >
-                        <ChevronLeft size={14} />
-                        <span>Previous</span>
-                      </button>
-
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                  ) : (
+                    <div className="pagination-container">
+                      <div>
+                        Showing{' '}
+                        <strong>
+                          {totalLeadsCount === 0 ? 0 : (page - 1) * parseInt(pageSize) + 1} -{' '}
+                          {Math.min(page * parseInt(pageSize), totalLeadsCount)}
+                        </strong>{' '}
+                        of <strong>{totalLeadsCount}</strong> total leads (Page {page} of {totalPages})
+                      </div>
+                      <div className="pagination-controls">
                         <button
-                          key={p}
-                          className={`btn-pagination ${page === p ? 'active' : ''}`}
-                          onClick={() => setPage(p)}
-                          disabled={loading}
+                          className="btn-pagination"
+                          onClick={() => setPage(p => Math.max(p - 1, 1))}
+                          disabled={page <= 1 || loading}
                         >
-                          {p}
+                          <ChevronLeft size={14} />
+                          <span>Previous</span>
                         </button>
-                      ))}
 
-                      <button
-                        className="btn-pagination"
-                        onClick={() => setPage(p => Math.min(p + 1, totalPages))}
-                        disabled={page >= totalPages || loading}
-                      >
-                        <span>Next</span>
-                        <ChevronRight size={14} />
-                      </button>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                          <button
+                            key={p}
+                            className={`btn-pagination ${page === p ? 'active' : ''}`}
+                            onClick={() => setPage(p)}
+                            disabled={loading}
+                          >
+                            {p}
+                          </button>
+                        ))}
+
+                        <button
+                          className="btn-pagination"
+                          onClick={() => setPage(p => Math.min(p + 1, totalPages))}
+                          disabled={page >= totalPages || loading}
+                        >
+                          <span>Next</span>
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -2127,6 +2184,20 @@ export default function AdminDashboard({ user, onLogout }) {
                 <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6 }}>
                   <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>PREFERRED WORK LOCATION</div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>📍 {activeLeadModal.preferredLocation}</div>
+                </div>
+                <div style={{ background: '#f0fdf4', padding: 12, borderRadius: 6, border: '1px solid #bbf7d0' }}>
+                  <div style={{ fontSize: 11, color: '#166534', fontWeight: 600 }}>TIME OF ARRIVAL (INGESTION)</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#14532d', display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+                    <Clock size={14} color="#16a34a" />
+                    <span>{formatArrivalTime(activeLeadModal.createdTime || activeLeadModal.createdAt)}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: '#15803d', marginTop: 2 }}>
+                    Exact: {activeLeadModal.createdTime ? new Date(activeLeadModal.createdTime).toLocaleString() : 'N/A'}
+                  </div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6 }}>
+                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>SOURCE CAMPAIGN / FORM</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{activeLeadModal.formName || activeLeadModal.campaignName || 'Meta Ads'}</div>
                 </div>
               </div>
 

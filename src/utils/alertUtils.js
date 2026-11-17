@@ -107,3 +107,28 @@ export function sendDesktopNotification(title, body, tag = 'crm-new-lead') {
   }
 }
 
+/**
+ * Format lead arrival timestamp into a friendly relative/exact time string
+ */
+export function formatArrivalTime(dateVal) {
+  if (!dateVal) return 'Recent'
+  const date = new Date(dateVal)
+  if (isNaN(date.getTime())) return 'Recent'
+
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMins / 60)
+  const diffDays = Math.floor(diffHours / 24)
+
+  const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+  if (diffMins < 1) return 'Just now'
+  if (diffMins < 60) return `${diffMins}m ago (${timeStr})`
+  if (diffHours < 24 && date.getDate() === now.getDate()) return `Today at ${timeStr}`
+  if (diffDays === 1) return `Yesterday at ${timeStr}`
+
+  const dateStr = date.toLocaleDateString([], { day: 'numeric', month: 'short' })
+  return `${dateStr}, ${timeStr}`
+}
+
