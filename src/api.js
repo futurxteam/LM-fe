@@ -124,6 +124,55 @@ export const api = {
       method: 'GET',
     })
   },
+
+  // Meta Graph API Integration & Lead Forms
+  getMetaConfig: async () => {
+    return await request('/meta/config', {
+      method: 'GET',
+    })
+  },
+
+  saveMetaConfig: async payload => {
+    return await request('/meta/config', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  fetchPageForms: async (payload = {}) => {
+    return await request('/meta/fetch-forms', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  saveSelectedForms: async forms => {
+    return await request('/meta/save-forms', {
+      method: 'POST',
+      body: JSON.stringify({ forms }),
+    })
+  },
+
+  syncMetaLeads: async (payload = {}) => {
+    return await request('/meta/sync', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  testTelegramAlert: async payload => {
+    return await request('/meta/test-telegram', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  testWebhookAlert: async payload => {
+    return await request('/meta/test-webhook', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
 }
 
 export default api

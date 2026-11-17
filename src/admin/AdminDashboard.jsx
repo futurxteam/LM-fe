@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   LayoutDashboard,
   Layers,
@@ -31,8 +31,16 @@ import {
   Menu,
   Trash2,
   RotateCcw,
+  Bell,
+  Volume2,
+  Key,
+  ShieldCheck,
+  Zap,
+  Send,
+  ExternalLink,
 } from 'lucide-react'
 import { api } from '../api'
+import { playChime, requestNotificationPermission, sendDesktopNotification } from '../utils/alertUtils'
 
 export default function AdminDashboard({ user, onLogout }) {
   // Navigation Tabs: 'dashboard' | 'pool' | 'all-leads' | 'reports'
@@ -74,10 +82,72 @@ export default function AdminDashboard({ user, onLogout }) {
   const [notification, setNotification] = useState(null)
   const [uploading, setUploading] = useState(false)
 
+  // Meta Graph API Integration & Alerts State
+  const [showMetaModal, setShowMetaModal] = useState(false)
+  const [metaTab, setMetaTab] = useState('forms') // 'credentials' | 'forms' | 'alerts'
+  const [metaConfig, setMetaConfig] = useState(null)
+  const [metaForms, setMetaForms] = useState([])
+  const [metaPageIdInput, setMetaPageIdInput] = useState('')
+  const [metaTokenInput, setMetaTokenInput] = useState('')
+  const [metaAutoSync, setMetaAutoSync] = useState(true)
+  const [metaAlerts, setMetaAlerts] = useState({
+    soundAlert: true,
+    browserNotifications: true,
+    telegramEnabled: false,
+    telegramBotToken: '',
+    telegramChatId: '',
+    webhookEnabled: false,
+    webhookUrl: '',
+  })
+  const [fetchingMetaForms, setFetchingMetaForms] = useState(false)
+  const [savingMetaConfig, setSavingMetaConfig] = useState(false)
+  const [savingMetaForms, setSavingMetaForms] = useState(false)
+  const [syncingMetaLeads, setSyncingMetaLeads] = useState(false)
+  const [testingTelegram, setTestingTelegram] = useState(false)
+  const [testingWebhook, setTestingWebhook] = useState(false)
+  const [browserPermissionState, setBrowserPermissionState] = useState(
+    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
+  )
+
+  const prevPoolCountRef = useRef(null)
+
   // Load initial stats & pool
   useEffect(() => {
     loadOverviewData()
   }, [])
+
+  // Load Meta configuration on component mount
+  useEffect(() => {
+    api.getMetaConfig().then(res => {
+      if (res?.config) {
+        setMetaConfig(res.config)
+        setMetaPageIdInput(res.config.pageId || '')
+        setMetaAutoSync(res.config.autoSync !== false)
+        if (res.config.alerts) {
+          setMetaAlerts({
+            soundAlert: res.config.alerts.soundAlert !== false,
+            browserNotifications: res.config.alerts.browserNotifications !== false,
+            telegramEnabled: !!res.config.alerts.telegramEnabled,
+            telegramBotToken: res.config.alerts.telegramBotToken || '',
+            telegramChatId: res.config.alerts.telegramChatId || '',
+            webhookEnabled: !!res.config.alerts.webhookEnabled,
+            webhookUrl: res.config.alerts.webhookUrl || '',
+          })
+        }
+        if (res.config.selectedForms && res.config.selectedForms.length > 0) {
+          setMetaForms(res.config.selectedForms)
+        }
+      }
+    }).catch(err => console.warn('Could not load Meta config:', err.message))
+  }, [])
+
+  // Background poller every 30 seconds for new leads in the pool & audio chime
+  useEffect(() => {
+    const pollInterval = setInterval(() => {
+      loadOverviewData(true)
+    }, 30000)
+    return () => clearInterval(pollInterval)
+  }, [metaAlerts])
 
   // Load paginated master list whenever page or filters change
   useEffect(() => {
@@ -87,8 +157,8 @@ export default function AdminDashboard({ user, onLogout }) {
   }, [page, statusFilter, qualFilter, searchQuery, activeTab])
 
   // Overview loader
-  const loadOverviewData = async () => {
-    setLoading(true)
+  const loadOverviewData = async (isBackgroundPoll = false) => {
+    if (!isBackgroundPoll) setLoading(true)
     try {
       const [poolData, repsData, statsData] = await Promise.all([
         api.getLeads({ poolOnly: true }),
@@ -96,17 +166,38 @@ export default function AdminDashboard({ user, onLogout }) {
         api.getStats(),
       ])
 
-      setPoolLeads(Array.isArray(poolData) ? poolData : (poolData?.leads || []))
+      const list = Array.isArray(poolData) ? poolData : (poolData?.leads || [])
+      setPoolLeads(list)
       setSalesReps(repsData || [])
       setStats(statsData || null)
-      if (repsData && repsData.length > 0) {
+      if (repsData && repsData.length > 0 && !selectedRepId) {
         setSelectedRepId(repsData[0].id)
       }
+
+      // Detect newly arrived leads in pool for Sound / Browser Notification alert
+      if (prevPoolCountRef.current !== null && isBackgroundPoll) {
+        const diff = list.length - prevPoolCountRef.current
+        if (diff > 0) {
+          if (metaAlerts.soundAlert) {
+            playChime()
+          }
+          if (metaAlerts.browserNotifications) {
+            sendDesktopNotification(
+              '🔔 New Meta Leads in Pool!',
+              `${diff} new candidate lead(s) arrived in the unassigned pool!`
+            )
+          }
+          showNotify('success', `🔔 ${diff} new candidate lead(s) arrived in the pool!`)
+        }
+      }
+      prevPoolCountRef.current = list.length
     } catch (err) {
-      console.error('Error fetching overview data:', err)
-      showNotify('error', err.message || 'Failed to load live data')
+      if (!isBackgroundPoll) {
+        console.error('Error fetching overview data:', err)
+        showNotify('error', err.message || 'Failed to load live data')
+      }
     } finally {
-      setLoading(false)
+      if (!isBackgroundPoll) setLoading(false)
     }
   }
 
@@ -292,6 +383,204 @@ export default function AdminDashboard({ user, onLogout }) {
       if (activeTab === 'all-leads') await loadMasterLeads(page)
     } catch (err) {
       showNotify('error', err.message || 'Failed to update status')
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Meta Graph API Integration Handlers
+  // -------------------------------------------------------------
+  const openMetaModal = async () => {
+    setShowMetaModal(true)
+    try {
+      const res = await api.getMetaConfig()
+      if (res?.config) {
+        setMetaConfig(res.config)
+        setMetaPageIdInput(res.config.pageId || '')
+        setMetaAutoSync(res.config.autoSync !== false)
+        if (res.config.selectedForms && res.config.selectedForms.length > 0) {
+          setMetaForms(res.config.selectedForms)
+          setMetaTab('forms')
+        } else {
+          setMetaTab('credentials')
+        }
+        if (res.config.alerts) {
+          setMetaAlerts({
+            soundAlert: res.config.alerts.soundAlert !== false,
+            browserNotifications: res.config.alerts.browserNotifications !== false,
+            telegramEnabled: !!res.config.alerts.telegramEnabled,
+            telegramBotToken: res.config.alerts.telegramBotToken || '',
+            telegramChatId: res.config.alerts.telegramChatId || '',
+            webhookEnabled: !!res.config.alerts.webhookEnabled,
+            webhookUrl: res.config.alerts.webhookUrl || '',
+          })
+        }
+      }
+    } catch (err) {
+      console.warn('Error loading Meta config on open:', err)
+    }
+  }
+
+  const handleSaveMetaCredentials = async () => {
+    setSavingMetaConfig(true)
+    try {
+      const payload = {
+        pageId: metaPageIdInput.trim(),
+        autoSync: metaAutoSync,
+        alerts: metaAlerts,
+      }
+      if (metaTokenInput.trim()) {
+        payload.accessToken = metaTokenInput.trim()
+      }
+      const res = await api.saveMetaConfig(payload)
+      setMetaConfig(res.config)
+      setMetaTokenInput('')
+      showNotify('success', 'Meta Graph API credentials saved successfully')
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to save Meta credentials')
+    } finally {
+      setSavingMetaConfig(false)
+    }
+  }
+
+  const handleFetchMetaForms = async () => {
+    setFetchingMetaForms(true)
+    try {
+      const payload = {}
+      if (metaPageIdInput.trim()) payload.pageId = metaPageIdInput.trim()
+      if (metaTokenInput.trim()) payload.accessToken = metaTokenInput.trim()
+
+      const res = await api.fetchPageForms(payload)
+      if (res?.forms) {
+        setMetaForms(res.forms)
+        setMetaTab('forms')
+        showNotify('success', `Connected! Found ${res.forms.length} Lead Ads forms.`)
+        const confRes = await api.getMetaConfig()
+        if (confRes?.config) setMetaConfig(confRes.config)
+      }
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to fetch forms from Meta Graph API')
+    } finally {
+      setFetchingMetaForms(false)
+    }
+  }
+
+  const handleToggleForm = formId => {
+    setMetaForms(prev =>
+      prev.map(f => (f.formId === formId ? { ...f, active: !f.active } : f))
+    )
+  }
+
+  const handleSelectAllForms = activeState => {
+    setMetaForms(prev => prev.map(f => ({ ...f, active: activeState })))
+  }
+
+  const handleSaveFormsSelection = async () => {
+    setSavingMetaForms(true)
+    try {
+      const res = await api.saveSelectedForms(metaForms)
+      showNotify('success', res.message || 'Active form selection saved!')
+      const confRes = await api.getMetaConfig()
+      if (confRes?.config) setMetaConfig(confRes.config)
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to save forms selection')
+    } finally {
+      setSavingMetaForms(false)
+    }
+  }
+
+  const handleTriggerMetaSync = async () => {
+    setSyncingMetaLeads(true)
+    try {
+      const res = await api.syncMetaLeads()
+      const added = res.addedCount || 0
+      showNotify('success', res.message || `Meta sync completed! +${added} leads added.`)
+      if (added > 0 && metaAlerts.soundAlert) {
+        playChime()
+      }
+      if (added > 0 && metaAlerts.browserNotifications) {
+        sendDesktopNotification(
+          '🔔 Meta Leads Ingested!',
+          `+${added} new candidate leads retrieved from Facebook Lead Ads!`
+        )
+      }
+      await loadOverviewData()
+      if (activeTab === 'all-leads') await loadMasterLeads(1)
+      const confRes = await api.getMetaConfig()
+      if (confRes?.config) setMetaConfig(confRes.config)
+    } catch (err) {
+      showNotify('error', err.message || 'Meta sync failed')
+    } finally {
+      setSyncingMetaLeads(false)
+    }
+  }
+
+  const handleTestChime = () => {
+    playChime()
+    showNotify('success', 'Playing dual-tone lead chime!')
+  }
+
+  const handleTestBrowserNotification = async () => {
+    const perm = await requestNotificationPermission()
+    setBrowserPermissionState(perm)
+    if (perm === 'granted') {
+      sendDesktopNotification(
+        'Futureace Academy CRM',
+        '🔔 Desktop push notifications are enabled! You will be alerted when new leads arrive.'
+      )
+      showNotify('success', 'Notification permission granted! Sent test alert.')
+    } else if (perm === 'denied') {
+      showNotify('error', 'Notification permission was blocked in browser settings.')
+    } else {
+      showNotify('error', 'Notification permission not granted.')
+    }
+  }
+
+  const handleTestTelegram = async () => {
+    if (!metaAlerts.telegramBotToken || !metaAlerts.telegramChatId) {
+      showNotify('error', 'Please provide both Telegram Bot Token and Chat ID')
+      return
+    }
+    setTestingTelegram(true)
+    try {
+      const res = await api.testTelegramAlert({
+        botToken: metaAlerts.telegramBotToken,
+        chatId: metaAlerts.telegramChatId,
+      })
+      showNotify('success', res.message || 'Telegram test message sent successfully!')
+    } catch (err) {
+      showNotify('error', err.message || 'Telegram delivery failed')
+    } finally {
+      setTestingTelegram(false)
+    }
+  }
+
+  const handleTestWebhook = async () => {
+    if (!metaAlerts.webhookUrl) {
+      showNotify('error', 'Please provide a Webhook URL')
+      return
+    }
+    setTestingWebhook(true)
+    try {
+      const res = await api.testWebhookAlert({ webhookUrl: metaAlerts.webhookUrl })
+      showNotify('success', res.message || 'Webhook ping sent successfully!')
+    } catch (err) {
+      showNotify('error', err.message || 'Webhook delivery failed')
+    } finally {
+      setTestingWebhook(false)
+    }
+  }
+
+  const handleSaveAlerts = async () => {
+    setSavingMetaConfig(true)
+    try {
+      await api.saveMetaConfig({ alerts: metaAlerts })
+      showNotify('success', 'Alert preferences saved successfully!')
+      const confRes = await api.getMetaConfig()
+      if (confRes?.config) setMetaConfig(confRes.config)
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to save alert settings')
+    } finally {
+      setSavingMetaConfig(false)
     }
   }
 
@@ -665,6 +954,42 @@ export default function AdminDashboard({ user, onLogout }) {
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
                     Pool Ingestion:
                   </span>
+                  {/* Meta Live Graph API */}
+                  <button
+                    className="btn-pulse"
+                    onClick={openMetaModal}
+                    style={{
+                      background: 'linear-gradient(135deg, #1877f2 0%, #0d5cb6 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 7,
+                      boxShadow: '0 2px 6px rgba(24, 119, 242, 0.35)',
+                      padding: '7px 13px',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                    title="Connect Meta Graph API, select lead forms and configure alerts"
+                  >
+                    <Globe size={15} />
+                    <span>Meta Graph API Sync</span>
+                    {metaForms.filter(f => f.active).length > 0 && (
+                      <span
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.25)',
+                          color: '#fff',
+                          borderRadius: 10,
+                          fontSize: 11,
+                          padding: '1px 7px',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {metaForms.filter(f => f.active).length} Active
+                      </span>
+                    )}
+                  </button>
+
                   {/* IMPORT OPTIONS ONLY HERE */}
                   <button className="btn-pulse-accent" onClick={() => setShowUploadModal(true)}>
                     <FileSpreadsheet size={14} />
@@ -1757,6 +2082,680 @@ export default function AdminDashboard({ user, onLogout }) {
             </div>
             <div className="modal-footer">
               <button className="btn-pulse-secondary" onClick={() => setActiveLeadModal(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ========================================================
+          MODAL: META GRAPH API LIVE SYNC, FORMS & ALERTS
+          ======================================================== */}
+      {showMetaModal && (
+        <div className="modal-overlay">
+          <div className="modal-card meta-modal-card" style={{ position: 'relative' }}>
+            {(fetchingMetaForms || syncingMetaLeads || savingMetaForms || savingMetaConfig) && (
+              <div className="modal-loading-overlay">
+                <div className="data-loader-spinner" />
+                <div className="data-loader-text">
+                  {fetchingMetaForms
+                    ? 'Connecting to Meta Graph API & Retrieving Forms...'
+                    : syncingMetaLeads
+                    ? 'Synchronizing Meta Leads & Updating CRM Pool...'
+                    : savingMetaForms
+                    ? 'Saving Active Form Selection...'
+                    : 'Saving Configuration...'}
+                </div>
+                <div className="data-loader-sub">
+                  Graph API v21.0 • Incremental Ingestion & Phone Deduplication
+                </div>
+              </div>
+            )}
+
+            <div className="modal-header" style={{ background: 'linear-gradient(135deg, #1877f2 0%, #0d5cb6 100%)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Globe size={20} color="#ffffff" />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, color: '#ffffff' }}>Meta Graph API Lead Sync</h3>
+                  <div style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.85)' }}>
+                    Direct Facebook Lead Ads Ingestion, Form Filtering & Real-Time Alerts
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMetaModal(false)}
+                style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}
+                disabled={fetchingMetaForms || syncingMetaLeads}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Sub-tabs Navigation */}
+            <div className="meta-sub-tabs">
+              <button
+                className={`meta-sub-tab-btn ${metaTab === 'forms' ? 'active' : ''}`}
+                onClick={() => setMetaTab('forms')}
+              >
+                <FileSpreadsheet size={15} />
+                <span>Select & Save Forms</span>
+                {metaForms.filter(f => f.active).length > 0 && (
+                  <span className="meta-badge-count" style={{ background: '#dbeafe', color: '#1d4ed8' }}>
+                    {metaForms.filter(f => f.active).length} Active
+                  </span>
+                )}
+              </button>
+              <button
+                className={`meta-sub-tab-btn ${metaTab === 'credentials' ? 'active' : ''}`}
+                onClick={() => setMetaTab('credentials')}
+              >
+                <Key size={15} />
+                <span>Credentials & Page ID</span>
+                {metaConfig?.hasToken && (
+                  <span className="meta-badge-count" style={{ background: '#dcfce7', color: '#166534' }}>
+                    Connected
+                  </span>
+                )}
+              </button>
+              <button
+                className={`meta-sub-tab-btn ${metaTab === 'alerts' ? 'active' : ''}`}
+                onClick={() => setMetaTab('alerts')}
+              >
+                <Bell size={15} />
+                <span>Real-Time Alerts</span>
+                {metaAlerts.soundAlert && (
+                  <Volume2 size={13} color="#16a34a" />
+                )}
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ maxHeight: '68vh', overflowY: 'auto' }}>
+              {/* ========================================================
+                  TAB 1: SELECT & SAVE FORMS
+                  ======================================================== */}
+              {metaTab === 'forms' && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
+                        Tracked Lead Generation Forms
+                      </div>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                        Choose which Facebook Lead Ads forms should automatically populate the unassigned CRM lead pool.
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <button
+                        className="btn-pulse-secondary"
+                        onClick={handleFetchMetaForms}
+                        disabled={fetchingMetaForms || syncingMetaLeads}
+                        style={{ fontSize: 12, padding: '6px 12px' }}
+                      >
+                        <RefreshCw size={13} className={fetchingMetaForms ? 'spin' : ''} />
+                        <span>Refresh Forms</span>
+                      </button>
+                      <button
+                        className="btn-pulse"
+                        onClick={handleTriggerMetaSync}
+                        disabled={syncingMetaLeads || metaForms.filter(f => f.active).length === 0}
+                        style={{
+                          background: 'linear-gradient(135deg, #1877f2 0%, #0d5cb6 100%)',
+                          fontSize: 12,
+                          padding: '6px 14px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <Zap size={14} />
+                        <span>{syncingMetaLeads ? 'Syncing...' : 'Sync Leads Now'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Sync status card */}
+                  {metaConfig?.lastSyncAt && (
+                    <div
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 6,
+                        background: metaConfig.lastSyncStatus === 'SUCCESS' ? '#f0fdf4' : '#fef2f2',
+                        border: `1px solid ${metaConfig.lastSyncStatus === 'SUCCESS' ? '#bbf7d0' : '#fecaca'}`,
+                        marginBottom: 14,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        fontSize: 12,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            background: metaConfig.lastSyncStatus === 'SUCCESS' ? '#22c55e' : '#ef4444',
+                          }}
+                        />
+                        <span style={{ color: '#334155' }}>
+                          Last Synced: <strong>{new Date(metaConfig.lastSyncAt).toLocaleTimeString()}</strong> •{' '}
+                          {metaConfig.lastSyncMessage || 'Sync finished'}
+                        </span>
+                      </div>
+                      <span style={{ color: '#64748b' }}>
+                        Background Cron: {metaConfig.autoSync ? 'Active (Every 15m)' : 'Paused'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Form Select / Deselect All Bar */}
+                  {metaForms.length > 0 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        background: '#f8fafc',
+                        borderRadius: 6,
+                        marginBottom: 12,
+                        fontSize: 12,
+                      }}
+                    >
+                      <span style={{ color: '#475569' }}>
+                        Showing <strong>{metaForms.length}</strong> forms ({metaForms.filter(f => f.active).length} active for CRM ingestion)
+                      </span>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectAllForms(true)}
+                          style={{ background: 'none', border: 'none', color: '#1877f2', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+                        >
+                          Select All
+                        </button>
+                        <span style={{ color: '#cbd5e1' }}>|</span>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectAllForms(false)}
+                          style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+                        >
+                          Deselect All
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Form Checklist */}
+                  {metaForms.length === 0 ? (
+                    <div
+                      style={{
+                        textAlign: 'center',
+                        padding: '36px 16px',
+                        border: '2px dashed #cbd5e1',
+                        borderRadius: 8,
+                        background: '#f8fafc',
+                      }}
+                    >
+                      <FileSpreadsheet size={36} color="#94a3b8" style={{ marginBottom: 10 }} />
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                        No Meta Lead Forms Loaded Yet
+                      </div>
+                      <div style={{ fontSize: 12, color: '#64748b', maxWidth: 420, margin: '0 auto 16px', lineHeight: 1.5 }}>
+                        Provide your Facebook Page Access Token and Page ID in the Credentials tab, then click below to retrieve your live lead forms.
+                      </div>
+                      <button
+                        className="btn-pulse"
+                        onClick={() => {
+                          if (!metaConfig?.hasToken && !metaTokenInput) {
+                            setMetaTab('credentials')
+                          } else {
+                            handleFetchMetaForms()
+                          }
+                        }}
+                        style={{
+                          background: 'linear-gradient(135deg, #1877f2 0%, #0d5cb6 100%)',
+                          fontSize: 13,
+                          padding: '8px 16px',
+                        }}
+                      >
+                        {!metaConfig?.hasToken && !metaTokenInput ? 'Configure Credentials First' : 'Fetch Forms from Meta'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      {metaForms.map(form => (
+                        <div
+                          key={form.formId}
+                          className={`meta-form-row ${form.active ? 'selected' : ''}`}
+                          onClick={() => handleToggleForm(form.formId)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <div className="meta-form-info">
+                            <div className="meta-form-title">{form.formName}</div>
+                            <div className="meta-form-meta">
+                              <span>ID: <code>{form.formId}</code></span>
+                              <span className={form.status === 'ACTIVE' ? 'meta-badge-active' : 'meta-badge-archived'}>
+                                {form.status || 'ACTIVE'}
+                              </span>
+                              {form.leadsCount !== undefined && (
+                                <span className="meta-badge-count">
+                                  {form.leadsCount} Meta Submissions
+                                </span>
+                              )}
+                              {form.locale && <span>🌐 {form.locale}</span>}
+                            </div>
+                          </div>
+                          <label
+                            className="toggle-switch"
+                            onClick={e => e.stopPropagation()}
+                            style={{ marginLeft: 16 }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={!!form.active}
+                              onChange={() => handleToggleForm(form.formId)}
+                            />
+                            <span className="toggle-slider" />
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {metaForms.length > 0 && (
+                    <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                      <button
+                        className="btn-pulse"
+                        onClick={handleSaveFormsSelection}
+                        disabled={savingMetaForms}
+                        style={{
+                          background: '#0f172a',
+                          padding: '9px 18px',
+                          fontSize: 13,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <Check size={15} />
+                        <span>{savingMetaForms ? 'Saving...' : 'Save Form Selection'}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ========================================================
+                  TAB 2: CREDENTIALS & PAGE ID
+                  ======================================================== */}
+              {metaTab === 'credentials' && (
+                <div>
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
+                      Facebook Page & Graph API Access Token
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+                      Enter your Meta Page ID and Page Access Token. Tokens are securely encrypted and stored in MongoDB Atlas and never exposed in client payloads.
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                        FACEBOOK PAGE ID
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 535206066342370"
+                        value={metaPageIdInput}
+                        onChange={e => setMetaPageIdInput(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: 6,
+                          border: '1px solid #cbd5e1',
+                          fontSize: 13,
+                          outline: 'none',
+                        }}
+                      />
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                        Your Facebook Page ID for Futureace Healthcare Academy.
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                        META PAGE ACCESS TOKEN (Never-Expiring System or Page Token)
+                      </label>
+                      {metaConfig?.hasToken && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            background: '#f0fdf4',
+                            border: '1px solid #bbf7d0',
+                            borderRadius: 6,
+                            marginBottom: 8,
+                            fontSize: 12,
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#166534' }}>
+                            <ShieldCheck size={15} />
+                            <span>Active Token Saved: <code>{metaConfig.maskedToken}</code></span>
+                          </div>
+                          <span style={{ fontSize: 11, color: '#15803d', fontWeight: 600 }}>Secured in DB</span>
+                        </div>
+                      )}
+                      <input
+                        type="password"
+                        placeholder={metaConfig?.hasToken ? 'Paste new token to replace existing token...' : 'EAAG...'}
+                        value={metaTokenInput}
+                        onChange={e => setMetaTokenInput(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: 6,
+                          border: '1px solid #cbd5e1',
+                          fontSize: 13,
+                          outline: 'none',
+                          fontFamily: 'monospace',
+                        }}
+                      />
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                        Requires permissions: <code>leads_retrieval</code>, <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_ads</code>.
+                      </div>
+                    </div>
+
+                    {/* Auto Sync Toggle */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 14px',
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 6,
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+                          Background Cron Synchronization
+                        </div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>
+                          Automatically query Meta Graph API every 15 minutes for new form submissions
+                        </div>
+                      </div>
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={metaAutoSync}
+                          onChange={e => setMetaAutoSync(e.target.checked)}
+                        />
+                        <span className="toggle-slider" />
+                      </label>
+                    </div>
+
+                    {/* Meta Developer Guide Callout */}
+                    <div style={{ padding: 12, background: '#f8fafc', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, color: '#475569' }}>
+                      <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Key size={14} color="#1877f2" /> How to get your Page Access Token:
+                      </div>
+                      <ol style={{ paddingLeft: 18, lineHeight: 1.6, margin: 0 }}>
+                        <li>Go to <strong>developers.facebook.com</strong> &gt; Tools &gt; <strong>Graph API Explorer</strong>.</li>
+                        <li>Select your Meta App and choose <strong>Page Token</strong> for your Page.</li>
+                        <li>Add scopes: <code>leads_retrieval</code>, <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_ads</code>.</li>
+                        <li>Generate token, copy and paste it into the field above.</li>
+                      </ol>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                      <button
+                        className="btn-pulse-secondary"
+                        onClick={handleFetchMetaForms}
+                        disabled={savingMetaConfig || fetchingMetaForms || (!metaConfig?.hasToken && !metaTokenInput)}
+                      >
+                        <RefreshCw size={14} className={fetchingMetaForms ? 'spin' : ''} />
+                        <span>Test & Fetch Forms</span>
+                      </button>
+                      <button
+                        className="btn-pulse"
+                        onClick={handleSaveMetaCredentials}
+                        disabled={savingMetaConfig}
+                        style={{
+                          background: 'linear-gradient(135deg, #1877f2 0%, #0d5cb6 100%)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <Check size={15} />
+                        <span>{savingMetaConfig ? 'Saving...' : 'Save Credentials'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ========================================================
+                  TAB 3: REAL-TIME ALERTS SETUP
+                  ======================================================== */}
+              {metaTab === 'alerts' && (
+                <div>
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
+                      Real-Time Lead Pool Arrival Alerts
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>
+                      Get notified the moment a candidate fills out a Facebook lead ad so your admissions counselors can call immediately.
+                    </div>
+                  </div>
+
+                  {/* Channel 1: In-App Audio Chime */}
+                  <div className="alert-channel-card">
+                    <div className="alert-channel-header">
+                      <div className="alert-channel-title">
+                        <Volume2 size={18} color="#0284c7" />
+                        <span>In-App Audio Chime (Dual-Tone Web Audio)</span>
+                      </div>
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={metaAlerts.soundAlert}
+                          onChange={e => setMetaAlerts(prev => ({ ...prev, soundAlert: e.target.checked }))}
+                        />
+                        <span className="toggle-slider" />
+                      </label>
+                    </div>
+                    <div className="alert-channel-desc">
+                      Plays an uplifting dual-tone audio chime (C5 &rarr; G5) directly inside the CRM whenever new leads arrive into the pool.
+                    </div>
+                    <button
+                      className="btn-pulse-secondary"
+                      onClick={handleTestChime}
+                      style={{ fontSize: 12, padding: '5px 12px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <Volume2 size={13} />
+                      <span>Test Chime Sound</span>
+                    </button>
+                  </div>
+
+                  {/* Channel 2: Desktop Push Notifications */}
+                  <div className="alert-channel-card">
+                    <div className="alert-channel-header">
+                      <div className="alert-channel-title">
+                        <Bell size={18} color="#f59e0b" />
+                        <span>Desktop Browser Push Notifications</span>
+                      </div>
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={metaAlerts.browserNotifications}
+                          onChange={e => setMetaAlerts(prev => ({ ...prev, browserNotifications: e.target.checked }))}
+                        />
+                        <span className="toggle-slider" />
+                      </label>
+                    </div>
+                    <div className="alert-channel-desc">
+                      Shows a native desktop push notification even if this browser tab is minimized or in the background. Clicking the notification focuses the CRM immediately.
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <button
+                        className="btn-pulse-secondary"
+                        onClick={handleTestBrowserNotification}
+                        style={{ fontSize: 12, padding: '5px 12px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                      >
+                        <Bell size={13} />
+                        <span>Enable & Test Push Notification</span>
+                      </button>
+                      <span style={{ fontSize: 11, color: browserPermissionState === 'granted' ? '#16a34a' : '#94a3b8' }}>
+                        Permission: <strong>{browserPermissionState}</strong>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Channel 3: Telegram Bot Notification */}
+                  <div className="alert-channel-card">
+                    <div className="alert-channel-header">
+                      <div className="alert-channel-title">
+                        <Send size={18} color="#0088cc" />
+                        <span>Telegram Channel / Group Alert Bot</span>
+                      </div>
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={metaAlerts.telegramEnabled}
+                          onChange={e => setMetaAlerts(prev => ({ ...prev, telegramEnabled: e.target.checked }))}
+                        />
+                        <span className="toggle-slider" />
+                      </label>
+                    </div>
+                    <div className="alert-channel-desc">
+                      Directly dispatches candidate details (Name, Phone, City, Qualification, Form Name) to your Telegram team channel or counselor group as soon as Meta delivers the lead.
+                    </div>
+
+                    {metaAlerts.telegramEnabled && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                            TELEGRAM BOT TOKEN
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+                            value={metaAlerts.telegramBotToken}
+                            onChange={e => setMetaAlerts(prev => ({ ...prev, telegramBotToken: e.target.value }))}
+                            style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 5, border: '1px solid #cbd5e1' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                            TELEGRAM CHAT ID / CHANNEL ID
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. -1001234567890 or @futureace_leads"
+                            value={metaAlerts.telegramChatId}
+                            onChange={e => setMetaAlerts(prev => ({ ...prev, telegramChatId: e.target.value }))}
+                            style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 5, border: '1px solid #cbd5e1' }}
+                          />
+                        </div>
+                        <div>
+                          <button
+                            className="btn-pulse-secondary"
+                            onClick={handleTestTelegram}
+                            disabled={testingTelegram}
+                            style={{ fontSize: 12, padding: '5px 12px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                          >
+                            <Send size={13} />
+                            <span>{testingTelegram ? 'Sending Test...' : 'Send Test Telegram Alert'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Channel 4: Custom Webhook / Zapier */}
+                  <div className="alert-channel-card">
+                    <div className="alert-channel-header">
+                      <div className="alert-channel-title">
+                        <Radio size={18} color="#8b5cf6" />
+                        <span>Custom Webhook / Zapier / Make Integration</span>
+                      </div>
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={metaAlerts.webhookEnabled}
+                          onChange={e => setMetaAlerts(prev => ({ ...prev, webhookEnabled: e.target.checked }))}
+                        />
+                        <span className="toggle-slider" />
+                      </label>
+                    </div>
+                    <div className="alert-channel-desc">
+                      POST JSON lead objects to your custom webhook endpoint or Zapier/Make workflow whenever new leads are imported.
+                    </div>
+
+                    {metaAlerts.webhookEnabled && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                            WEBHOOK TARGET URL
+                          </label>
+                          <input
+                            type="url"
+                            placeholder="https://hooks.zapier.com/hooks/catch/..."
+                            value={metaAlerts.webhookUrl}
+                            onChange={e => setMetaAlerts(prev => ({ ...prev, webhookUrl: e.target.value }))}
+                            style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 5, border: '1px solid #cbd5e1' }}
+                          />
+                        </div>
+                        <div>
+                          <button
+                            className="btn-pulse-secondary"
+                            onClick={handleTestWebhook}
+                            disabled={testingWebhook}
+                            style={{ fontSize: 12, padding: '5px 12px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                          >
+                            <Radio size={13} />
+                            <span>{testingWebhook ? 'Sending...' : 'Test Webhook Ping'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+                    <button
+                      className="btn-pulse"
+                      onClick={handleSaveAlerts}
+                      disabled={savingMetaConfig}
+                      style={{
+                        background: 'linear-gradient(135deg, #1877f2 0%, #0d5cb6 100%)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '9px 18px',
+                      }}
+                    >
+                      <Check size={15} />
+                      <span>{savingMetaConfig ? 'Saving...' : 'Save Alert Preferences'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer" style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                Meta Graph API v21.0 • Connected to MongoDB Lead Pool
+              </div>
+              <button
+                className="btn-pulse-secondary"
+                onClick={() => setShowMetaModal(false)}
+                disabled={fetchingMetaForms || syncingMetaLeads}
+              >
                 Close
               </button>
             </div>
