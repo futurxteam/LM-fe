@@ -45,6 +45,11 @@ import {
   Square,
   Download,
   Clock,
+  UserCog,
+  UserPlus,
+  Edit2,
+  UserX,
+  Lock,
 } from 'lucide-react'
 import { api } from '../api'
 import { playChime, requestNotificationPermission, sendDesktopNotification, formatArrivalTime } from '../utils/alertUtils'
@@ -126,11 +131,35 @@ export default function AdminDashboard({ user, onLogout }) {
   const [previewSelectedIds, setPreviewSelectedIds] = useState([])
   const [importingPreview, setImportingPreview] = useState(false)
 
+  // User Management State
+  const [usersList, setUsersList] = useState([])
+  const [usersLoading, setUsersLoading] = useState(false)
+  const [userSearch, setUserSearch] = useState('')
+  const [userRoleFilter, setUserRoleFilter] = useState('all') // 'all' | 'sales' | 'admin'
+  const [userStatusFilter, setUserStatusFilter] = useState('all') // 'all' | 'active' | 'inactive'
+  const [showUserModal, setShowUserModal] = useState(false)
+  const [editingUser, setEditingUser] = useState(null)
+  const [userFormData, setUserFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'sales',
+    title: 'Admissions Counselor',
+    specialty: 'Healthcare Admissions',
+    active: true,
+  })
+  const [savingUser, setSavingUser] = useState(false)
+  const [showDeleteUserModal, setShowDeleteUserModal] = useState(false)
+  const [deletingUser, setDeletingUser] = useState(null)
+  const [reassignLeadsOnDelete, setReassignLeadsOnDelete] = useState(true)
+  const [deletingInProgress, setDeletingInProgress] = useState(false)
+
   const prevPoolCountRef = useRef(null)
 
-  // Load initial stats & pool
+  // Load initial stats, pool & users
   useEffect(() => {
     loadOverviewData()
+    loadUsers()
   }, [])
 
   // Load Meta configuration on component mount
@@ -689,6 +718,127 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   }
 
+  // -------------------------------------------------------------
+  // User Management Handlers (Sales Advisors & Admins)
+  // -------------------------------------------------------------
+  const loadUsers = async () => {
+    setUsersLoading(true)
+    try {
+      const res = await api.getUsers()
+      if (res?.users) {
+        setUsersList(res.users)
+      }
+    } catch (err) {
+      console.error('Failed to load users:', err)
+      showNotify('error', err.message || 'Failed to load staff users')
+    } finally {
+      setUsersLoading(false)
+    }
+  }
+
+  const handleOpenCreateUser = () => {
+    setEditingUser(null)
+    setUserFormData({
+      name: '',
+      email: '',
+      password: '',
+      role: 'sales',
+      title: 'Admissions Counselor',
+      specialty: 'Healthcare Admissions',
+      active: true,
+    })
+    setShowUserModal(true)
+  }
+
+  const handleOpenEditUser = u => {
+    setEditingUser(u)
+    setUserFormData({
+      name: u.name || '',
+      email: u.email || '',
+      password: '',
+      role: u.role || 'sales',
+      title: u.title || (u.role === 'admin' ? 'Administrator' : 'Admissions Counselor'),
+      specialty: u.specialty || 'Healthcare Admissions',
+      active: u.active !== false,
+    })
+    setShowUserModal(true)
+  }
+
+  const handleSaveUser = async e => {
+    if (e && e.preventDefault) e.preventDefault()
+    if (!userFormData.name.trim()) {
+      showNotify('error', 'Please enter full name')
+      return
+    }
+    if (!userFormData.email.trim()) {
+      showNotify('error', 'Please enter a valid work email')
+      return
+    }
+    if (!editingUser && !userFormData.password.trim()) {
+      showNotify('error', 'Please provide a starting password')
+      return
+    }
+
+    setSavingUser(true)
+    try {
+      if (editingUser) {
+        const payload = { ...userFormData }
+        if (!payload.password || !payload.password.trim()) {
+          delete payload.password
+        }
+        const res = await api.updateUser(editingUser.id, payload)
+        showNotify('success', res.message || `Updated ${userFormData.name}`)
+      } else {
+        const res = await api.createUser(userFormData)
+        showNotify('success', res.message || `Created ${userFormData.name}`)
+      }
+      setShowUserModal(false)
+      await loadUsers()
+      const repsData = await api.getSalesReps()
+      setSalesReps(repsData || [])
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to save user')
+    } finally {
+      setSavingUser(false)
+    }
+  }
+
+  const handleToggleUserActive = async u => {
+    try {
+      const res = await api.updateUser(u.id, { active: !u.active })
+      showNotify('success', `${u.name} is now ${!u.active ? 'Active' : 'Inactive'}`)
+      await loadUsers()
+      const repsData = await api.getSalesReps()
+      setSalesReps(repsData || [])
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to update user status')
+    }
+  }
+
+  const handleOpenDeleteUser = u => {
+    setDeletingUser(u)
+    setReassignLeadsOnDelete(true)
+    setShowDeleteUserModal(true)
+  }
+
+  const handleConfirmDeleteUser = async () => {
+    if (!deletingUser) return
+    setDeletingInProgress(true)
+    try {
+      const res = await api.deleteUser(deletingUser.id, reassignLeadsOnDelete)
+      showNotify('success', res.message || `Removed ${deletingUser.name}`)
+      setShowDeleteUserModal(false)
+      setDeletingUser(null)
+      await loadUsers()
+      await loadOverviewData()
+      if (activeTab === 'all-leads') await loadMasterLeads(1)
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to delete user')
+    } finally {
+      setDeletingInProgress(false)
+    }
+  }
+
   // Dials definition for Overview tab
   const totalCount = stats?.totalLeads || 0
   const poolCount = stats?.poolCount || poolLeads.length || 0
@@ -792,6 +942,21 @@ export default function AdminDashboard({ user, onLogout }) {
             <span className="nav-item-icon"><BarChart3 size={16} /></span>
             <span>Reports & Analytics</span>
           </div>
+
+          <div
+            className={`nav-item ${activeTab === 'users' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('users')
+              setMobileMenuOpen(false)
+              loadUsers()
+            }}
+          >
+            <span className="nav-item-icon"><UserCog size={16} /></span>
+            <span>User Management</span>
+            <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 10 }}>
+              {usersList.length || salesReps.length}
+            </span>
+          </div>
         </nav>
 
         {/* Rep Status Overview in Sidebar */}
@@ -840,6 +1005,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   {activeTab === 'pool' && 'Lead Pool & Allocation'}
                   {activeTab === 'all-leads' && 'Master Company Leads Directory'}
                   {activeTab === 'reports' && 'Reports & Analytics'}
+                  {activeTab === 'users' && 'Staff & Admissions Advisors Management'}
                 </h1>
                 <p className="page-subtitle">
                   Futureace Academy CRM • Admissions & Lead Allocation System
@@ -851,6 +1017,7 @@ export default function AdminDashboard({ user, onLogout }) {
               onClick={() => {
                 loadOverviewData()
                 if (activeTab === 'all-leads') loadMasterLeads(page)
+                if (activeTab === 'users') loadUsers()
               }}
               title="Refresh Live Data"
             >
@@ -1894,6 +2061,354 @@ export default function AdminDashboard({ user, onLogout }) {
               )}
             </div>
             )
+          )}
+
+          {/* ========================================================
+              TAB 5: USER MANAGEMENT (SALES ADVISORS & ADMINS)
+              ======================================================== */}
+          {activeTab === 'users' && (
+            <div>
+              {/* Metric Cards Banner */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: 16,
+                  marginBottom: 20,
+                }}
+              >
+                <div style={{ background: '#ffffff', borderRadius: 10, padding: '16px 18px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Total Staff Users
+                  </div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', marginTop: 4 }}>
+                    {usersList.length}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#10b981', marginTop: 2, fontWeight: 600 }}>
+                    {usersList.filter(u => u.active).length} Active Staff Accounts
+                  </div>
+                </div>
+
+                <div style={{ background: '#ffffff', borderRadius: 10, padding: '16px 18px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', borderLeft: '4px solid #10b981' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Active Admissions Advisors
+                  </div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: '#10b981', marginTop: 4 }}>
+                    {usersList.filter(u => u.role === 'sales' && u.active).length}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                    Handling lead pool allocations
+                  </div>
+                </div>
+
+                <div style={{ background: '#ffffff', borderRadius: 10, padding: '16px 18px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', borderLeft: '4px solid #0284c7' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Total Leads Distributed
+                  </div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: '#0284c7', marginTop: 4 }}>
+                    {usersList.reduce((acc, u) => acc + (u.totalAssigned || 0), 0)}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                    Across active admissions team
+                  </div>
+                </div>
+
+                <div style={{ background: '#ffffff', borderRadius: 10, padding: '16px 18px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', borderLeft: '4px solid #8b5cf6' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    System Administrators
+                  </div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: '#8b5cf6', marginTop: 4 }}>
+                    {usersList.filter(u => u.role === 'admin').length}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                    Full configuration & audit access
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Toolbar */}
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: 10,
+                  padding: '12px 18px',
+                  border: '1px solid #e2e8f0',
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flex: 1 }}>
+                  {/* Search input */}
+                  <div style={{ position: 'relative', minWidth: 220, maxWidth: 320, width: '100%' }}>
+                    <Search
+                      size={14}
+                      color="#94a3b8"
+                      style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Search advisor by name, email, territory..."
+                      value={userSearch}
+                      onChange={e => setUserSearch(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '7px 12px 7px 32px',
+                        fontSize: 12,
+                        borderRadius: 6,
+                        border: '1px solid #cbd5e1',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+
+                  {/* Role filter */}
+                  <select
+                    value={userRoleFilter}
+                    onChange={e => setUserRoleFilter(e.target.value)}
+                    style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
+                  >
+                    <option value="all">All Roles</option>
+                    <option value="sales">Sales Advisors Only</option>
+                    <option value="admin">Administrators Only</option>
+                  </select>
+
+                  {/* Status filter */}
+                  <select
+                    value={userStatusFilter}
+                    onChange={e => setUserStatusFilter(e.target.value)}
+                    style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
+                  >
+                    <option value="all">All Status</option>
+                    <option value="active">Active Staff Only</option>
+                    <option value="inactive">Inactive Staff Only</option>
+                  </select>
+                </div>
+
+                {/* Primary Add Button */}
+                <button
+                  className="btn-pulse"
+                  onClick={handleOpenCreateUser}
+                  style={{
+                    background: 'linear-gradient(135deg, #1877f2 0%, #0d5cb6 100%)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 16px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                  }}
+                >
+                  <UserPlus size={15} />
+                  <span>Add New Advisor / User</span>
+                </button>
+              </div>
+
+              {/* Users Directory Card */}
+              <div className="template-card">
+                <div className="template-card-header">
+                  <h3>Staff & Admissions Advisors Directory</h3>
+                  <span className="header-badge">
+                    {usersList.filter(u => {
+                      if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false
+                      if (userStatusFilter === 'active' && !u.active) return false
+                      if (userStatusFilter === 'inactive' && u.active) return false
+                      if (userSearch.trim()) {
+                        const q = userSearch.toLowerCase()
+                        const matchName = (u.name || '').toLowerCase().includes(q)
+                        const matchEmail = (u.email || '').toLowerCase().includes(q)
+                        const matchSpec = (u.specialty || '').toLowerCase().includes(q)
+                        const matchTitle = (u.title || '').toLowerCase().includes(q)
+                        if (!matchName && !matchEmail && !matchSpec && !matchTitle) return false
+                      }
+                      return true
+                    }).length}{' '}
+                    Staff Members
+                  </span>
+                </div>
+                <div className="template-card-body" style={{ padding: 0 }}>
+                  {usersLoading ? (
+                    <div className="data-loader-container">
+                      <div className="data-loader-spinner" />
+                      <div className="data-loader-text">Loading Staff & Admissions Advisors...</div>
+                      <div className="data-loader-sub">Querying MongoDB user collections</div>
+                    </div>
+                  ) : usersList.length === 0 ? (
+                    <div style={{ padding: '48px 20px', textAlign: 'center', color: '#64748b' }}>
+                      <UserCog size={36} color="#94a3b8" style={{ margin: '0 auto 12px' }} />
+                      <p style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>No staff members registered yet</p>
+                      <button
+                        className="btn-pulse"
+                        onClick={handleOpenCreateUser}
+                        style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                      >
+                        <UserPlus size={14} />
+                        <span>Add First Advisor</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="leads-table-container">
+                      <table className="leads-table">
+                        <thead>
+                          <tr>
+                            <th>Staff Member</th>
+                            <th>Role & Title</th>
+                            <th>Specialty / Territory</th>
+                            <th>Lead Load & Contact Rate</th>
+                            <th>Status</th>
+                            <th style={{ textAlign: 'right' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {usersList
+                            .filter(u => {
+                              if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false
+                              if (userStatusFilter === 'active' && !u.active) return false
+                              if (userStatusFilter === 'inactive' && u.active) return false
+                              if (userSearch.trim()) {
+                                const q = userSearch.toLowerCase()
+                                const matchName = (u.name || '').toLowerCase().includes(q)
+                                const matchEmail = (u.email || '').toLowerCase().includes(q)
+                                const matchSpec = (u.specialty || '').toLowerCase().includes(q)
+                                const matchTitle = (u.title || '').toLowerCase().includes(q)
+                                if (!matchName && !matchEmail && !matchSpec && !matchTitle) return false
+                              }
+                              return true
+                            })
+                            .map(u => (
+                              <tr key={u.id}>
+                                <td>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <span
+                                      className="rep-avatar"
+                                      style={{
+                                        background: u.role === 'admin' ? '#ede9fe' : '#e0f2fe',
+                                        color: u.role === 'admin' ? '#6d28d9' : '#0369a1',
+                                      }}
+                                    >
+                                      {u.avatar || 'SR'}
+                                    </span>
+                                    <div>
+                                      <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>
+                                        {u.name}
+                                      </div>
+                                      <div style={{ fontSize: 11, color: '#64748b' }}>{u.email}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td>
+                                  <span
+                                    style={{
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      padding: '3px 8px',
+                                      borderRadius: 12,
+                                      background: u.role === 'admin' ? '#ede9fe' : '#dcfce7',
+                                      color: u.role === 'admin' ? '#6d28d9' : '#15803d',
+                                      display: 'inline-block',
+                                      marginBottom: 3,
+                                    }}
+                                  >
+                                    {u.role === 'admin' ? 'Administrator' : 'Sales Advisor'}
+                                  </span>
+                                  <div style={{ fontSize: 11, color: '#475569', fontWeight: 500 }}>
+                                    {u.title}
+                                  </div>
+                                </td>
+                                <td>
+                                  <span style={{ fontSize: 12, color: '#334155', fontWeight: 500 }}>
+                                    📍 {u.specialty}
+                                  </span>
+                                </td>
+                                <td>
+                                  {u.role === 'sales' ? (
+                                    <div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                                        <span>{u.totalAssigned || 0} Leads</span>
+                                        <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>
+                                          ({u.contactRate || 0}% Contacted)
+                                        </span>
+                                      </div>
+                                      <div className="progress-bar-container" style={{ width: 120, height: 5, marginTop: 4 }}>
+                                        <div
+                                          className="progress-bar-fill"
+                                          style={{
+                                            width: `${Math.min(u.contactRate || 0, 100)}%`,
+                                            background: '#10b981',
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span style={{ fontSize: 11, color: '#8b5cf6', fontWeight: 600 }}>
+                                      Full System Admin Access
+                                    </span>
+                                  )}
+                                </td>
+                                <td>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleUserActive(u)}
+                                    style={{
+                                      border: 'none',
+                                      background: u.active ? '#dcfce7' : '#f1f5f9',
+                                      color: u.active ? '#15803d' : '#94a3b8',
+                                      fontWeight: 700,
+                                      fontSize: 11,
+                                      padding: '3px 9px',
+                                      borderRadius: 12,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                    }}
+                                    title="Click to toggle active/inactive status"
+                                  >
+                                    <span
+                                      style={{
+                                        width: 6,
+                                        height: 6,
+                                        borderRadius: '50%',
+                                        background: u.active ? '#16a34a' : '#94a3b8',
+                                      }}
+                                    />
+                                    <span>{u.active ? 'Active' : 'Inactive'}</span>
+                                  </button>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                                    <button
+                                      className="btn-pulse-secondary"
+                                      onClick={() => handleOpenEditUser(u)}
+                                      style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                      title="Edit user profile & territory"
+                                    >
+                                      <Edit2 size={12} />
+                                      <span>Edit</span>
+                                    </button>
+                                    <button
+                                      className="btn-pulse-danger"
+                                      onClick={() => handleOpenDeleteUser(u)}
+                                      style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                      title="Remove user from CRM"
+                                    >
+                                      <Trash2 size={12} />
+                                      <span>Remove</span>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </main>
@@ -3206,6 +3721,533 @@ export default function AdminDashboard({ user, onLogout }) {
                   {importingPreview ? 'Adding to Pool...' : `Add Selected (${previewSelectedIds.length}) to Pool`}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create / Edit User Modal */}
+      {showUserModal && (
+        <div className="modal-backdrop" onClick={() => !savingUser && setShowUserModal(false)}>
+          <div
+            className="modal-card"
+            style={{ maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div
+              className="modal-header"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 20px',
+                borderBottom: '1px solid #e2e8f0',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 10,
+                    background: editingUser ? '#f1f5f9' : '#eff6ff',
+                    color: editingUser ? '#475569' : '#2563eb',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {editingUser ? <Edit2 size={19} /> : <UserPlus size={19} />}
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                    {editingUser ? 'Edit Staff Member' : 'Add New Advisor / User'}
+                  </h3>
+                  <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+                    {editingUser
+                      ? `Updating details for ${editingUser.name}`
+                      : 'Set up login credentials, role, and specialty focus'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowUserModal(false)}
+                disabled={savingUser}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#94a3b8',
+                  padding: 4,
+                  display: 'flex',
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUser}>
+              <div className="modal-body" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Full Name */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+                    Full Name <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Sarah Jenkins"
+                    value={userFormData.name}
+                    onChange={e => setUserFormData({ ...userFormData, name: e.target.value })}
+                    className="modal-input"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 8,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 13,
+                    }}
+                  />
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+                    Work Email <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="s.jenkins@futureace.org"
+                    value={userFormData.email}
+                    onChange={e => setUserFormData({ ...userFormData, email: e.target.value })}
+                    className="modal-input"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 8,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 13,
+                    }}
+                  />
+                </div>
+
+                {/* Role Pill Selector */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+                    Role & Permissions <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div
+                      onClick={() => setUserFormData({ ...userFormData, role: 'sales', title: userFormData.title || 'Admissions Counselor' })}
+                      style={{
+                        border: userFormData.role === 'sales' ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                        background: userFormData.role === 'sales' ? '#eff6ff' : '#ffffff',
+                        padding: '12px 14px',
+                        borderRadius: 10,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <div
+                          style={{
+                            width: 16,
+                            height: 16,
+                            borderRadius: '50%',
+                            border: userFormData.role === 'sales' ? '5px solid #2563eb' : '2px solid #cbd5e1',
+                          }}
+                        />
+                        <span style={{ fontSize: 13, fontWeight: 700, color: userFormData.role === 'sales' ? '#1e40af' : '#1e293b' }}>
+                          Admissions Advisor
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 11, color: '#64748b', paddingLeft: 24 }}>
+                        Manages incoming assigned leads, records call logs, and advances applicant stages.
+                      </p>
+                    </div>
+
+                    <div
+                      onClick={() => setUserFormData({ ...userFormData, role: 'admin', title: userFormData.title || 'Administrator' })}
+                      style={{
+                        border: userFormData.role === 'admin' ? '2px solid #7c3aed' : '1px solid #e2e8f0',
+                        background: userFormData.role === 'admin' ? '#faf5ff' : '#ffffff',
+                        padding: '12px 14px',
+                        borderRadius: 10,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <div
+                          style={{
+                            width: 16,
+                            height: 16,
+                            borderRadius: '50%',
+                            border: userFormData.role === 'admin' ? '5px solid #7c3aed' : '2px solid #cbd5e1',
+                          }}
+                        />
+                        <span style={{ fontSize: 13, fontWeight: 700, color: userFormData.role === 'admin' ? '#6b21a8' : '#1e293b' }}>
+                          Administrator
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 11, color: '#64748b', paddingLeft: 24 }}>
+                        Full access to overview stats, pool distribution, Meta integration, and user administration.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Job Title & Specialty Territory */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+                      Designation / Job Title
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Senior Admissions Advisor"
+                      value={userFormData.title}
+                      onChange={e => setUserFormData({ ...userFormData, title: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #cbd5e1',
+                        fontSize: 13,
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+                      Specialty / Focus Area
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Nursing, Pharmacy, General"
+                      value={userFormData.specialty}
+                      onChange={e => setUserFormData({ ...userFormData, specialty: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #cbd5e1',
+                        fontSize: 13,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Territory quick select presets */}
+                <div>
+                  <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 6 }}>
+                    Quick presets for specialty:
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {[
+                      'Healthcare Admissions',
+                      'Nursing & Paramedical',
+                      'Pharmacy & Clinical',
+                      'Medical Coding & Lab Tech',
+                      'Executive & International',
+                    ].map(preset => (
+                      <button
+                        type="button"
+                        key={preset}
+                        onClick={() => setUserFormData({ ...userFormData, specialty: preset })}
+                        style={{
+                          fontSize: 11,
+                          padding: '4px 9px',
+                          borderRadius: 6,
+                          border: userFormData.specialty === preset ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                          background: userFormData.specialty === preset ? '#eff6ff' : '#f8fafc',
+                          color: userFormData.specialty === preset ? '#1d4ed8' : '#475569',
+                          cursor: 'pointer',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Password field */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+                    {editingUser ? 'Update Password (leave blank to keep current)' : 'Account Password'} {!editingUser && <span style={{ color: '#ef4444' }}>*</span>}
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="password"
+                      placeholder={editingUser ? '••••••••  (unchanged)' : 'Enter initial password (min 6 characters)'}
+                      value={userFormData.password}
+                      onChange={e => setUserFormData({ ...userFormData, password: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px 9px 34px',
+                        borderRadius: 8,
+                        border: '1px solid #cbd5e1',
+                        fontSize: 13,
+                      }}
+                    />
+                    <Lock size={15} style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }} />
+                  </div>
+                </div>
+
+                {/* Active Toggle */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 14px',
+                    borderRadius: 8,
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>Account Status</div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                      {userFormData.active
+                        ? 'Active — advisor can sign in and receive newly distributed leads'
+                        : 'Inactive — advisor cannot sign in or receive leads'}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setUserFormData({ ...userFormData, active: !userFormData.active })}
+                    style={{
+                      background: userFormData.active ? '#10b981' : '#cbd5e1',
+                      border: 'none',
+                      width: 44,
+                      height: 24,
+                      borderRadius: 12,
+                      padding: 2,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: userFormData.active ? 'flex-end' : 'flex-start',
+                      transition: 'background 0.2s',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        background: '#ffffff',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                      }}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div
+                className="modal-footer"
+                style={{
+                  borderTop: '1px solid #e2e8f0',
+                  padding: '14px 20px',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 10,
+                }}
+              >
+                <button
+                  type="button"
+                  className="btn-pulse-secondary"
+                  onClick={() => setShowUserModal(false)}
+                  disabled={savingUser}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-pulse"
+                  disabled={savingUser}
+                  style={{ minWidth: 120, fontWeight: 600 }}
+                >
+                  {savingUser ? 'Saving...' : editingUser ? 'Save Changes' : 'Create User'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete User Confirmation Modal */}
+      {showDeleteUserModal && deletingUser && (
+        <div className="modal-backdrop" onClick={() => !deletingInProgress && setShowDeleteUserModal(false)}>
+          <div
+            className="modal-card"
+            style={{ maxWidth: 480, width: '100%' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div
+              className="modal-header"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 20px',
+                borderBottom: '1px solid #fee2e2',
+                background: '#fff5f5',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 10,
+                    background: '#fecaca',
+                    color: '#dc2626',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <UserX size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#991b1b' }}>
+                    Remove Team Member
+                  </h3>
+                  <p style={{ margin: 0, fontSize: 12, color: '#b91c1c' }}>
+                    Confirm deletion of user account
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDeleteUserModal(false)}
+                disabled={deletingInProgress}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#94a3b8',
+                  padding: 4,
+                  display: 'flex',
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ padding: '20px' }}>
+              <p style={{ fontSize: 14, color: '#334155', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+                Are you sure you want to remove <strong>{deletingUser.name}</strong> ({deletingUser.email})?
+              </p>
+
+              {deletingUser.totalAssigned > 0 ? (
+                <div
+                  style={{
+                    background: '#fffbeb',
+                    border: '1px solid #fef3c7',
+                    borderRadius: 8,
+                    padding: '14px',
+                    marginBottom: 16,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <AlertCircle size={18} color="#d97706" />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>
+                      Active Assigned Leads: {deletingUser.totalAssigned}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 12, color: '#78350f', margin: '0 0 12px 0', lineHeight: 1.4 }}>
+                    This advisor currently manages <strong>{deletingUser.totalAssigned}</strong> lead(s).
+                    Choose how to handle their active pipeline:
+                  </p>
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 10,
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      color: '#451a03',
+                      background: '#fef3c7',
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={reassignLeadsOnDelete}
+                      onChange={e => setReassignLeadsOnDelete(e.target.checked)}
+                      style={{ marginTop: 2 }}
+                    />
+                    <span>
+                      <strong>Return all {deletingUser.totalAssigned} leads back to Unassigned Pool</strong> (Recommended — prevents prospective student inquiries from being orphaned).
+                    </span>
+                  </label>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 8,
+                    padding: '12px',
+                    marginBottom: 16,
+                    fontSize: 12,
+                    color: '#64748b',
+                  }}
+                >
+                  This member currently has 0 assigned leads. Their account and credentials will be removed.
+                </div>
+              )}
+
+              <p style={{ fontSize: 12, color: '#dc2626', margin: 0, fontWeight: 500 }}>
+                ⚠️ This action is permanent and cannot be undone.
+              </p>
+            </div>
+
+            <div
+              className="modal-footer"
+              style={{
+                borderTop: '1px solid #e2e8f0',
+                padding: '14px 20px',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 10,
+              }}
+            >
+              <button
+                type="button"
+                className="btn-pulse-secondary"
+                onClick={() => setShowDeleteUserModal(false)}
+                disabled={deletingInProgress}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteUser}
+                disabled={deletingInProgress}
+                style={{
+                  background: '#dc2626',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '9px 16px',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                {deletingInProgress ? 'Removing...' : 'Confirm Remove'}
+              </button>
             </div>
           </div>
         </div>

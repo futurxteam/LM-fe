@@ -187,6 +187,34 @@ export const api = {
       body: JSON.stringify({ leads }),
     })
   },
+
+  // User Management Handlers (Sales Advisors & Admins)
+  getUsers: async () => {
+    return await request('/users', {
+      method: 'GET',
+    })
+  },
+
+  createUser: async userData => {
+    return await request('/users', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    })
+  },
+
+  updateUser: async (id, userData) => {
+    return await request(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(userData),
+    })
+  },
+
+  deleteUser: async (id, reassignToPool = true) => {
+    return await request(`/users/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ reassignToPool }),
+    })
+  },
 }
 
 export default api
