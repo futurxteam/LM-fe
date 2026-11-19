@@ -143,7 +143,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const [assigningForm, setAssigningForm] = useState(null) // Form whose counselor assignment popup is open
   const [metaPageIdInput, setMetaPageIdInput] = useState('')
   const [metaTokenInput, setMetaTokenInput] = useState('')
-  const [metaAutoSync, setMetaAutoSync] = useState(true)
+  const [metaAutoSync, setMetaAutoSync] = useState(false)
   const [metaAlerts, setMetaAlerts] = useState({
     soundAlert: true,
     browserNotifications: true,
@@ -212,7 +212,7 @@ export default function AdminDashboard({ user, onLogout }) {
       if (res?.config) {
         setMetaConfig(res.config)
         setMetaPageIdInput(res.config.pageId || '')
-        setMetaAutoSync(res.config.autoSync !== false)
+        setMetaAutoSync(Boolean(res.config.autoSync))
         if (res.config.alerts) {
           setMetaAlerts({
             soundAlert: res.config.alerts.soundAlert !== false,
@@ -532,7 +532,7 @@ export default function AdminDashboard({ user, onLogout }) {
       if (res?.config) {
         setMetaConfig(res.config)
         setMetaPageIdInput(res.config.pageId || '')
-        setMetaAutoSync(res.config.autoSync !== false)
+        setMetaAutoSync(Boolean(res.config.autoSync))
         if (res.config.selectedForms && res.config.selectedForms.length > 0) {
           setMetaForms(res.config.selectedForms)
           setMetaTab('forms')
@@ -3383,7 +3383,7 @@ export default function AdminDashboard({ user, onLogout }) {
                         </span>
                       </div>
                       <span style={{ color: '#64748b' }}>
-                        Background Cron: {metaConfig.autoSync ? 'Active (Every 15m)' : 'Paused'}
+                        Background Cron: {metaConfig.autoSync ? 'Active (Every 15m)' : 'Standby (Webhook Mode)'}
                       </span>
                     </div>
                   )}
@@ -3681,10 +3681,10 @@ export default function AdminDashboard({ user, onLogout }) {
                     >
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
-                          Background Cron Synchronization
+                          Background Cron Poller (Standby)
                         </div>
                         <div style={{ fontSize: 11, color: '#64748b' }}>
-                          Automatically query Meta Graph API every 15 minutes for new form submissions
+                          Standby by default: Meta Webhook provides immediate real-time auto round-robin allocation
                         </div>
                       </div>
                       <label className="toggle-switch">
