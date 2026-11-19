@@ -140,6 +140,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const [metaTab, setMetaTab] = useState('forms') // 'credentials' | 'forms' | 'alerts'
   const [metaConfig, setMetaConfig] = useState(null)
   const [metaForms, setMetaForms] = useState([])
+  const [assigningForm, setAssigningForm] = useState(null) // Form whose counselor assignment popup is open
   const [metaPageIdInput, setMetaPageIdInput] = useState('')
   const [metaTokenInput, setMetaTokenInput] = useState('')
   const [metaAutoSync, setMetaAutoSync] = useState(true)
@@ -621,6 +622,90 @@ export default function AdminDashboard({ user, onLogout }) {
     } finally {
       setSavingMetaForms(false)
     }
+  }
+
+  // -------------------------------------------------------------
+  // Form Routing Assignment Helpers (Default: All Counselors)
+  // -------------------------------------------------------------
+  const isFormAllSelected = form => {
+    if (!form) return true
+    const ids = form.assignedCounselorIds || []
+    return ids.length === 0 || ids.length >= salesReps.length
+  }
+
+  const isFormCounselorSelected = (form, repId) => {
+    if (!form) return false
+    if (isFormAllSelected(form)) return true
+    return (form.assignedCounselorIds || []).map(String).includes(String(repId))
+  }
+
+  const getAssignedLabel = form => {
+    if (!form) return 'All Counselors (Round-Robin)'
+    const ids = form.assignedCounselorIds || []
+    if (ids.length === 0 || ids.length >= salesReps.length) {
+      return 'All Counselors (Round-Robin)'
+    }
+    if (ids.length === 1) {
+      const rep = salesReps.find(r => String(r.id || r._id) === String(ids[0]))
+      return rep ? `${rep.name} (Direct 100%)` : '1 Counselor'
+    }
+    return `${ids.length} Counselors (Round-Robin)`
+  }
+
+  const getFormRoutingSummary = form => {
+    if (!form) return ''
+    const ids = form.assignedCounselorIds || []
+    if (ids.length === 0 || ids.length >= salesReps.length) {
+      return 'Incoming leads will rotate capacity-aware between ALL active counselors.'
+    }
+    if (ids.length === 1) {
+      const rep = salesReps.find(r => String(r.id || r._id) === String(ids[0]))
+      return `100% of leads from this form will go directly to ${rep?.name || 'this counselor'}.`
+    }
+    return `Incoming leads will round-robin between the ${ids.length} selected counselors.`
+  }
+
+  const handleToggleAllCounselorsForForm = formId => {
+    setMetaForms(prev =>
+      prev.map(f => {
+        if (f.formId !== formId) return f
+        return {
+          ...f,
+          assignedCounselorIds: [],
+        }
+      })
+    )
+    setAssigningForm(prev => (prev ? { ...prev, assignedCounselorIds: [] } : null))
+  }
+
+  const handleToggleCounselorForForm = (formId, repId) => {
+    setMetaForms(prev =>
+      prev.map(f => {
+        if (f.formId !== formId) return f
+        let currentIds = (f.assignedCounselorIds || []).map(String)
+        const isCurrentlyAll = currentIds.length === 0 || currentIds.length >= salesReps.length
+
+        if (isCurrentlyAll) {
+          currentIds = [String(repId)]
+        } else if (currentIds.includes(String(repId))) {
+          currentIds = currentIds.filter(id => id !== String(repId))
+          if (currentIds.length === 0) {
+            currentIds = []
+          }
+        } else {
+          currentIds = [...currentIds, String(repId)]
+          if (currentIds.length >= salesReps.length) {
+            currentIds = []
+          }
+        }
+
+        const updated = { ...f, assignedCounselorIds: currentIds }
+        if (assigningForm && assigningForm.formId === formId) {
+          setAssigningForm(updated)
+        }
+        return updated
+      })
+    )
   }
 
   const handleTriggerMetaSync = async (forceFullSync = false) => {
@@ -3399,6 +3484,39 @@ export default function AdminDashboard({ user, onLogout }) {
                               )}
                               {form.locale && <span>🌐 {form.locale}</span>}
                             </div>
+
+                            {/* Form Counselor Assignment with Change Button */}
+                            <div
+                              style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <span style={{ fontSize: 11, color: '#475569' }}>
+                                Assigned to:{' '}
+                                <strong style={{ color: '#0369a1' }}>
+                                  {getAssignedLabel(form)}
+                                </strong>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  setAssigningForm(form)
+                                }}
+                                style={{
+                                  background: '#eff6ff',
+                                  color: '#1d4ed8',
+                                  border: '1px solid #bfdbfe',
+                                  borderRadius: 4,
+                                  padding: '2px 8px',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                                title="Click to choose one, many, or all counselors"
+                              >
+                                Change
+                              </button>
+                            </div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 16 }}>
                             <button
@@ -4604,9 +4722,174 @@ export default function AdminDashboard({ user, onLogout }) {
         </div>
       )}
 
+      {/* ========================================================
+          MODAL: FORM COUNSELOR ASSIGNMENT POP-UP
+          ======================================================== */}
+      {assigningForm && (
+        <div
+          className="modal-overlay"
+          style={{ zIndex: 1060 }}
+          onClick={() => setAssigningForm(null)}
+        >
+          <div
+            className="modal-card"
+            style={{ maxWidth: 500, width: '95%' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="modal-header" style={{ background: '#0f172a', color: '#fff', padding: '14px 18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 8,
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <UserCheck size={18} color="#fff" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
+                    Form Assignment: {assigningForm.formName}
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: 11, opacity: 0.8 }}>
+                    Select one, multiple, or all counselors to receive leads
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAssigningForm(null)}
+                style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ padding: '16px 18px' }}>
+              {/* SELECT ALL AT TOP (DEFAULT) */}
+              <div
+                onClick={() => handleToggleAllCounselorsForForm(assigningForm.formId)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  background: isFormAllSelected(assigningForm) ? '#eff6ff' : '#f8fafc',
+                  border: isFormAllSelected(assigningForm) ? '1.5px solid #2563eb' : '1px solid #e2e8f0',
+                  marginBottom: 12,
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input
+                    type="checkbox"
+                    checked={isFormAllSelected(assigningForm)}
+                    onChange={() => {}}
+                    style={{ width: 16, height: 16, cursor: 'pointer' }}
+                  />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                      All Admissions Counselors (Default)
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                      Rotates capacity round-robin between all active counselors
+                    </div>
+                  </div>
+                </div>
+                <span style={{ fontSize: 11, background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>
+                  {salesReps.length} Counselors
+                </span>
+              </div>
+
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 8, textTransform: 'uppercase' }}>
+                Or Select Counselor(s):
+              </div>
+
+              {/* LIST OF COUNSELORS */}
+              <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 8px' }}>
+                {salesReps.length === 0 ? (
+                  <div style={{ fontSize: 12, color: '#94a3b8', padding: 10 }}>No active counselors found.</div>
+                ) : (
+                  salesReps.map(rep => {
+                    const repId = String(rep.id || rep._id)
+                    const isSelected = isFormCounselorSelected(assigningForm, repId)
+                    return (
+                      <div
+                        key={repId}
+                        onClick={() => handleToggleCounselorForForm(assigningForm.formId, repId)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 10px',
+                          borderRadius: 6,
+                          background: isSelected ? '#f0fdf4' : 'transparent',
+                          marginBottom: 4,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}}
+                            style={{ width: 15, height: 15, cursor: 'pointer' }}
+                          />
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: isSelected ? 700 : 500, color: '#0f172a' }}>
+                              {rep.name}
+                            </div>
+                            <div style={{ fontSize: 10, color: '#64748b' }}>
+                              {rep.title || 'Admissions Counselor'} • {rep.email}
+                            </div>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <span style={{ fontSize: 10, color: '#16a34a', fontWeight: 700 }}>
+                            Selected
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
+              {/* Dynamic rule explanation */}
+              <div style={{ marginTop: 12, padding: '8px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 11, color: '#475569' }}>
+                <strong>Routing Rule:</strong> {getFormRoutingSummary(assigningForm)}
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                className="btn-pulse"
+                onClick={() => {
+                  setAssigningForm(null)
+                  handleSaveFormsSelection()
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  padding: '7px 16px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                Done & Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete User Confirmation Modal */}
       {showDeleteUserModal && deletingUser && (
-        <div className="modal-backdrop" onClick={() => !deletingInProgress && setShowDeleteUserModal(false)}>
+        <div className="modal-overlay" style={{ zIndex: 1050 }} onClick={() => !deletingInProgress && setShowDeleteUserModal(false)}>
           <div
             className="modal-card"
             style={{ maxWidth: 480, width: '100%' }}
