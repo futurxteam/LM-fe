@@ -661,6 +661,11 @@ export default function AdminDashboard({ user, onLogout }) {
       const res = await api.previewFormLeads(formId)
       if (res?.leads) {
         setPreviewLeads(res.leads)
+        if (res.totalFetched !== undefined) {
+          setMetaForms(prev =>
+            prev.map(f => (f.formId === formId ? { ...f, leadsCount: res.totalFetched } : f))
+          )
+        }
         // Auto-select candidates who are NOT already in the database
         const newLeadIds = res.leads
           .filter(l => l.systemState === 'NOT_IN_SYSTEM' || !l.isExistingInDb)
