@@ -20,18 +20,29 @@ import {
   Globe,
   AlertCircle,
   Menu,
+  Layers,
+  Users,
 } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { formatArrivalTime } from '../utils/alertUtils'
+import StudentProfileModal from '../components/StudentProfileModal'
 
 export default function SalesDashboard({ user, onLogout }) {
-  const [activeNav, setActiveNav] = useState('Dashboard')
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  // Track if current page is Team view or personal queue
+  const isTeamView = location.pathname.includes('/team')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [leads, setLeads] = useState([])
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('All')
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Student Profile Drawer / Modal
+  const [activeStudentModal, setActiveStudentModal] = useState(null)
 
   // Log Call & Notes Modal
   const [callModalLead, setCallModalLead] = useState(null)
@@ -43,22 +54,25 @@ export default function SalesDashboard({ user, onLogout }) {
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [location.pathname])
 
   const loadData = async () => {
     setLoading(true)
     try {
+      let leadsPromise
+      if (isTeamView) {
+        leadsPromise = api.getLeads({ role: 'sales' })
+      } else {
+        leadsPromise = api.getLeads({ repId: user?.id || user?._id || 'sales_01' })
+      }
+
       const [leadsData, statsData] = await Promise.all([
-        api.getLeads({ repId: user?.id || 'sales_01' }),
+        leadsPromise,
         api.getStats(),
       ])
-      // If none explicitly matched repId, load all assigned leads for demonstration
-      if (!leadsData || leadsData.length === 0) {
-        const fallbackLeads = await api.getLeads({ role: 'sales' })
-        setLeads(fallbackLeads || [])
-      } else {
-        setLeads(leadsData)
-      }
+
+      const list = Array.isArray(leadsData) ? leadsData : (leadsData?.leads || [])
+      setLeads(list)
       setStats(statsData)
     } catch (err) {
       console.error('Error fetching sales data:', err)
@@ -193,15 +207,35 @@ export default function SalesDashboard({ user, onLogout }) {
         {/* Nav Items */}
         <nav className="sidebar-nav">
           <div
-            className="nav-item active"
-            onClick={() => setMobileMenuOpen(false)}
+            className={`nav-item ${!isTeamView ? 'active' : ''}`}
+            onClick={() => {
+              setMobileMenuOpen(false)
+              navigate('/queue')
+            }}
           >
             <span className="nav-item-icon"><LayoutDashboard size={16} /></span>
-            <span>My Calling Queue</span>
+            <span>My Outreach Queue</span>
             <span style={{ marginLeft: 'auto', background: '#0284c7', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 10 }}>
-              {leads.length}
+              {!isTeamView ? leads.length : ''}
             </span>
           </div>
+
+          {/* Group Manager Team View */}
+          {user?.isGroupManager && (
+            <div
+              className={`nav-item ${isTeamView ? 'active' : ''}`}
+              onClick={() => {
+                setMobileMenuOpen(false)
+                navigate('/team')
+              }}
+            >
+              <span className="nav-item-icon"><Users size={16} /></span>
+              <span>My Team Leads</span>
+              <span style={{ marginLeft: 'auto', background: '#8b5cf6', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 10, fontWeight: 700 }}>
+                Manager
+              </span>
+            </div>
+          )}
         </nav>
 
         {/* Logout */}
@@ -376,7 +410,13 @@ export default function SalesDashboard({ user, onLogout }) {
                         return (
                           <tr key={lead.id}>
                             <td>
-                              <div style={{ fontWeight: 700, color: '#1e293b' }}>{lead.fullName}</div>
+                              <div
+                                style={{ fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}
+                                onClick={() => setActiveStudentModal(lead)}
+                                title="Click to view & edit student profile"
+                              >
+                                {lead.fullName}
+                              </div>
                               <div style={{ fontSize: 12, color: '#0369a1', fontWeight: 600 }}>
                                 <a href={`tel:${lead.phone}`} style={{ color: 'inherit', textDecoration: 'none' }}>
                                   📞 {lead.phone}
@@ -464,13 +504,24 @@ export default function SalesDashboard({ user, onLogout }) {
                               </div>
                             </td>
                             <td>
-                              <button
-                                className="btn-pulse"
-                                style={{ fontSize: 11, padding: '5px 10px' }}
-                                onClick={() => openCallModal(lead)}
-                              >
-                                Log Outcome
-                              </button>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button
+                                  type="button"
+                                  className="btn-pulse-secondary"
+                                  style={{ fontSize: 11, padding: '5px 8px' }}
+                                  onClick={() => setActiveStudentModal(lead)}
+                                  title="View & Edit Student Profile (starts open)"
+                                >
+                                  Profile
+                                </button>
+                                <button
+                                  className="btn-pulse"
+                                  style={{ fontSize: 11, padding: '5px 10px' }}
+                                  onClick={() => openCallModal(lead)}
+                                >
+                                  Log Call
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         )
@@ -639,6 +690,20 @@ export default function SalesDashboard({ user, onLogout }) {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Student Profile Modal (Editable & Starts Open) */}
+      {activeStudentModal && (
+        <StudentProfileModal
+          lead={activeStudentModal}
+          currentUser={user}
+          onClose={() => setActiveStudentModal(null)}
+          onUpdated={updatedLead => {
+            setActiveStudentModal(updatedLead)
+            loadData()
+          }}
+          showNotify={showNotify}
+        />
       )}
     </div>
   )

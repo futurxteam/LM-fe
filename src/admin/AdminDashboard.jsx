@@ -51,12 +51,38 @@ import {
   UserX,
   Lock,
 } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { playChime, requestNotificationPermission, sendDesktopNotification, formatArrivalTime } from '../utils/alertUtils'
+import StudentProfileModal from '../components/StudentProfileModal'
+import ManualLeadModal from '../components/ManualLeadModal'
+import CounselorGroupModal from '../components/CounselorGroupModal'
 
 export default function AdminDashboard({ user, onLogout }) {
-  // Navigation Tabs: 'dashboard' | 'pool' | 'all-leads' | 'reports'
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  // Derive active tab from URL path (stays on refreshed page!)
+  const getTabFromPath = path => {
+    if (path.includes('/pool')) return 'pool'
+    if (path.includes('/leads') || path.includes('/all-leads')) return 'all-leads'
+    if (path.includes('/reports')) return 'reports'
+    if (path.includes('/users') || path.includes('/team')) return 'users'
+    return 'dashboard'
+  }
+
+  const activeTab = getTabFromPath(location.pathname)
+
+  // Navigate to separate pages so browser URL updates and refresh does not reset to root!
+  const setActiveTab = tab => {
+    setMobileMenuOpen(false)
+    if (tab === 'dashboard') navigate('/dashboard')
+    else if (tab === 'pool') navigate('/pool')
+    else if (tab === 'all-leads') navigate('/leads')
+    else if (tab === 'reports') navigate('/reports')
+    else if (tab === 'users') navigate('/users')
+  }
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // Data states
@@ -92,6 +118,11 @@ export default function AdminDashboard({ user, onLogout }) {
   const [isDragging, setIsDragging] = useState(false)
   const [pasteContent, setPasteContent] = useState('')
   const [activeLeadModal, setActiveLeadModal] = useState(null)
+  const [showManualLeadModal, setShowManualLeadModal] = useState(false)
+  const [counselorGroups, setCounselorGroups] = useState([])
+  const [groupSubTab, setGroupSubTab] = useState('counselors') // 'counselors' | 'groups'
+  const [showGroupModal, setShowGroupModal] = useState(false)
+  const [editingGroup, setEditingGroup] = useState(null)
   const [notification, setNotification] = useState(null)
   const [uploading, setUploading] = useState(false)
 
@@ -189,6 +220,36 @@ export default function AdminDashboard({ user, onLogout }) {
       }
     }).catch(err => console.warn('Could not load Meta config:', err.message))
   }, [])
+
+  const loadCounselorGroups = async () => {
+    try {
+      const res = await api.getGroups()
+      if (res?.groups) {
+        setCounselorGroups(res.groups)
+      }
+    } catch (err) {
+      console.warn('Failed to load counselor groups:', err.message)
+    }
+  }
+
+  // Load counselor groups on mount
+  useEffect(() => {
+    loadCounselorGroups()
+  }, [])
+
+  // Dynamic tab switcher: loads specific page data when refreshed on /pool, /leads, /users, etc.
+  useEffect(() => {
+    if (activeTab === 'pool') {
+      loadOverviewData()
+    } else if (activeTab === 'all-leads') {
+      loadMasterLeads(page, pageSize)
+    } else if (activeTab === 'users') {
+      loadUsers()
+      loadCounselorGroups()
+    } else if (activeTab === 'reports') {
+      api.getStats().then(setStats).catch(() => {})
+    }
+  }, [activeTab])
 
   // Background poller every 30 seconds for new leads in the pool & audio chime
   useEffect(() => {
@@ -769,6 +830,7 @@ export default function AdminDashboard({ user, onLogout }) {
       role: 'sales',
       title: 'Admissions Counselor',
       specialty: 'Healthcare Admissions',
+      groupId: '',
       active: true,
     })
     setShowUserModal(true)
@@ -783,6 +845,7 @@ export default function AdminDashboard({ user, onLogout }) {
       role: u.role || 'sales',
       title: u.title || (u.role === 'admin' ? 'Administrator' : 'Admissions Counselor'),
       specialty: u.specialty || 'Healthcare Admissions',
+      groupId: u.groupId || '',
       active: u.active !== false,
     })
     setShowUserModal(true)
@@ -1286,6 +1349,29 @@ export default function AdminDashboard({ user, onLogout }) {
                     )}
                   </button>
 
+                  {/* Manual Student Lead Addition */}
+                  <button
+                    className="btn-pulse"
+                    onClick={() => setShowManualLeadModal(true)}
+                    style={{
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '7px 13px',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                    }}
+                    title="Manually type in a new student inquiry"
+                  >
+                    <UserPlus size={14} />
+                    <span>+ Add Student Lead</span>
+                  </button>
+
                   {/* IMPORT OPTIONS ONLY HERE */}
                   <button className="btn-pulse-accent" onClick={() => setShowUploadModal(true)}>
                     <FileSpreadsheet size={14} />
@@ -1580,6 +1666,28 @@ export default function AdminDashboard({ user, onLogout }) {
                       <option value="100">100 per page</option>
                     </select>
                   </div>
+
+                  {/* Manual Student Lead Addition */}
+                  <button
+                    className="btn-pulse"
+                    onClick={() => setShowManualLeadModal(true)}
+                    style={{
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '5px 12px',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <UserPlus size={13} />
+                    <span>+ Add Student</span>
+                  </button>
                 </div>
               </div>
 
@@ -2150,21 +2258,279 @@ export default function AdminDashboard({ user, onLogout }) {
                 </div>
               </div>
 
-              {/* Action Toolbar */}
-              <div
-                style={{
-                  background: '#ffffff',
-                  borderRadius: 10,
-                  padding: '12px 18px',
-                  border: '1px solid #e2e8f0',
-                  marginBottom: 16,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: 12,
-                }}
-              >
+              {/* Sub-tab Navigation: Admissions Counselors vs Counselor Groups */}
+              <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                <button
+                  type="button"
+                  onClick={() => setGroupSubTab('counselors')}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: groupSubTab === 'counselors' ? '#0f172a' : '#e2e8f0',
+                    color: groupSubTab === 'counselors' ? '#ffffff' : '#475569',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <Users size={15} />
+                  <span>Admissions Counselors ({usersList.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGroupSubTab('groups')}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: groupSubTab === 'groups' ? '#0f172a' : '#e2e8f0',
+                    color: groupSubTab === 'groups' ? '#ffffff' : '#475569',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <Layers size={15} />
+                  <span>Counselor Groups & Teams ({counselorGroups.length})</span>
+                </button>
+              </div>
+
+              {/* VIEW 1: COUNSELOR GROUPS & TEAMS */}
+              {groupSubTab === 'groups' && (
+                <div>
+                  <div
+                    style={{
+                      background: '#ffffff',
+                      borderRadius: 10,
+                      padding: '14px 18px',
+                      border: '1px solid #e2e8f0',
+                      marginBottom: 16,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                    }}
+                  >
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
+                        Admissions Counselor Teams & Groups
+                      </h4>
+                      <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+                        Groups allow designated managers to oversee counselor pipelines and route Meta lead forms to entire teams
+                      </p>
+                    </div>
+                    <button
+                      className="btn-pulse"
+                      onClick={() => {
+                        setEditingGroup(null)
+                        setShowGroupModal(true)
+                      }}
+                      style={{
+                        background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '8px 16px',
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}
+                    >
+                      <UserPlus size={15} />
+                      <span>+ Create Counselor Group</span>
+                    </button>
+                  </div>
+
+                  {counselorGroups.length === 0 ? (
+                    <div style={{ background: '#fff', borderRadius: 10, padding: 40, textAlign: 'center', border: '1px solid #e2e8f0' }}>
+                      <Users size={36} color="#94a3b8" style={{ margin: '0 auto 10px' }} />
+                      <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>No Counselor Groups Created Yet</div>
+                      <p style={{ fontSize: 12, color: '#64748b', maxWidth: 400, margin: '6px auto 14px' }}>
+                        Create groups to group counselors by program, geography, or shift, and designate team managers.
+                      </p>
+                      <button
+                        className="btn-pulse"
+                        onClick={() => {
+                          setEditingGroup(null)
+                          setShowGroupModal(true)
+                        }}
+                        style={{ background: '#8b5cf6', padding: '7px 16px', fontSize: 12 }}
+                      >
+                        + Create First Group
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+                      {counselorGroups.map(group => (
+                        <div
+                          key={group.id || group._id}
+                          style={{
+                            background: '#ffffff',
+                            borderRadius: 10,
+                            padding: '16px 18px',
+                            border: '1px solid #e2e8f0',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                          }}
+                        >
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                              <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                                {group.name}
+                              </h4>
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: 10,
+                                  background: group.active ? '#dcfce7' : '#f1f5f9',
+                                  color: group.active ? '#15803d' : '#64748b',
+                                }}
+                              >
+                                {group.active ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
+
+                            {group.description && (
+                              <p style={{ margin: '0 0 12px 0', fontSize: 12, color: '#64748b' }}>
+                                {group.description}
+                              </p>
+                            )}
+
+                            {/* Group Manager */}
+                            <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 6, marginBottom: 12 }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+                                GROUP MANAGER
+                              </div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: '#0284c7', display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                                <UserCheck size={14} color="#0284c7" />
+                                <span>{group.manager?.name || 'No Manager Assigned'}</span>
+                              </div>
+                              {group.manager?.email && (
+                                <div style={{ fontSize: 11, color: '#64748b' }}>{group.manager.email}</div>
+                              )}
+                            </div>
+
+                            {/* Members */}
+                            <div style={{ marginBottom: 12 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
+                                TEAM COUNSELORS ({(group.members || []).length}):
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {(group.members || []).map(m => (
+                                  <span
+                                    key={m._id || m.id}
+                                    style={{
+                                      fontSize: 11,
+                                      background: '#eff6ff',
+                                      color: '#1d4ed8',
+                                      padding: '3px 8px',
+                                      borderRadius: 12,
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    {m.name}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Live Pipeline Stats */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, padding: '10px 0', borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>
+                              <div>
+                                <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>{group.stats?.activeCount ?? 0}</div>
+                                <div style={{ fontSize: 10, color: '#64748b' }}>Active</div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 16, fontWeight: 800, color: '#10b981' }}>{group.stats?.completedCount ?? 0}</div>
+                                <div style={{ fontSize: 10, color: '#10b981' }}>Students</div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 16, fontWeight: 800, color: '#ef4444' }}>{group.stats?.droppedCount ?? 0}</div>
+                                <div style={{ fontSize: 10, color: '#ef4444' }}>Dropped</div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 16, fontWeight: 800, color: '#0284c7' }}>{group.stats?.totalLeads ?? 0}</div>
+                                <div style={{ fontSize: 10, color: '#0284c7' }}>Total</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12, paddingTop: 10, borderTop: '1px solid #f1f5f9' }}>
+                            <button
+                              type="button"
+                              className="btn-pulse-secondary"
+                              onClick={() => {
+                                setEditingGroup(group)
+                                setShowGroupModal(true)
+                              }}
+                              style={{ fontSize: 11, padding: '4px 10px' }}
+                            >
+                              Edit Group
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (confirm(`Are you sure you want to delete group "${group.name}"?`)) {
+                                  try {
+                                    await api.deleteGroup(group.id || group._id)
+                                    showNotify('success', `Deleted group "${group.name}"`)
+                                    loadCounselorGroups()
+                                    loadUsers()
+                                  } catch (err) {
+                                    showNotify('error', err.message || 'Failed to delete group')
+                                  }
+                                }
+                              }}
+                              style={{
+                                fontSize: 11,
+                                padding: '4px 10px',
+                                background: '#fee2e2',
+                                color: '#b91c1c',
+                                border: '1px solid #fecaca',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* VIEW 2: STAFF & ADMISSIONS COUNSELORS DIRECTORY */}
+              {groupSubTab === 'counselors' && (
+                <div>
+                  {/* Action Toolbar */}
+                  <div
+                    style={{
+                      background: '#ffffff',
+                      borderRadius: 10,
+                      padding: '12px 18px',
+                      border: '1px solid #e2e8f0',
+                      marginBottom: 16,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                    }}
+                  >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flex: 1 }}>
                   {/* Search input */}
                   <div style={{ position: 'relative', minWidth: 220, maxWidth: 320, width: '100%' }}>
@@ -2435,7 +2801,9 @@ export default function AdminDashboard({ user, onLogout }) {
             </div>
           )}
         </div>
-      </main>
+      )}
+    </div>
+  </main>
 
       {/* ========================================================
           MODAL: FILE UPLOAD (XLSX, XLS, CSV, TSV)
@@ -2686,115 +3054,56 @@ export default function AdminDashboard({ user, onLogout }) {
       )}
 
       {/* ========================================================
-          MODAL: LEAD DETAILS & AUDIT TRAIL
+          MODAL: STUDENT PROFILE (EDITABLE & STARTS OPEN)
           ======================================================== */}
       {activeLeadModal && (
-        <div className="modal-overlay">
-          <div className="modal-card" style={{ maxWidth: 700 }}>
-            <div className="modal-header">
-              <div>
-                <h3 style={{ margin: 0, fontSize: 17 }}>{activeLeadModal.fullName}</h3>
-                <span style={{ fontSize: 12, opacity: 0.8 }}>
-                  Meta ID: {activeLeadModal.metaLeadId || activeLeadModal.id} • {activeLeadModal.platform}
-                </span>
-              </div>
-              <button
-                onClick={() => setActiveLeadModal(null)}
-                style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="modal-body">
-              {/* Contact & Profile Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, marginBottom: 16 }}>
-                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6 }}>
-                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>PHONE NUMBER</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{activeLeadModal.phone}</div>
-                </div>
-                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6 }}>
-                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>EMAIL ADDRESS</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>{activeLeadModal.email || 'N/A'}</div>
-                </div>
-                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6 }}>
-                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>EDUCATIONAL QUALIFICATION</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{activeLeadModal.qualification}</div>
-                </div>
-                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6 }}>
-                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>PREFERRED WORK LOCATION</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>📍 {activeLeadModal.preferredLocation}</div>
-                </div>
-                <div style={{ background: '#f0fdf4', padding: 12, borderRadius: 6, border: '1px solid #bbf7d0' }}>
-                  <div style={{ fontSize: 11, color: '#166534', fontWeight: 600 }}>TIME OF ARRIVAL (INGESTION)</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#14532d', display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-                    <Clock size={14} color="#16a34a" />
-                    <span>{formatArrivalTime(activeLeadModal.createdTime || activeLeadModal.createdAt)}</span>
-                  </div>
-                  <div style={{ fontSize: 10, color: '#15803d', marginTop: 2 }}>
-                    Exact: {activeLeadModal.createdTime ? new Date(activeLeadModal.createdTime).toLocaleString() : 'N/A'}
-                  </div>
-                </div>
-                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6 }}>
-                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>SOURCE CAMPAIGN / FORM</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{activeLeadModal.formName || activeLeadModal.campaignName || 'Meta Ads'}</div>
-                </div>
-              </div>
-
-              {/* Assignment Status */}
-              <div style={{ padding: 12, background: '#f1f5f9', borderRadius: 6, marginBottom: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                  ASSIGNMENT & WORKFLOW STATUS
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <span style={{ fontSize: 12, color: '#64748b' }}>Assigned To: </span>
-                    <strong style={{ color: '#0369a1' }}>
-                      {activeLeadModal.assignedTo ? activeLeadModal.assignedTo.repName : 'Unassigned (In Pool)'}
-                    </strong>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: 12, color: '#64748b' }}>Status: </span>
-                    <span className={`status-badge ${activeLeadModal.status === 'Contacted' ? 'status-contacted' : 'status-not-contacted'}`}>
-                      {activeLeadModal.status}
-                    </span>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: 12, color: '#64748b' }}>Sub-Status: </span>
-                    <strong style={{ fontSize: 12 }}>{activeLeadModal.subStatus}</strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* Audit & Call Notes */}
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 8 }}>
-                  ACTIVITY & AUDIT TRAIL ({activeLeadModal.notes?.length || 0})
-                </div>
-                <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 6, padding: 10 }}>
-                  {activeLeadModal.notes && activeLeadModal.notes.length > 0 ? (
-                    activeLeadModal.notes.map((note, i) => (
-                      <div key={i} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 8, marginBottom: 8, fontSize: 12 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: 11, marginBottom: 2 }}>
-                          <strong>{note.author}</strong>
-                          <span>{new Date(note.timestamp).toLocaleString()}</span>
-                        </div>
-                        <div style={{ color: '#1e293b' }}>{note.text}</div>
-                      </div>
-                    ))
-                  ) : (
-                    <div style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', padding: 10 }}>No activity notes recorded.</div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-pulse-secondary" onClick={() => setActiveLeadModal(null)}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+        <StudentProfileModal
+          lead={activeLeadModal}
+          counselors={salesReps}
+          currentUser={user}
+          onClose={() => setActiveLeadModal(null)}
+          onUpdated={updatedLead => {
+            setActiveLeadModal(updatedLead)
+            loadOverviewData()
+            if (activeTab === 'all-leads') loadMasterLeads(page, pageSize)
+          }}
+          showNotify={showNotify}
+        />
       )}
+
+      {/* ========================================================
+          MODAL: MANUAL STUDENT LEAD CREATION (MANUAL TYPING)
+          ======================================================== */}
+      <ManualLeadModal
+        isOpen={showManualLeadModal}
+        onClose={() => setShowManualLeadModal(false)}
+        counselors={salesReps}
+        groups={counselorGroups}
+        currentUser={user}
+        onSuccess={() => {
+          loadOverviewData()
+          if (activeTab === 'all-leads') loadMasterLeads(1, pageSize)
+        }}
+        showNotify={showNotify}
+      />
+
+      {/* ========================================================
+          MODAL: COUNSELOR GROUP CREATE / EDIT
+          ======================================================== */}
+      <CounselorGroupModal
+        isOpen={showGroupModal}
+        onClose={() => {
+          setShowGroupModal(false)
+          setEditingGroup(null)
+        }}
+        group={editingGroup}
+        counselors={salesReps}
+        onSuccess={() => {
+          loadCounselorGroups()
+          loadUsers()
+        }}
+        showNotify={showNotify}
+      />
       {/* ========================================================
           MODAL: META GRAPH API LIVE SYNC, FORMS & ALERTS
           ======================================================== */}

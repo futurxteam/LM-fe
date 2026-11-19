@@ -110,6 +110,19 @@ export const api = {
     })
   },
 
+  updateLeadProfile: async (leadId, profilePayload) => {
+    return await request(`/leads/${leadId}/profile`, {
+      method: 'PUT',
+      body: JSON.stringify(profilePayload),
+    })
+  },
+
+  deleteLead: async (leadId) => {
+    return await request(`/leads/${leadId}`, {
+      method: 'DELETE',
+    })
+  },
+
   // Database Reset / Clean Leads Handlers
   resetLeadDatabase: async (mode = 'clean') => {
     return await request('/leads/reset-db', {
@@ -213,6 +226,33 @@ export const api = {
     return await request(`/users/${id}`, {
       method: 'DELETE',
       body: JSON.stringify({ reassignToPool }),
+    })
+  },
+
+  // Counselor Groups & Hierarchy Handlers
+  getGroups: async () => {
+    return await request('/groups', {
+      method: 'GET',
+    })
+  },
+
+  createGroup: async groupData => {
+    return await request('/groups', {
+      method: 'POST',
+      body: JSON.stringify(groupData),
+    })
+  },
+
+  updateGroup: async (id, groupData) => {
+    return await request(`/groups/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(groupData),
+    })
+  },
+
+  deleteGroup: async id => {
+    return await request(`/groups/${id}`, {
+      method: 'DELETE',
     })
   },
 }
