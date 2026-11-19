@@ -130,6 +130,9 @@ export default function AdminDashboard({ user, onLogout }) {
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewSelectedIds, setPreviewSelectedIds] = useState([])
   const [importingPreview, setImportingPreview] = useState(false)
+  const [previewTokenExpired, setPreviewTokenExpired] = useState(false)
+  const [previewError, setPreviewError] = useState('')
+  const [previewFilter, setPreviewFilter] = useState('all') // 'all' | 'new' | 'pool' | 'assigned'
 
   // User Management State
   const [usersList, setUsersList] = useState([])
@@ -540,10 +543,10 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   }
 
-  const handleTriggerMetaSync = async () => {
+  const handleTriggerMetaSync = async (forceFullSync = false) => {
     setSyncingMetaLeads(true)
     try {
-      const res = await api.syncMetaLeads()
+      const res = await api.syncMetaLeads({ forceFullSync })
       const added = res.addedCount || 0
       showNotify('success', res.message || `Meta sync completed! +${added} leads added.`)
       if (added > 0 && metaAlerts.soundAlert) {
@@ -560,7 +563,11 @@ export default function AdminDashboard({ user, onLogout }) {
       const confRes = await api.getMetaConfig()
       if (confRes?.config) setMetaConfig(confRes.config)
     } catch (err) {
-      showNotify('error', err.message || 'Meta sync failed')
+      if (err.isTokenExpired || /expired|token/i.test(err.message || '')) {
+        showNotify('error', 'Meta Access Token Expired! Please paste a renewed token in Meta Settings.')
+      } else {
+        showNotify('error', err.message || 'Meta sync failed')
+      }
     } finally {
       setSyncingMetaLeads(false)
     }
@@ -646,16 +653,24 @@ export default function AdminDashboard({ user, onLogout }) {
     setPreviewLoading(true)
     setPreviewLeads([])
     setPreviewSelectedIds([])
+    setPreviewTokenExpired(false)
+    setPreviewError('')
+    setPreviewFilter('all')
 
     try {
       const res = await api.previewFormLeads(formId)
       if (res?.leads) {
         setPreviewLeads(res.leads)
         // Auto-select candidates who are NOT already in the database
-        const newLeadIds = res.leads.filter(l => !l.isExistingInDb).map(l => l.metaLeadId)
+        const newLeadIds = res.leads
+          .filter(l => l.systemState === 'NOT_IN_SYSTEM' || !l.isExistingInDb)
+          .map(l => l.metaLeadId)
         setPreviewSelectedIds(newLeadIds)
       }
     } catch (err) {
+      const isExpired = err.isTokenExpired || /expired|token|OAuth/i.test(err.message || '')
+      setPreviewTokenExpired(Boolean(isExpired))
+      setPreviewError(err.message || 'Failed to preview leads for this form')
       showNotify('error', err.message || 'Failed to preview leads for this form')
     } finally {
       setPreviewLoading(false)
@@ -670,7 +685,11 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const handleSelectAllPreview = (onlyNew = false) => {
     if (onlyNew) {
-      setPreviewSelectedIds(previewLeads.filter(l => !l.isExistingInDb).map(l => l.metaLeadId))
+      setPreviewSelectedIds(
+        previewLeads
+          .filter(l => l.systemState === 'NOT_IN_SYSTEM' || !l.isExistingInDb)
+          .map(l => l.metaLeadId)
+      )
     } else {
       setPreviewSelectedIds(previewLeads.map(l => l.metaLeadId))
     }
@@ -2867,8 +2886,9 @@ export default function AdminDashboard({ user, onLogout }) {
                         Choose which Facebook Lead Ads forms should automatically populate the unassigned CRM lead pool.
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <button
+                        type="button"
                         className="btn-pulse-secondary"
                         onClick={handleFetchMetaForms}
                         disabled={fetchingMetaForms || syncingMetaLeads}
@@ -2878,8 +2898,26 @@ export default function AdminDashboard({ user, onLogout }) {
                         <span>Refresh Forms</span>
                       </button>
                       <button
+                        type="button"
+                        className="btn-pulse-secondary"
+                        onClick={() => handleTriggerMetaSync(true)}
+                        disabled={syncingMetaLeads || metaForms.filter(f => f.active).length === 0}
+                        style={{
+                          fontSize: 12,
+                          padding: '6px 12px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                        }}
+                        title="Re-check all historical leads from active forms and import any missing candidates"
+                      >
+                        <RotateCcw size={13} />
+                        <span>Full Resync (All)</span>
+                      </button>
+                      <button
+                        type="button"
                         className="btn-pulse"
-                        onClick={handleTriggerMetaSync}
+                        onClick={() => handleTriggerMetaSync(false)}
                         disabled={syncingMetaLeads || metaForms.filter(f => f.active).length === 0}
                         style={{
                           background: 'linear-gradient(135deg, #1877f2 0%, #0d5cb6 100%)',
@@ -2889,6 +2927,7 @@ export default function AdminDashboard({ user, onLogout }) {
                           alignItems: 'center',
                           gap: 6,
                         }}
+                        title="Fetch only new leads submitted after the last successful sync"
                       >
                         <Zap size={14} />
                         <span>{syncingMetaLeads ? 'Syncing...' : 'Sync Leads Now'}</span>
@@ -3512,6 +3551,50 @@ export default function AdminDashboard({ user, onLogout }) {
               </button>
             </div>
 
+            {/* Token Expired / Error Banner */}
+            {previewTokenExpired && (
+              <div
+                style={{
+                  padding: '12px 18px',
+                  background: '#fffbeb',
+                  borderBottom: '1px solid #fef3c7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <AlertCircle size={20} color="#d97706" />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>
+                      Meta Access Token Expired (OAuth Session Expired)
+                    </div>
+                    <div style={{ fontSize: 12, color: '#b45309' }}>
+                      Your Meta Page Access Token expired. Please paste a fresh token in Meta Settings to fetch live submissions.
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn-pulse"
+                  onClick={() => {
+                    setShowFormPreviewModal(false)
+                    setShowMetaModal(true)
+                  }}
+                  style={{
+                    background: '#d97706',
+                    fontSize: 12,
+                    padding: '6px 14px',
+                    whiteSpace: 'nowrap',
+                    fontWeight: 700,
+                  }}
+                >
+                  Update Meta Token
+                </button>
+              </div>
+            )}
+
             {/* Action / Selection Bar */}
             <div
               style={{
@@ -3525,16 +3608,71 @@ export default function AdminDashboard({ user, onLogout }) {
                 gap: 10,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                <span className="meta-badge-count" style={{ background: '#e0f2fe', color: '#0369a1' }}>
-                  Total on Meta: {previewLeads.length}
-                </span>
-                <span className="meta-badge-count" style={{ background: '#dcfce7', color: '#15803d' }}>
-                  New (Ready to Ingest): {previewLeads.filter(l => !l.isExistingInDb).length}
-                </span>
-                <span className="meta-badge-count" style={{ background: '#f1f5f9', color: '#64748b' }}>
-                  Already in CRM: {previewLeads.filter(l => l.isExistingInDb).length}
-                </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFilter('all')}
+                  style={{
+                    border: previewFilter === 'all' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                    background: previewFilter === 'all' ? '#e0f2fe' : '#ffffff',
+                    color: previewFilter === 'all' ? '#0369a1' : '#475569',
+                    borderRadius: 20,
+                    padding: '3px 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  All Submissions ({previewLeads.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFilter('new')}
+                  style={{
+                    border: previewFilter === 'new' ? '2px solid #16a34a' : '1px solid #cbd5e1',
+                    background: previewFilter === 'new' ? '#dcfce7' : '#ffffff',
+                    color: previewFilter === 'new' ? '#15803d' : '#475569',
+                    borderRadius: 20,
+                    padding: '3px 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Ready to Ingest ({previewLeads.filter(l => l.systemState === 'NOT_IN_SYSTEM' || !l.isExistingInDb).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFilter('pool')}
+                  style={{
+                    border: previewFilter === 'pool' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                    background: previewFilter === 'pool' ? '#eff6ff' : '#ffffff',
+                    color: previewFilter === 'pool' ? '#1e40af' : '#475569',
+                    borderRadius: 20,
+                    padding: '3px 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  In Pool ({previewLeads.filter(l => l.systemState === 'IN_POOL' || (l.isExistingInDb && !l.assignedAdvisor)).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFilter('assigned')}
+                  style={{
+                    border: previewFilter === 'assigned' ? '2px solid #9333ea' : '1px solid #cbd5e1',
+                    background: previewFilter === 'assigned' ? '#faf5ff' : '#ffffff',
+                    color: previewFilter === 'assigned' ? '#7e22ce' : '#475569',
+                    borderRadius: 20,
+                    padding: '3px 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Assigned ({previewLeads.filter(l => l.systemState === 'ASSIGNED' || !!l.assignedAdvisor).length})
+                </button>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -3544,7 +3682,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   onClick={() => handleSelectAllPreview(true)}
                   style={{ fontSize: 11, padding: '5px 10px' }}
                 >
-                  Select All New ({previewLeads.filter(l => !l.isExistingInDb).length})
+                  Select All Ready ({previewLeads.filter(l => l.systemState === 'NOT_IN_SYSTEM' || !l.isExistingInDb).length})
                 </button>
                 <button
                   type="button"
@@ -3585,106 +3723,165 @@ export default function AdminDashboard({ user, onLogout }) {
 
             {/* Leads Table */}
             <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto', padding: 0 }}>
-              {previewLeads.length === 0 && !previewLoading ? (
-                <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
-                  No lead submissions found for this form on Meta.
-                </div>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="leads-table" style={{ width: '100%', minWidth: 720, margin: 0 }}>
-                    <thead>
-                      <tr>
-                        <th style={{ width: 40, textAlign: 'center' }}>
-                          <input
-                            type="checkbox"
-                            checked={previewSelectedIds.length > 0 && previewSelectedIds.length === previewLeads.length}
-                            onChange={e =>
-                              e.target.checked ? handleSelectAllPreview(false) : handleDeselectAllPreview()
-                            }
-                          />
-                        </th>
-                        <th>Candidate Name</th>
-                        <th>Phone & Email</th>
-                        <th>Educational Qualification</th>
-                        <th>Preferred City</th>
-                        <th>Submitted At</th>
-                        <th>CRM Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {previewLeads.map(lead => {
-                        const isSelected = previewSelectedIds.includes(lead.metaLeadId)
-                        return (
-                          <tr
-                            key={lead.metaLeadId}
-                            style={{
-                              background: isSelected ? '#f0f9ff' : lead.isExistingInDb ? '#fafafa' : '#fff',
-                              cursor: 'pointer',
-                            }}
-                            onClick={() => handleTogglePreviewSelect(lead.metaLeadId)}
-                          >
-                            <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => handleTogglePreviewSelect(lead.metaLeadId)}
-                              />
-                            </td>
-                            <td>
-                              <div style={{ fontWeight: 700, color: '#0f172a' }}>{lead.fullName}</div>
-                              <div style={{ fontSize: 10, color: '#94a3b8' }}>ID: {lead.metaLeadId}</div>
-                            </td>
-                            <td>
-                              <div style={{ fontWeight: 600, color: '#0284c7' }}>{lead.phone}</div>
-                              <div style={{ fontSize: 11, color: '#64748b' }}>{lead.email || '—'}</div>
-                            </td>
-                            <td>
-                              <span style={{ fontSize: 12, color: '#334155' }}>{lead.qualification}</span>
-                            </td>
-                            <td>
-                              <span style={{ fontSize: 12, color: '#334155' }}>📍 {lead.preferredLocation}</span>
-                            </td>
-                            <td style={{ fontSize: 11, color: '#64748b' }}>
-                              {lead.createdTime ? new Date(lead.createdTime).toLocaleString() : 'Recent'}
-                            </td>
-                            <td>
-                              {lead.isExistingInDb ? (
-                                <span
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    padding: '3px 8px',
-                                    borderRadius: 12,
-                                    background: '#e0f2fe',
-                                    color: '#0369a1',
-                                    display: 'inline-block',
-                                  }}
-                                >
-                                  ✓ In CRM ({lead.existingAssignment || lead.existingStatus || 'Pool'})
-                                </span>
-                              ) : (
-                                <span
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    padding: '3px 8px',
-                                    borderRadius: 12,
-                                    background: '#dcfce7',
-                                    color: '#15803d',
-                                    display: 'inline-block',
-                                  }}
-                                >
-                                  + Ready to Ingest
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              {(() => {
+                const displayedLeads = previewLeads.filter(lead => {
+                  if (previewFilter === 'new') return lead.systemState === 'NOT_IN_SYSTEM' || !lead.isExistingInDb
+                  if (previewFilter === 'pool') return lead.systemState === 'IN_POOL' || (lead.isExistingInDb && !lead.assignedAdvisor)
+                  if (previewFilter === 'assigned') return lead.systemState === 'ASSIGNED' || !!lead.assignedAdvisor
+                  return true
+                })
+
+                if (displayedLeads.length === 0 && !previewLoading) {
+                  return (
+                    <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+                      {previewTokenExpired
+                        ? 'Cannot load leads: Meta access token expired. Please renew token above.'
+                        : previewFilter !== 'all'
+                        ? `No leads found with filter "${previewFilter}".`
+                        : 'No lead submissions found for this form on Meta.'}
+                    </div>
+                  )
+                }
+
+                return (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="leads-table" style={{ width: '100%', minWidth: 720, margin: 0 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: 40, textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={
+                                displayedLeads.length > 0 &&
+                                displayedLeads.every(l => previewSelectedIds.includes(l.metaLeadId))
+                              }
+                              onChange={e => {
+                                if (e.target.checked) {
+                                  const idsToAdd = displayedLeads.map(l => l.metaLeadId)
+                                  setPreviewSelectedIds(prev => Array.from(new Set([...prev, ...idsToAdd])))
+                                } else {
+                                  const idsToRemove = displayedLeads.map(l => l.metaLeadId)
+                                  setPreviewSelectedIds(prev => prev.filter(id => !idsToRemove.includes(id)))
+                                }
+                              }}
+                            />
+                          </th>
+                          <th>Candidate Name</th>
+                          <th>Phone & Email</th>
+                          <th>Educational Qualification</th>
+                          <th>Preferred City</th>
+                          <th>Submitted At</th>
+                          <th>CRM System Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayedLeads.map(lead => {
+                          const isSelected = previewSelectedIds.includes(lead.metaLeadId)
+                          const isAssigned = lead.systemState === 'ASSIGNED' || !!lead.assignedAdvisor
+                          const isInPool = lead.systemState === 'IN_POOL' || (lead.isExistingInDb && !lead.assignedAdvisor)
+                          const isNew = !lead.isExistingInDb || lead.systemState === 'NOT_IN_SYSTEM'
+
+                          return (
+                            <tr
+                              key={lead.metaLeadId}
+                              style={{
+                                background: isSelected ? '#f0f9ff' : !isNew ? '#fafafa' : '#fff',
+                                cursor: 'pointer',
+                              }}
+                              onClick={() => handleTogglePreviewSelect(lead.metaLeadId)}
+                            >
+                              <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleTogglePreviewSelect(lead.metaLeadId)}
+                                />
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: 700, color: '#0f172a' }}>{lead.fullName}</div>
+                                <div style={{ fontSize: 10, color: '#94a3b8' }}>ID: {lead.metaLeadId}</div>
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: 600, color: '#0284c7' }}>{lead.phone}</div>
+                                <div style={{ fontSize: 11, color: '#64748b' }}>{lead.email || '—'}</div>
+                              </td>
+                              <td>
+                                <span style={{ fontSize: 12, color: '#334155' }}>{lead.qualification}</span>
+                              </td>
+                              <td>
+                                <span style={{ fontSize: 12, color: '#334155' }}>📍 {lead.preferredLocation}</span>
+                              </td>
+                              <td style={{ fontSize: 11, color: '#64748b' }}>
+                                {lead.createdTime ? new Date(lead.createdTime).toLocaleString() : 'Recent'}
+                              </td>
+                              <td>
+                                {isAssigned ? (
+                                  <span
+                                    style={{
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      padding: '4px 9px',
+                                      borderRadius: 12,
+                                      background: '#f3e8ff',
+                                      color: '#7e22ce',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 5,
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                    title="This candidate has already been assigned to an Admissions Counselor"
+                                  >
+                                    <UserCheck size={12} />
+                                    Assigned: {lead.assignedAdvisor || lead.existingAssignment || 'Sales Advisor'}
+                                  </span>
+                                ) : isInPool ? (
+                                  <span
+                                    style={{
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      padding: '4px 9px',
+                                      borderRadius: 12,
+                                      background: '#e0f2fe',
+                                      color: '#0369a1',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 5,
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                    title="This candidate is currently in the unassigned pool"
+                                  >
+                                    <Layers size={12} />
+                                    In Pool (Unassigned)
+                                  </span>
+                                ) : (
+                                  <span
+                                    style={{
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      padding: '4px 9px',
+                                      borderRadius: 12,
+                                      background: '#dcfce7',
+                                      color: '#15803d',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 5,
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                    title="Not yet in CRM database. Ready to ingest."
+                                  >
+                                    <Sparkles size={12} />
+                                    + Ready to Ingest
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              })()}
             </div>
 
             {/* Footer */}
