@@ -4728,12 +4728,12 @@ export default function AdminDashboard({ user, onLogout }) {
       {assigningForm && (
         <div
           className="modal-overlay"
-          style={{ zIndex: 1060 }}
+          style={{ zIndex: 20000, background: 'rgba(15, 23, 42, 0.7)' }}
           onClick={() => setAssigningForm(null)}
         >
           <div
             className="modal-card"
-            style={{ maxWidth: 500, width: '95%' }}
+            style={{ maxWidth: 500, width: '95%', position: 'relative', zIndex: 20001, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}
             onClick={e => e.stopPropagation()}
           >
             <div className="modal-header" style={{ background: '#0f172a', color: '#fff', padding: '14px 18px' }}>
