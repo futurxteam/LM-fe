@@ -76,6 +76,15 @@ export default function AdminDashboard({ user, onLogout }) {
   // Navigate to separate pages so browser URL updates and refresh does not reset to root!
   const setActiveTab = tab => {
     setMobileMenuOpen(false)
+    setShowUserModal(false)
+    setEditingUser(null)
+    setActiveLeadModal(null)
+    setShowManualLeadModal(false)
+    setShowGroupModal(false)
+    setShowUploadModal(false)
+    setShowPasteModal(false)
+    setShowResetModal(false)
+    setShowMetaModal(false)
     if (tab === 'dashboard') navigate('/dashboard')
     else if (tab === 'pool') navigate('/pool')
     else if (tab === 'all-leads') navigate('/leads')
@@ -237,8 +246,18 @@ export default function AdminDashboard({ user, onLogout }) {
     loadCounselorGroups()
   }, [])
 
-  // Dynamic tab switcher: loads specific page data when refreshed on /pool, /leads, /users, etc.
+  // Dynamic tab switcher: loads specific page data and closes overlays when navigating
   useEffect(() => {
+    setShowUserModal(false)
+    setEditingUser(null)
+    setActiveLeadModal(null)
+    setShowManualLeadModal(false)
+    setShowGroupModal(false)
+    setShowUploadModal(false)
+    setShowPasteModal(false)
+    setShowResetModal(false)
+    setShowMetaModal(false)
+
     if (activeTab === 'pool') {
       loadOverviewData()
     } else if (activeTab === 'all-leads') {
@@ -4239,7 +4258,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
       {/* Create / Edit User Modal */}
       {showUserModal && (
-        <div className="modal-backdrop" onClick={() => !savingUser && setShowUserModal(false)}>
+        <div className="modal-overlay" style={{ zIndex: 1050 }} onClick={() => !savingUser && setShowUserModal(false)}>
           <div
             className="modal-card"
             style={{ maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}
@@ -4451,39 +4470,33 @@ export default function AdminDashboard({ user, onLogout }) {
                   </div>
                 </div>
 
-                {/* Territory quick select presets */}
-                <div>
-                  <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 6 }}>
-                    Quick presets for specialty:
-                  </span>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {[
-                      'Healthcare Admissions',
-                      'Nursing & Paramedical',
-                      'Pharmacy & Clinical',
-                      'Medical Coding & Lab Tech',
-                      'Executive & International',
-                    ].map(preset => (
-                      <button
-                        type="button"
-                        key={preset}
-                        onClick={() => setUserFormData({ ...userFormData, specialty: preset })}
-                        style={{
-                          fontSize: 11,
-                          padding: '4px 9px',
-                          borderRadius: 6,
-                          border: userFormData.specialty === preset ? '1px solid #2563eb' : '1px solid #e2e8f0',
-                          background: userFormData.specialty === preset ? '#eff6ff' : '#f8fafc',
-                          color: userFormData.specialty === preset ? '#1d4ed8' : '#475569',
-                          cursor: 'pointer',
-                          fontWeight: 500,
-                        }}
-                      >
-                        {preset}
-                      </button>
-                    ))}
+                {/* Counselor Group Assignment (for role === 'sales') */}
+                {userFormData.role === 'sales' && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+                      Counselor Group / Team
+                    </label>
+                    <select
+                      value={userFormData.groupId || ''}
+                      onChange={e => setUserFormData({ ...userFormData, groupId: e.target.value || null })}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #cbd5e1',
+                        fontSize: 13,
+                        background: '#fff',
+                      }}
+                    >
+                      <option value="">No Group Assigned (Independent Counselor)</option>
+                      {counselorGroups.map(g => (
+                        <option key={g.id || g._id} value={g.id || g._id}>
+                          {g.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                </div>
+                )}
 
                 {/* Password field */}
                 <div>
