@@ -196,7 +196,7 @@ export default function SalesDashboard({ user, onLogout }) {
 
         {/* Rep Profile Card */}
         <div style={{ padding: '14px 18px', background: 'rgba(255,255,255,0.06)', margin: '0 12px 14px', borderRadius: 8 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: '#ffffff' }}>{user?.name || 'Jordan Chase'}</div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: '#ffffff' }}>{user?.name || 'Counselor'}</div>
           <div style={{ fontSize: 11, color: '#93c5fd' }}>{user?.title || 'Healthcare Counselor'}</div>
           <div style={{ marginTop: 8, fontSize: 11, color: '#cbd5e1', display: 'flex', justifyContent: 'space-between' }}>
             <span>Active Queue:</span>

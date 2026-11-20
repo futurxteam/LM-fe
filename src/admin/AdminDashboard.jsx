@@ -1485,14 +1485,14 @@ export default function AdminDashboard({ user, onLogout }) {
                     <ClipboardPaste size={14} />
                     <span>Paste Meta Data</span>
                   </button>
-                  {/* Temporary Dev Tool: Clean / Reset Database */}
+                  {/* Clean Lead Database */}
                   <button
                     className="btn-pulse-danger"
                     onClick={() => setShowResetModal(true)}
-                    title="Temporary tool to clean or reset lead database"
+                    title="Clear all leads from the database"
                   >
                     <Trash2 size={14} />
-                    <span>Clean / Reset DB</span>
+                    <span>Clear Leads</span>
                   </button>
                 </div>
 
@@ -3078,7 +3078,7 @@ export default function AdminDashboard({ user, onLogout }) {
       )}
 
       {/* ========================================================
-          MODAL: TEMPORARY DEV TOOL TO RESET / CLEAN LEAD DB
+          MODAL: CLEAR LEAD DATABASE
           ======================================================== */}
       {showResetModal && (
         <div className="modal-overlay">
@@ -3086,14 +3086,14 @@ export default function AdminDashboard({ user, onLogout }) {
             {resetting && (
               <div className="modal-loading-overlay">
                 <div className="data-loader-spinner" />
-                <div className="data-loader-text">Resetting Lead Database...</div>
+                <div className="data-loader-text">Clearing Lead Database...</div>
                 <div className="data-loader-sub">Updating MongoDB Atlas collections</div>
               </div>
             )}
             <div className="modal-header" style={{ background: '#991b1b' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Trash2 size={18} />
-                <h3 style={{ margin: 0, fontSize: 16 }}>Dev Tool: Clean / Reset Lead Database</h3>
+                <h3 style={{ margin: 0, fontSize: 16 }}>Clear Lead Database</h3>
               </div>
               <button
                 onClick={() => setShowResetModal(false)}
@@ -3104,18 +3104,14 @@ export default function AdminDashboard({ user, onLogout }) {
               </button>
             </div>
             <div className="modal-body">
-              <p style={{ fontSize: 13, color: '#334155', marginBottom: 16 }}>
-                Use this temporary utility to test fresh Meta Lead imports or reset to baseline demo data:
-              </p>
-
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {/* Option 1: Clean All Leads */}
+                {/* Wipe All Leads */}
                 <div style={{ border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 8, padding: 14 }}>
                   <div style={{ fontWeight: 700, color: '#991b1b', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Trash2 size={15} /> Option 1: Wipe All Leads (Empty Database)
+                    <Trash2 size={15} /> Wipe All Leads (Empty Database)
                   </div>
                   <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
-                    Deletes all leads in the database (unassigned & assigned). Use this to start with a completely empty pool to test uploading brand new XLSX/CSV files.
+                    Deletes all leads in the database (unassigned &amp; assigned). Historical sync will be paused so old submissions are not re-imported.
                   </div>
                   <button
                     className="btn-pulse-danger"
@@ -3123,23 +3119,6 @@ export default function AdminDashboard({ user, onLogout }) {
                     disabled={resetting}
                   >
                     Wipe All Leads (Set to 0)
-                  </button>
-                </div>
-
-                {/* Option 2: Reseed Default 34 Meta Leads */}
-                <div style={{ border: '1px solid #bfdbfe', background: '#eff6ff', borderRadius: 8, padding: 14 }}>
-                  <div style={{ fontWeight: 700, color: '#1e40af', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <RotateCcw size={15} /> Option 2: Reset & Reseed Demo Leads (34 Leads)
-                  </div>
-                  <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
-                    Restores the initial 34 extracted Meta leads and default counselor assignments across Kerala & GCC territories.
-                  </div>
-                  <button
-                    className="btn-pulse"
-                    onClick={() => handleResetDb('reseed')}
-                    disabled={resetting}
-                  >
-                    Reseed 34 Baseline Leads
                   </button>
                 </div>
               </div>
