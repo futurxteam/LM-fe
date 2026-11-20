@@ -110,8 +110,10 @@ export default function AdminDashboard({ user, onLogout }) {
   // Reports Sub-tab: 'stage' | 'reps' | 'campaigns' | 'demographics'
   const [activeReportSubTab, setActiveReportSubTab] = useState('stage')
 
-  // Selection for bulk assignment in Pool
+  // Selection for bulk assignment/deletion in Pool & Master Leads
   const [selectedLeadIds, setSelectedLeadIds] = useState([])
+  const [selectedMasterLeadIds, setSelectedMasterLeadIds] = useState([])
+  const [deletingLeads, setDeletingLeads] = useState(false)
   const [selectedRepId, setSelectedRepId] = useState('')
 
   // Filters & Search for Master List
@@ -282,6 +284,7 @@ export default function AdminDashboard({ user, onLogout }) {
   // Load master list whenever page, pageSize or filters change
   useEffect(() => {
     if (activeTab === 'all-leads') {
+      setSelectedMasterLeadIds([])
       loadMasterLeads(page, pageSize)
     }
   }, [page, pageSize, statusFilter, qualFilter, searchQuery, activeTab])
@@ -436,6 +439,134 @@ export default function AdminDashboard({ user, onLogout }) {
       }
     } catch (err) {
       showNotify('error', err.message || 'Unassign failed')
+    }
+  }
+
+  // Toggle selection in Master Leads directory
+  const toggleSelectMasterLead = leadId => {
+    setSelectedMasterLeadIds(prev =>
+      prev.includes(leadId) ? prev.filter(id => id !== leadId) : [...prev, leadId]
+    )
+  }
+
+  const toggleSelectAllMasterLeads = () => {
+    const allIds = masterLeads.map(l => l.id)
+    if (allIds.length > 0 && allIds.every(id => selectedMasterLeadIds.includes(id))) {
+      setSelectedMasterLeadIds([])
+    } else {
+      setSelectedMasterLeadIds(allIds)
+    }
+  }
+
+  // Delete single lead (Assigned or System Pool)
+  const handleDeleteLead = async lead => {
+    const leadId = lead?.id || lead?._id
+    if (!leadId) return
+    const label = lead.fullName || lead.phone || 'this lead'
+    const isAssigned = lead.assignmentStatus === 'ASSIGNED'
+    const confirmMsg = isAssigned
+      ? `Remove assigned lead "${label}" (${lead.assignedTo?.repName || 'Counselor'}) permanently from CRM?`
+      : `Remove lead "${label}" permanently from System Pool?`
+    if (!window.confirm(confirmMsg)) return
+
+    setDeletingLeads(true)
+    try {
+      const res = await api.deleteLead(leadId)
+      showNotify('success', res.message || `Removed lead "${label}"`)
+      setSelectedLeadIds(prev => prev.filter(id => id !== leadId))
+      setSelectedMasterLeadIds(prev => prev.filter(id => id !== leadId))
+      if (activeLeadModal && (activeLeadModal.id === leadId || activeLeadModal._id === leadId)) {
+        setActiveLeadModal(null)
+      }
+      await loadOverviewData()
+      if (activeTab === 'all-leads') {
+        await loadMasterLeads(page, pageSize)
+      }
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to remove lead')
+    } finally {
+      setDeletingLeads(false)
+    }
+  }
+
+  // Bulk delete selected leads (System Pool or Assigned/Master Leads)
+  const handleBulkDeleteLeads = async (leadIds, source = 'pool') => {
+    if (!Array.isArray(leadIds) || leadIds.length === 0) {
+      showNotify('error', 'Select at least one lead to remove')
+      return
+    }
+    const label = source === 'pool' ? 'from System Pool' : 'from CRM (Assigned / Master Leads)'
+    if (!window.confirm(`Permanently remove ${leadIds.length} selected lead(s) ${label}?`)) return
+
+    setDeletingLeads(true)
+    try {
+      const res = await api.bulkDeleteLeads({ leadIds })
+      showNotify('success', res.message || `Removed ${res.deletedCount || leadIds.length} lead(s)`)
+      if (source === 'pool') {
+        setSelectedLeadIds([])
+      } else {
+        setSelectedMasterLeadIds([])
+      }
+      await loadOverviewData()
+      if (activeTab === 'all-leads') {
+        await loadMasterLeads(page, pageSize)
+      }
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to remove selected leads')
+    } finally {
+      setDeletingLeads(false)
+    }
+  }
+
+  // Remove already-ingested leads from Retrieved Meta Form Preview modal
+  const handleRemovePreviewLeads = async leadsToRemove => {
+    const existingLeads = (leadsToRemove || []).filter(
+      l => l.isExistingInDb || l.systemState === 'ASSIGNED' || l.systemState === 'IN_POOL'
+    )
+    if (existingLeads.length === 0) {
+      showNotify('error', 'No selected retrieved leads are currently stored in the CRM database.')
+      return
+    }
+
+    const confirmMsg =
+      existingLeads.length === 1
+        ? `Remove "${existingLeads[0].fullName}" from CRM (${existingLeads[0].assignedAdvisor ? `Assigned: ${existingLeads[0].assignedAdvisor}` : 'In Pool'})?`
+        : `Remove ${existingLeads.length} retrieved lead(s) from CRM (Assigned & System Pool)?`
+    if (!window.confirm(confirmMsg)) return
+
+    const leadIds = existingLeads.map(l => l.existingLeadId).filter(Boolean)
+    const metaLeadIds = existingLeads.map(l => l.metaLeadId).filter(Boolean)
+
+    setDeletingLeads(true)
+    try {
+      const res = await api.bulkDeleteLeads({ leadIds, metaLeadIds })
+      showNotify('success', res.message || `Removed ${res.deletedCount || existingLeads.length} lead(s) from CRM`)
+
+      const removedMetaSet = new Set(metaLeadIds)
+      setPreviewLeads(prev =>
+        prev.map(l =>
+          removedMetaSet.has(l.metaLeadId)
+            ? {
+                ...l,
+                isExistingInDb: false,
+                systemState: 'NOT_IN_SYSTEM',
+                assignedAdvisor: null,
+                existingLeadId: null,
+                existingAssignment: null,
+              }
+            : l
+        )
+      )
+      setPreviewSelectedIds(prev => prev.filter(id => !removedMetaSet.has(id)))
+
+      await loadOverviewData()
+      if (activeTab === 'all-leads') {
+        await loadMasterLeads(page, pageSize)
+      }
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to remove retrieved leads')
+    } finally {
+      setDeletingLeads(false)
     }
   }
 
@@ -892,9 +1023,13 @@ export default function AdminDashboard({ user, onLogout }) {
         )
       }
 
-      // Mark the imported leads as existing in DB
+      // Mark the imported leads as existing in DB (In Pool)
       setPreviewLeads(prev =>
-        prev.map(l => (previewSelectedIds.includes(l.metaLeadId) ? { ...l, isExistingInDb: true } : l))
+        prev.map(l =>
+          previewSelectedIds.includes(l.metaLeadId)
+            ? { ...l, isExistingInDb: true, systemState: l.assignedAdvisor ? 'ASSIGNED' : 'IN_POOL' }
+            : l
+        )
       )
       setPreviewSelectedIds([])
 
@@ -1529,6 +1664,16 @@ export default function AdminDashboard({ user, onLogout }) {
                       <UserCheck size={14} />
                       <span>Assign ({selectedLeadIds.length})</span>
                     </button>
+                    <button
+                      className="btn-pulse-danger"
+                      onClick={() => handleBulkDeleteLeads(selectedLeadIds, 'pool')}
+                      disabled={selectedLeadIds.length === 0 || deletingLeads}
+                      style={{ opacity: selectedLeadIds.length === 0 || deletingLeads ? 0.5 : 1 }}
+                      title="Remove selected leads from System Pool"
+                    >
+                      <Trash2 size={14} />
+                      <span>Remove ({selectedLeadIds.length})</span>
+                    </button>
                   </div>
 
                   {/* Auto Assign Buttons */}
@@ -1593,7 +1738,7 @@ export default function AdminDashboard({ user, onLogout }) {
                             <th>Preferred Location</th>
                             <th>Mode / Role</th>
                             <th>Campaign / Platform</th>
-                            <th>Direct Assign</th>
+                            <th>Direct Assign / Remove</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1653,23 +1798,43 @@ export default function AdminDashboard({ user, onLogout }) {
                                   </div>
                                 </td>
                                 <td>
-                                  <select
-                                    onChange={e => {
-                                      if (e.target.value) {
-                                        api.assignLeads([lead.id], e.target.value).then(() => {
-                                          showNotify('success', `Assigned ${lead.fullName}`)
-                                          loadOverviewData()
-                                        })
-                                      }
-                                    }}
-                                    defaultValue=""
-                                    style={{ padding: '5px 8px', fontSize: 12, borderRadius: 4, border: '1px solid #cbd5e1' }}
-                                  >
-                                    <option value="" disabled>Assign to...</option>
-                                    {salesReps.map(r => (
-                                      <option key={r.id} value={r.id}>{r.name}</option>
-                                    ))}
-                                  </select>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <select
+                                      onChange={e => {
+                                        if (e.target.value) {
+                                          api.assignLeads([lead.id], e.target.value).then(() => {
+                                            showNotify('success', `Assigned ${lead.fullName}`)
+                                            loadOverviewData()
+                                          })
+                                        }
+                                      }}
+                                      defaultValue=""
+                                      style={{ padding: '5px 8px', fontSize: 12, borderRadius: 4, border: '1px solid #cbd5e1' }}
+                                    >
+                                      <option value="" disabled>Assign to...</option>
+                                      {salesReps.map(r => (
+                                        <option key={r.id} value={r.id}>{r.name}</option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteLead(lead)}
+                                      disabled={deletingLeads}
+                                      title="Remove lead from System Pool"
+                                      style={{
+                                        padding: '5px 7px',
+                                        borderRadius: 4,
+                                        border: '1px solid #fecaca',
+                                        background: '#fef2f2',
+                                        color: '#dc2626',
+                                        cursor: deletingLeads ? 'not-allowed' : 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                      }}
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             )
@@ -1771,6 +1936,28 @@ export default function AdminDashboard({ user, onLogout }) {
                     </select>
                   </div>
 
+                  {/* Bulk Remove Selected Leads (Assigned / Pool) */}
+                  {selectedMasterLeadIds.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn-pulse-danger"
+                      onClick={() => handleBulkDeleteLeads(selectedMasterLeadIds, 'master')}
+                      disabled={deletingLeads}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '5px 12px',
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                      title="Remove selected leads from CRM"
+                    >
+                      <Trash2 size={13} />
+                      <span>Remove Selected ({selectedMasterLeadIds.length})</span>
+                    </button>
+                  )}
+
                   {/* Manual Student Lead Addition */}
                   <button
                     className="btn-pulse"
@@ -1822,6 +2009,16 @@ export default function AdminDashboard({ user, onLogout }) {
                       <table className="leads-table">
                       <thead>
                         <tr>
+                          <th style={{ width: 38 }}>
+                            <input
+                              type="checkbox"
+                              checked={
+                                masterLeads.length > 0 &&
+                                masterLeads.every(l => selectedMasterLeadIds.includes(l.id))
+                              }
+                              onChange={toggleSelectAllMasterLeads}
+                            />
+                          </th>
                           <th>Lead ID</th>
                           <th>Candidate & Contacts</th>
                           <th>Time of Arrival</th>
@@ -1835,8 +2032,19 @@ export default function AdminDashboard({ user, onLogout }) {
                       <tbody>
                         {masterLeads.map(lead => {
                           const isAssigned = lead.assignmentStatus === 'ASSIGNED'
+                          const isMasterSelected = selectedMasterLeadIds.includes(lead.id)
                           return (
-                            <tr key={lead.id}>
+                            <tr
+                              key={lead.id}
+                              style={{ background: isMasterSelected ? '#fef2f2' : 'transparent' }}
+                            >
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={isMasterSelected}
+                                  onChange={() => toggleSelectMasterLead(lead.id)}
+                                />
+                              </td>
                               <td style={{ fontSize: 11, fontFamily: 'monospace', color: '#64748b' }}>
                                 #{lead.metaLeadId ? lead.metaLeadId.slice(-6) : lead.id?.slice(-6)}
                               </td>
@@ -1913,6 +2121,24 @@ export default function AdminDashboard({ user, onLogout }) {
                                     onClick={() => setActiveLeadModal(lead)}
                                   >
                                     Audit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteLead(lead)}
+                                    disabled={deletingLeads}
+                                    title={isAssigned ? 'Remove assigned lead' : 'Remove lead from pool'}
+                                    style={{
+                                      padding: '3px 7px',
+                                      borderRadius: 4,
+                                      border: '1px solid #fecaca',
+                                      background: '#fef2f2',
+                                      color: '#dc2626',
+                                      cursor: deletingLeads ? 'not-allowed' : 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                    }}
+                                  >
+                                    <Trash2 size={12} />
                                   </button>
                                 </div>
                               </td>
@@ -4148,6 +4374,34 @@ export default function AdminDashboard({ user, onLogout }) {
                   <Download size={14} />
                   <span>Add Selected ({previewSelectedIds.length}) to Pool</span>
                 </button>
+                {(() => {
+                  const selectedInCrm = previewLeads.filter(
+                    l =>
+                      previewSelectedIds.includes(l.metaLeadId) &&
+                      (l.isExistingInDb || l.systemState === 'ASSIGNED' || l.systemState === 'IN_POOL')
+                  )
+                  return (
+                    <button
+                      type="button"
+                      className="btn-pulse-danger"
+                      onClick={() => handleRemovePreviewLeads(selectedInCrm)}
+                      disabled={selectedInCrm.length === 0 || deletingLeads}
+                      style={{
+                        fontSize: 12,
+                        padding: '6px 12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontWeight: 700,
+                        opacity: selectedInCrm.length === 0 || deletingLeads ? 0.5 : 1,
+                      }}
+                      title="Remove selected retrieved leads from CRM (Assigned & System Pool)"
+                    >
+                      <Trash2 size={14} />
+                      <span>Remove from CRM ({selectedInCrm.length})</span>
+                    </button>
+                  )
+                })()}
               </div>
             </div>
 
@@ -4202,6 +4456,7 @@ export default function AdminDashboard({ user, onLogout }) {
                           <th>Preferred City</th>
                           <th>Submitted At</th>
                           <th>CRM System Status</th>
+                          <th style={{ width: 90, textAlign: 'center' }}>Action</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -4302,6 +4557,34 @@ export default function AdminDashboard({ user, onLogout }) {
                                     <Sparkles size={12} />
                                     + Ready to Ingest
                                   </span>
+                                )}
+                              </td>
+                              <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                                {isAssigned || isInPool ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemovePreviewLeads([lead])}
+                                    disabled={deletingLeads}
+                                    title={isAssigned ? 'Remove assigned lead from CRM' : 'Remove pool lead from CRM'}
+                                    style={{
+                                      padding: '4px 8px',
+                                      borderRadius: 4,
+                                      border: '1px solid #fecaca',
+                                      background: '#fef2f2',
+                                      color: '#dc2626',
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      cursor: deletingLeads ? 'not-allowed' : 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                    }}
+                                  >
+                                    <Trash2 size={12} />
+                                    <span>Remove</span>
+                                  </button>
+                                ) : (
+                                  <span style={{ fontSize: 11, color: '#94a3b8' }}>—</span>
                                 )}
                               </td>
                             </tr>

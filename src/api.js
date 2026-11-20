@@ -123,6 +123,13 @@ export const api = {
     })
   },
 
+  bulkDeleteLeads: async ({ leadIds = [], metaLeadIds = [] } = {}) => {
+    return await request('/leads/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ leadIds, metaLeadIds }),
+    })
+  },
+
   // Database Reset / Clean Leads Handlers
   resetLeadDatabase: async (mode = 'clean') => {
     return await request('/leads/reset-db', {
