@@ -50,6 +50,7 @@ import {
   Edit2,
   UserX,
   Lock,
+  Settings,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -57,6 +58,10 @@ import { playChime, requestNotificationPermission, sendDesktopNotification, form
 import StudentProfileModal from '../components/StudentProfileModal'
 import ManualLeadModal from '../components/ManualLeadModal'
 import CounselorGroupModal from '../components/CounselorGroupModal'
+import LeadStepModal from '../components/LeadStepModal'
+import AdminAdvancedReports from '../components/AdminAdvancedReports'
+import AdminLifecycleSettingsModal from '../components/AdminLifecycleSettingsModal'
+import { getStatusBadgeStyle, getHeatBadgeStyle, LEAD_STATUSES } from '../constants/leadLifecycle'
 
 export default function AdminDashboard({ user, onLogout }) {
   const location = useLocation()
@@ -107,8 +112,11 @@ export default function AdminDashboard({ user, onLogout }) {
   const [totalPages, setTotalPages] = useState(1)
   const [totalLeadsCount, setTotalLeadsCount] = useState(0)
 
-  // Reports Sub-tab: 'stage' | 'reps' | 'campaigns' | 'demographics'
-  const [activeReportSubTab, setActiveReportSubTab] = useState('stage')
+  // Reports Sub-tab: 'advanced' | 'stage' | 'reps' | 'campaigns' | 'demographics'
+  const [activeReportSubTab, setActiveReportSubTab] = useState('advanced')
+  const [crmMeta, setCrmMeta] = useState(null)
+  const [activeStepLead, setActiveStepLead] = useState(null)
+  const [showLifecycleSettingsModal, setShowLifecycleSettingsModal] = useState(false)
 
   // Selection for bulk assignment/deletion in Pool & Master Leads
   const [selectedLeadIds, setSelectedLeadIds] = useState([])
@@ -203,6 +211,35 @@ export default function AdminDashboard({ user, onLogout }) {
   const prevPoolCountRef = useRef(null)
 
   // Load initial stats, pool & users
+  const loadCrmMeta = async () => {
+    try {
+      const meta = await api.getCrmMeta()
+      setCrmMeta(meta)
+    } catch (err) {
+      console.warn('Could not load CRM lifecycle meta:', err.message)
+    }
+  }
+
+  useEffect(() => {
+    loadCrmMeta()
+  }, [])
+
+  const openStepModalById = async leadId => {
+    const localMatch =
+      masterLeads.find(l => l.id === leadId) || poolLeads.find(l => l.id === leadId)
+    if (localMatch) {
+      setActiveStepLead(localMatch)
+      return
+    }
+    try {
+      const res = await api.getLeads({ page: 1, limit: 200 })
+      const list = Array.isArray(res) ? res : res?.leads || []
+      const found = list.find(l => l.id === leadId || l._id === leadId)
+      if (found) setActiveStepLead(found)
+    } catch (err) {
+      showNotify('error', 'Could not open lead timeline')
+    }
+  }
   useEffect(() => {
     loadOverviewData()
     loadUsers()
@@ -1588,6 +1625,18 @@ export default function AdminDashboard({ user, onLogout }) {
                     )}
                   </button>
 
+                  {/* Lifecycle & Program Settings */}
+                  <button
+                    type="button"
+                    className="btn-pulse-secondary"
+                    onClick={() => setShowLifecycleSettingsModal(true)}
+                    style={{ padding: '5px 10px', fontSize: 12, fontWeight: 600 }}
+                    title="Configure Max Lost Cycles, Recycle Mode & Program Master"
+                  >
+                    <Settings size={13} />
+                    <span>Policy &amp; Programs</span>
+                  </button>
+
                   {/* Manual Student Lead Addition */}
                   <button
                     className="btn-pulse"
@@ -1880,8 +1929,8 @@ export default function AdminDashboard({ user, onLogout }) {
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   {/* Status Badges Filter */}
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    {['All', 'Unassigned', 'Assigned', 'Contacted', 'Not Contacted'].map(st => (
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {['All', 'Unassigned', 'Assigned', 'NEW LEAD', 'HOT', 'WARM', 'COLD', 'NON-CONNECT', 'NON PROSPECT', 'LOST', 'QUALIFIED BUSINESS', 'CONVERTED BUSINESS', 'ONBOARDED BUSINESS'].map(st => (
                       <button
                         key={st}
                         onClick={() => {
@@ -1957,6 +2006,18 @@ export default function AdminDashboard({ user, onLogout }) {
                       <span>Remove Selected ({selectedMasterLeadIds.length})</span>
                     </button>
                   )}
+
+                  {/* Lifecycle & Program Settings */}
+                  <button
+                    type="button"
+                    className="btn-pulse-secondary"
+                    onClick={() => setShowLifecycleSettingsModal(true)}
+                    style={{ padding: '5px 10px', fontSize: 12, fontWeight: 600 }}
+                    title="Configure Max Lost Cycles, Recycle Mode & Program Master"
+                  >
+                    <Settings size={13} />
+                    <span>Policy &amp; Programs</span>
+                  </button>
 
                   {/* Manual Student Lead Addition */}
                   <button
@@ -2091,36 +2152,81 @@ export default function AdminDashboard({ user, onLogout }) {
                                 )}
                               </td>
                               <td>
-                                <span
-                                  className={`status-badge ${
-                                    lead.status === 'Contacted' ? 'status-contacted' : 'status-not-contacted'
-                                  }`}
-                                >
-                                  {lead.status}
-                                </span>
+                                {(() => {
+                                  const stVal = lead.leadStatus || 'NEW LEAD'
+                                  const sb = getStatusBadgeStyle(stVal)
+                                  const hb = lead.heatTier ? getHeatBadgeStyle(lead.heatTier) : null
+                                  return (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                                      <span
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: 700,
+                                          padding: '2px 8px',
+                                          borderRadius: 12,
+                                          background: sb.bg,
+                                          color: sb.color,
+                                          border: `1px solid ${sb.border}`,
+                                          whiteSpace: 'nowrap',
+                                        }}
+                                      >
+                                        {stVal}
+                                      </span>
+                                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                        {hb && (
+                                          <span
+                                            style={{
+                                              fontSize: 10,
+                                              fontWeight: 800,
+                                              padding: '1px 6px',
+                                              borderRadius: 10,
+                                              background: hb.bg,
+                                              color: hb.color,
+                                            }}
+                                          >
+                                            {hb.label}
+                                          </span>
+                                        )}
+                                        {lead.isCycleEnded && (
+                                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: '#1e293b', color: '#fff' }}>
+                                            End
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )
+                                })()}
                               </td>
                               <td>
-                                <div style={{ fontSize: 12, fontWeight: 500 }}>{lead.subStatus}</div>
-                                <div style={{ fontSize: 11, color: '#64748b' }}>
-                                  Attempts: {lead.callAttempts || 0}
-                                  {lead.callbackAt && ' • Scheduled Call'}
+                                <div style={{ fontSize: 12, fontWeight: 500 }}>
+                                  {lead.selectedCategoryLabel || lead.subStatus}
                                 </div>
+                                <div style={{ fontSize: 11, color: '#64748b' }}>
+                                  Cycle #{lead.cycleNumber || 1} • Steps: {lead.steps?.length || 0} • Calls: {lead.callAttempts || 0}
+                                  {lead.callbackAt && ' • Callback'}
+                                </div>
+                                {lead.lostReason && lead.leadStatus === 'LOST' && (
+                                  <div style={{ fontSize: 10, color: '#991b1b', fontWeight: 600 }}>
+                                    Lost: {lead.lostReason} ({lead.lostCycleCount || 1}/{crmMeta?.policy?.maxLostCycles || 3})
+                                  </div>
+                                )}
                               </td>
                               <td>
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                  <select
-                                    value={lead.status}
-                                    onChange={e => handleStatusChange(lead.id, e.target.value)}
-                                    style={{ padding: '3px 6px', fontSize: 11, borderRadius: 4, border: '1px solid #cbd5e1' }}
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                  <button
+                                    type="button"
+                                    className="btn-pulse"
+                                    onClick={() => setActiveStepLead(lead)}
+                                    style={{ padding: '3px 8px', fontSize: 11 }}
+                                    title="Add lifecycle step, update status, or view timeline"
                                   >
-                                    <option value="Not Contacted">Not Contacted</option>
-                                    <option value="Contacted">Contacted</option>
-                                  </select>
+                                    + Step
+                                  </button>
                                   <button
                                     className="btn-action-sm"
                                     onClick={() => setActiveLeadModal(lead)}
                                   >
-                                    Audit
+                                    Profile
                                   </button>
                                   <button
                                     type="button"
@@ -2223,11 +2329,18 @@ export default function AdminDashboard({ user, onLogout }) {
               {/* Report Sub-tabs Header */}
               <div className="admin-tab-nav">
                 <button
+                  className={`admin-tab-btn ${activeReportSubTab === 'advanced' ? 'active' : ''}`}
+                  onClick={() => setActiveReportSubTab('advanced')}
+                >
+                  <Sparkles size={15} />
+                  <span>Advanced Reports (Hot/Warm/Cold, Cycles &amp; Revenue)</span>
+                </button>
+                <button
                   className={`admin-tab-btn ${activeReportSubTab === 'stage' ? 'active' : ''}`}
                   onClick={() => setActiveReportSubTab('stage')}
                 >
                   <Activity size={15} />
-                  <span>Current Success Status & Current Stage</span>
+                  <span>Current Success Status &amp; Current Stage</span>
                 </button>
                 <button
                   className={`admin-tab-btn ${activeReportSubTab === 'reps' ? 'active' : ''}`}
@@ -2241,16 +2354,32 @@ export default function AdminDashboard({ user, onLogout }) {
                   onClick={() => setActiveReportSubTab('campaigns')}
                 >
                   <BarChart3 size={15} />
-                  <span>Campaign & Channel ROI</span>
+                  <span>Campaign &amp; Channel ROI</span>
                 </button>
                 <button
                   className={`admin-tab-btn ${activeReportSubTab === 'demographics' ? 'active' : ''}`}
                   onClick={() => setActiveReportSubTab('demographics')}
                 >
                   <Globe size={15} />
-                  <span>Demographics & Geography</span>
+                  <span>Demographics &amp; Geography</span>
                 </button>
               </div>
+
+              {/* ----------------------------------------------------
+                  SUB-TAB 0: ADMIN-ONLY ADVANCED REPORTS (HOT/WARM/COLD, LIFECYCLE, RECYCLE, REVENUE)
+                  ---------------------------------------------------- */}
+              {activeReportSubTab === 'advanced' && (
+                <AdminAdvancedReports
+                  salesReps={salesReps}
+                  onOpenSettings={() => setShowLifecycleSettingsModal(true)}
+                  onInspectLeadById={openStepModalById}
+                  onRefreshParent={() => {
+                    loadOverviewData()
+                    if (activeTab === 'all-leads') loadMasterLeads(page, pageSize)
+                  }}
+                  showNotify={showNotify}
+                />
+              )}
 
               {/* ----------------------------------------------------
                   SUB-TAB 1: CURRENT SUCCESS STATUS & CURRENT STAGE
@@ -3410,6 +3539,37 @@ export default function AdminDashboard({ user, onLogout }) {
         onSuccess={() => {
           loadCounselorGroups()
           loadUsers()
+        }}
+        showNotify={showNotify}
+      />
+
+      {/* ========================================================
+          MODAL: LEAD STEP & LIFECYCLE PROGRESSION (ADMIN)
+          ======================================================== */}
+      {activeStepLead && (
+        <LeadStepModal
+          lead={activeStepLead}
+          currentUser={user}
+          crmMeta={crmMeta}
+          onClose={() => setActiveStepLead(null)}
+          onUpdated={updatedLead => {
+            setActiveStepLead(null)
+            loadOverviewData()
+            if (activeTab === 'all-leads') loadMasterLeads(page, pageSize)
+          }}
+          showNotify={showNotify}
+        />
+      )}
+
+      {/* ========================================================
+          MODAL: CRM LIFECYCLE POLICY, LOST CYCLES & PROGRAM MASTER
+          ======================================================== */}
+      <AdminLifecycleSettingsModal
+        isOpen={showLifecycleSettingsModal}
+        onClose={() => setShowLifecycleSettingsModal(false)}
+        onSaved={() => {
+          loadCrmMeta()
+          loadOverviewData()
         }}
         showNotify={showNotify}
       />

@@ -27,6 +27,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { formatArrivalTime } from '../utils/alertUtils'
 import StudentProfileModal from '../components/StudentProfileModal'
+import LeadStepModal from '../components/LeadStepModal'
+import { getSalesDisplayStatus } from '../constants/leadLifecycle'
 
 export default function SalesDashboard({ user, onLogout }) {
   const location = useLocation()
@@ -41,10 +43,12 @@ export default function SalesDashboard({ user, onLogout }) {
   const [statusFilter, setStatusFilter] = useState('All')
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Student Profile Drawer / Modal
+  // Student Profile Drawer / Modal & Step Progression Modal
   const [activeStudentModal, setActiveStudentModal] = useState(null)
+  const [activeStepLead, setActiveStepLead] = useState(null)
+  const [crmMeta, setCrmMeta] = useState(null)
 
-  // Log Call & Notes Modal
+  // Log Call & Notes Modal (legacy kept for fallback)
   const [callModalLead, setCallModalLead] = useState(null)
   const [callStatus, setCallStatus] = useState('Contacted')
   const [callSubStatus, setCallSubStatus] = useState('Interested - Sent Brochure')
@@ -54,7 +58,20 @@ export default function SalesDashboard({ user, onLogout }) {
 
   useEffect(() => {
     loadData()
+    api.getCrmMeta().then(setCrmMeta).catch(() => {})
   }, [location.pathname])
+
+  const isLeadAssignedToMe = lead => {
+    if (!lead || !user) return false
+    if (lead.assignmentStatus !== 'ASSIGNED' || !lead.assignedTo) return false
+    const repId = lead.assignedTo.repId ? String(lead.assignedTo.repId) : ''
+    const myId = String(user.id || user._id || '')
+    if (repId && myId && repId === myId) return true
+    if (lead.assignedTo.repName && user.name) {
+      return lead.assignedTo.repName.toLowerCase() === user.name.toLowerCase()
+    }
+    return false
+  }
 
   const loadData = async () => {
     setLoading(true)
@@ -434,20 +451,34 @@ export default function SalesDashboard({ user, onLogout }) {
                               <div style={{ fontSize: 11, color: '#94a3b8' }}>{lead.learningMode}</div>
                             </td>
                             <td>
-                              <span
-                                className={`status-badge ${
-                                  lead.status === 'Contacted' ? 'status-contacted' : 'status-not-contacted'
-                                }`}
-                              >
-                                {lead.status}
-                              </span>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    padding: '2px 8px',
+                                    borderRadius: 12,
+                                    background: lead.isCycleEnded ? '#1e293b' : '#f1f5f9',
+                                    color: lead.isCycleEnded ? '#ffffff' : '#334155',
+                                    border: '1px solid #cbd5e1',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {getSalesDisplayStatus(lead)}
+                                </span>
+                                {lead.isCycleEnded && (
+                                  <span style={{ fontSize: 10, color: '#475569', fontWeight: 700 }}>
+                                    End of Cycle
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td>
                               <div style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>
-                                {lead.subStatus}
+                                {lead.selectedCategoryLabel || lead.subStatus}
                               </div>
                               <div style={{ fontSize: 11, color: '#64748b' }}>
-                                Attempts: {lead.callAttempts || 0}
+                                Cycle #{lead.cycleNumber || 1} • Steps: {lead.steps?.length || 0} • Calls: {lead.callAttempts || 0}
                                 {lead.callbackAt && (
                                   <span style={{ color: '#ea580c', fontWeight: 600, display: 'block' }}>
                                     Callback: {new Date(lead.callbackAt).toLocaleDateString()}
@@ -504,24 +535,32 @@ export default function SalesDashboard({ user, onLogout }) {
                               </div>
                             </td>
                             <td>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <button
-                                  type="button"
-                                  className="btn-pulse-secondary"
-                                  style={{ fontSize: 11, padding: '5px 8px' }}
-                                  onClick={() => setActiveStudentModal(lead)}
-                                  title="View & Edit Student Profile (starts open)"
-                                >
-                                  Profile
-                                </button>
-                                <button
-                                  className="btn-pulse"
-                                  style={{ fontSize: 11, padding: '5px 10px' }}
-                                  onClick={() => openCallModal(lead)}
-                                >
-                                  Log Call
-                                </button>
-                              </div>
+                              {isLeadAssignedToMe(lead) ? (
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  <button
+                                    type="button"
+                                    className="btn-pulse-secondary"
+                                    style={{ fontSize: 11, padding: '5px 8px' }}
+                                    onClick={() => setActiveStudentModal(lead)}
+                                    title="View & Edit Student Profile"
+                                  >
+                                    Profile
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-pulse"
+                                    style={{ fontSize: 11, padding: '5px 10px' }}
+                                    onClick={() => setActiveStepLead(lead)}
+                                    title="Add step, update category/status, or view timeline"
+                                  >
+                                    + Step
+                                  </button>
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>
+                                  Assigned to {lead.assignedTo?.repName || 'Other'} (Read-Only)
+                                </span>
+                              )}
                             </td>
                           </tr>
                         )
@@ -690,6 +729,21 @@ export default function SalesDashboard({ user, onLogout }) {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Lead Step Progression & Timeline Modal (Assigned Leads Only — No Hot/Warm/Cold exposed) */}
+      {activeStepLead && (
+        <LeadStepModal
+          lead={activeStepLead}
+          currentUser={user}
+          crmMeta={crmMeta}
+          onClose={() => setActiveStepLead(null)}
+          onUpdated={() => {
+            setActiveStepLead(null)
+            loadData()
+          }}
+          showNotify={showNotify}
+        />
       )}
 
       {/* Student Profile Modal (Editable & Starts Open) */}

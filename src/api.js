@@ -262,6 +262,80 @@ export const api = {
       method: 'DELETE',
     })
   },
+
+  // Lead Lifecycle Steps & Recyclable Lost Handlers
+  addLeadStep: async (leadId, payload) => {
+    return await request(`/leads/${leadId}/steps`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  recycleLead: async (leadId, payload = {}) => {
+    return await request(`/leads/${leadId}/recycle`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  bulkRecycleLeads: async payload => {
+    return await request('/leads/bulk-recycle', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  // CRM Lifecycle Meta, Settings & Program Master
+  getCrmMeta: async () => {
+    return await request('/crm/meta', { method: 'GET' })
+  },
+
+  getCrmSettings: async () => {
+    return await request('/crm/settings', { method: 'GET' })
+  },
+
+  updateCrmSettings: async payload => {
+    return await request('/crm/settings', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  getCoursePrograms: async () => {
+    return await request('/crm/programs', { method: 'GET' })
+  },
+
+  createCourseProgram: async payload => {
+    return await request('/crm/programs', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  updateCourseProgram: async (id, payload) => {
+    return await request(`/crm/programs/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  deleteCourseProgram: async id => {
+    return await request(`/crm/programs/${id}`, {
+      method: 'DELETE',
+    })
+  },
+
+  // Admin-Only Advanced Reports (Hot/Warm/Cold, Lifecycle, Lost Cycles, Finance, Counselor Matrix)
+  getAdvancedReports: async (params = {}) => {
+    const query = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '' && v !== 'All') {
+        query.append(k, v)
+      }
+    })
+    const qs = query.toString()
+    return await request(`/stats/advanced${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
 }
 
 export default api
