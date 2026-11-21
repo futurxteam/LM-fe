@@ -158,15 +158,19 @@ export default function Login({ onLoginSuccess }) {
                 type="button"
                 className="btn-demo"
                 onClick={() => handleDemoLogin('sales')}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
-                👤 Test as Sales
+                <User size={14} />
+                <span>Test as Sales</span>
               </button>
               <button
                 type="button"
                 className="btn-demo"
                 onClick={() => handleDemoLogin('admin')}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
-                🛡️ Test as Admin
+                <Shield size={14} />
+                <span>Test as Admin</span>
               </button>
             </div>
           </div>

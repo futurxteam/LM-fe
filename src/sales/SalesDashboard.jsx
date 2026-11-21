@@ -22,6 +22,9 @@ import {
   Menu,
   Layers,
   Users,
+  MapPin,
+  Phone,
+  XCircle,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -439,8 +442,9 @@ export default function SalesDashboard({ user, onLogout }) {
                                 {lead.fullName}
                               </div>
                               <div style={{ fontSize: 12, color: '#0369a1', fontWeight: 600 }}>
-                                <a href={`tel:${lead.phone}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                                  📞 {lead.phone}
+                                <a href={`tel:${lead.phone}`} style={{ color: 'inherit', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  <Phone size={12} />
+                                  <span>{lead.phone}</span>
                                 </a>
                               </div>
                               <div style={{ fontSize: 11, color: '#94a3b8' }}>{lead.email}</div>
@@ -451,7 +455,10 @@ export default function SalesDashboard({ user, onLogout }) {
                             </td>
                             <td>
                               <div style={{ fontSize: 12, fontWeight: 500 }}>{lead.qualification}</div>
-                              <div style={{ fontSize: 11, color: '#64748b' }}>📍 {lead.preferredLocation}</div>
+                              <div style={{ fontSize: 11, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                <MapPin size={11} color="#64748b" />
+                                <span>{lead.preferredLocation}</span>
+                              </div>
                               <div style={{ fontSize: 11, color: '#94a3b8' }}>{lead.learningMode}</div>
                             </td>
                             <td>
@@ -639,7 +646,10 @@ export default function SalesDashboard({ user, onLogout }) {
                   </div>
                   <div>
                     <div style={{ fontSize: 11, color: '#64748b' }}>LOCATION</div>
-                    <div style={{ fontWeight: 600 }}>📍 {callModalLead.preferredLocation}</div>
+                    <div style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <MapPin size={12} color="#64748b" />
+                      <span>{callModalLead.preferredLocation}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -663,9 +673,14 @@ export default function SalesDashboard({ user, onLogout }) {
                         color: callStatus === 'Contacted' ? '#065f46' : '#475569',
                         fontWeight: 700,
                         cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
                       }}
                     >
-                      ✓ Contacted (Connected)
+                      <CheckCircle size={14} />
+                      <span>Contacted (Connected)</span>
                     </button>
                     <button
                       type="button"
@@ -681,9 +696,14 @@ export default function SalesDashboard({ user, onLogout }) {
                         color: callStatus === 'Not Contacted' ? '#92400e' : '#475569',
                         fontWeight: 700,
                         cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
                       }}
                     >
-                      ✕ Not Contacted
+                      <XCircle size={14} />
+                      <span>Not Contacted</span>
                     </button>
                   </div>
                 </div>

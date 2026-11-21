@@ -258,13 +258,13 @@ export default function StudentProfileModal({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>{fullName}</h3>
                 {lead.isCompleted && (
-                  <span style={{ fontSize: 11, background: '#10b981', color: '#fff', padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>
-                    ✓ Transferred as Student
+                  <span style={{ fontSize: 11, background: '#10b981', color: '#fff', padding: '2px 8px', borderRadius: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <CheckCircle size={12} /> Transferred as Student
                   </span>
                 )}
                 {lead.isDropped && (
-                  <span style={{ fontSize: 11, background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>
-                    ✕ Dropped (Lead Lost)
+                  <span style={{ fontSize: 11, background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <XCircle size={12} /> Dropped (Lead Lost)
                   </span>
                 )}
               </div>
@@ -675,8 +675,9 @@ export default function StudentProfileModal({
               <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
                 {qualification} {age ? `(${age} yrs)` : ''}
               </div>
-              <div style={{ fontSize: 12, color: '#64748b' }}>
-                📍 {district}, {state === 'Other' ? otherState : state}
+              <div style={{ fontSize: 12, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <MapPin size={12} color="#64748b" />
+                <span>{district || 'Not Specified'}{state ? `, ${state === 'Other' ? otherState : state}` : ''}</span>
               </div>
             </div>
 

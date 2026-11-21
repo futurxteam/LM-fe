@@ -15,6 +15,8 @@ import {
   History,
   Trash2,
   Sparkles,
+  Building2,
+  BarChart3,
 } from 'lucide-react'
 import { api } from '../api'
 import { formatINR, getStatusBadgeStyle, getHeatBadgeStyle } from '../constants/leadLifecycle'
@@ -240,29 +242,33 @@ export default function AdminAdvancedReports({
       >
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[
-            { id: 'heat', label: '🔥 Hot / Warm / Cold (Admin Only)' },
-            { id: 'groups', label: `🏢 Group-Wise Report (${(report?.groupReport || []).length})` },
-            { id: 'lifecycle', label: '📊 10-Status Lifecycle Funnel' },
-            { id: 'recycle', label: `♻️ Lost Recycle Queue (${report?.lostCycleReport?.recyclableCount || 0})` },
-            { id: 'finance', label: '💰 Business Value vs Collected' },
-            { id: 'counselors', label: '👥 Counselor Matrix' },
-          ].map(t => (
+            { id: 'heat', label: 'Hot / Warm / Cold (Admin Only)', Icon: Flame },
+            { id: 'groups', label: `Group-Wise Report (${(report?.groupReport || []).length})`, Icon: Building2 },
+            { id: 'lifecycle', label: '10-Status Lifecycle Funnel', Icon: BarChart3 },
+            { id: 'recycle', label: `Lost Recycle Queue (${report?.lostCycleReport?.recyclableCount || 0})`, Icon: RotateCcw },
+            { id: 'finance', label: 'Business Value vs Collected', Icon: IndianRupee },
+            { id: 'counselors', label: 'Counselor Matrix', Icon: Users },
+          ].map(({ id, label, Icon }) => (
             <button
-              key={t.id}
+              key={id}
               type="button"
-              onClick={() => setSubTab(t.id)}
+              onClick={() => setSubTab(id)}
               style={{
                 padding: '6px 12px',
                 borderRadius: 6,
-                border: subTab === t.id ? '1px solid #1b2b6b' : '1px solid #cbd5e1',
-                background: subTab === t.id ? '#1b2b6b' : '#ffffff',
-                color: subTab === t.id ? '#ffffff' : '#334155',
+                border: subTab === id ? '1px solid #1b2b6b' : '1px solid #cbd5e1',
+                background: subTab === id ? '#1b2b6b' : '#ffffff',
+                color: subTab === id ? '#ffffff' : '#334155',
                 fontSize: 12,
                 fontWeight: 700,
                 cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
               }}
             >
-              {t.label}
+              <Icon size={14} />
+              <span>{label}</span>
             </button>
           ))}
         </div>
@@ -821,7 +827,7 @@ export default function AdminAdvancedReports({
                   onChange={e => setRecycleDestination(e.target.value)}
                   style={{ padding: '5px 8px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 600 }}
                 >
-                  <option value="round-robin">Recycle via: ⚡ Auto Round-Robin</option>
+                  <option value="round-robin">Recycle via: Auto Round-Robin</option>
                   <option value="pool">Recycle to: System Pool (Unassigned)</option>
                   {salesReps.map(r => (
                     <option key={r.id} value={r.id}>Recycle to Counselor: {r.name}</option>
@@ -1017,7 +1023,7 @@ export default function AdminAdvancedReports({
                   onChange={e => setMaxLostRecycleDest(e.target.value)}
                   style={{ padding: '5px 8px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 600 }}
                 >
-                  <option value="round-robin">Override Recycle via: ⚡ Auto Round-Robin</option>
+                  <option value="round-robin">Override Recycle via: Auto Round-Robin</option>
                   <option value="pool">Override Recycle to: System Pool</option>
                   {salesReps.map(r => (
                     <option key={r.id} value={r.id}>Override Recycle to: {r.name}</option>

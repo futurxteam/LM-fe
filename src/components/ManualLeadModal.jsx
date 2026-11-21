@@ -346,7 +346,7 @@ export default function ManualLeadModal({
                 style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
               >
                 <option value="auto">
-                  ★ (Recommended) Auto Round-Robin to Counselor Queue (Capacity-Aware)
+                  (Recommended) Auto Round-Robin to Counselor Queue (Capacity-Aware)
                 </option>
                 <optgroup label="Direct Counselor Queue (100% Routing)">
                   {counselors.map(c => (

@@ -51,6 +51,8 @@ import {
   UserX,
   Lock,
   Settings,
+  MapPin,
+  AlertTriangle,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -374,11 +376,11 @@ export default function AdminDashboard({ user, onLogout }) {
           }
           if (metaAlerts.browserNotifications) {
             sendDesktopNotification(
-              '🔔 New Meta Leads in Pool!',
+              'New Meta Leads in Pool!',
               `${diff} new candidate lead(s) arrived in the unassigned pool!`
             )
           }
-          showNotify('success', `🔔 ${diff} new candidate lead(s) arrived in the pool!`)
+          showNotify('success', `${diff} new candidate lead(s) arrived in the pool!`)
         }
       }
       prevPoolCountRef.current = pTotal
@@ -905,7 +907,7 @@ export default function AdminDashboard({ user, onLogout }) {
       }
       if (added > 0 && metaAlerts.browserNotifications) {
         sendDesktopNotification(
-          '🔔 Meta Leads Ingested!',
+          'Meta Leads Ingested!',
           `+${added} new candidate leads retrieved from Facebook Lead Ads!`
         )
       }
@@ -935,7 +937,7 @@ export default function AdminDashboard({ user, onLogout }) {
     if (perm === 'granted') {
       sendDesktopNotification(
         'Futureace Academy CRM',
-        '🔔 Desktop push notifications are enabled! You will be alerted when new leads arrive.'
+        'Desktop push notifications are enabled! You will be alerted when new leads arrive.'
       )
       showNotify('success', 'Notification permission granted! Sent test alert.')
     } else if (perm === 'denied') {
@@ -1972,7 +1974,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   {/* Status Badges Filter */}
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    {['All', 'Unassigned', 'Assigned', 'NEW LEAD', 'HOT', 'WARM', 'COLD', 'NON-CONNECT', 'NON PROSPECT', 'LOST', 'QUALIFIED BUSINESS', 'CONVERTED BUSINESS', 'ONBOARDED BUSINESS'].map(st => (
+                    {['All', 'NEW LEAD', 'HOT', 'WARM', 'COLD', 'NON-CONNECT', 'NON PROSPECT', 'LOST', 'QUALIFIED BUSINESS', 'CONVERTED BUSINESS', 'ONBOARDED BUSINESS'].map(st => (
                       <button
                         key={st}
                         onClick={() => {
@@ -2172,7 +2174,10 @@ export default function AdminDashboard({ user, onLogout }) {
                               </td>
                               <td>
                                 <div style={{ fontSize: 12, fontWeight: 500 }}>{lead.qualification}</div>
-                                <div style={{ fontSize: 11, color: '#64748b' }}>📍 {lead.preferredLocation}</div>
+                                <div style={{ fontSize: 11, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  <MapPin size={11} color="#64748b" />
+                                  <span>{lead.preferredLocation}</span>
+                                </div>
                               </td>
                               <td>
                                 {isAssigned ? (
@@ -2655,7 +2660,10 @@ export default function AdminDashboard({ user, onLogout }) {
                       <div className="progress-list">
                         {stats?.locationReport?.map((loc, i) => (
                           <div key={i} className="progress-item-row">
-                            <span className="progress-country-name">📍 {loc.name}</span>
+                            <span className="progress-country-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                              <MapPin size={12} color="#0284c7" />
+                              <span>{loc.name}</span>
+                            </span>
                             <div className="progress-bar-track">
                               <div
                                 className="progress-bar-fill"
@@ -3211,7 +3219,10 @@ export default function AdminDashboard({ user, onLogout }) {
                                 </td>
                                 <td>
                                   <span style={{ fontSize: 12, color: '#334155', fontWeight: 500 }}>
-                                    📍 {u.specialty}
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                      <MapPin size={11} color="#64748b" />
+                                      <span>{u.specialty}</span>
+                                    </span>
                                   </span>
                                 </td>
                                 <td>
@@ -3920,7 +3931,12 @@ export default function AdminDashboard({ user, onLogout }) {
                                   {form.leadsCount} Meta Submissions
                                 </span>
                               )}
-                              {form.locale && <span>🌐 {form.locale}</span>}
+                              {form.locale && (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  <Globe size={11} color="#64748b" />
+                                  <span>{form.locale}</span>
+                                </span>
+                              )}
                             </div>
 
                             {/* Form Counselor Assignment with Change Button */}
@@ -4727,7 +4743,10 @@ export default function AdminDashboard({ user, onLogout }) {
                                 <span style={{ fontSize: 12, color: '#334155' }}>{lead.qualification}</span>
                               </td>
                               <td>
-                                <span style={{ fontSize: 12, color: '#334155' }}>📍 {lead.preferredLocation}</span>
+                                <span style={{ fontSize: 12, color: '#334155', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  <MapPin size={12} color="#64748b" />
+                                  <span>{lead.preferredLocation}</span>
+                                </span>
                               </td>
                               <td style={{ fontSize: 11, color: '#64748b' }}>
                                 {lead.createdTime ? new Date(lead.createdTime).toLocaleString() : 'Recent'}
@@ -5507,8 +5526,9 @@ export default function AdminDashboard({ user, onLogout }) {
                 </div>
               )}
 
-              <p style={{ fontSize: 12, color: '#dc2626', margin: 0, fontWeight: 500 }}>
-                ⚠️ This action is permanent and cannot be undone.
+              <p style={{ fontSize: 12, color: '#dc2626', margin: 0, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <AlertTriangle size={14} color="#dc2626" />
+                <span>This action is permanent and cannot be undone.</span>
               </p>
             </div>
 
