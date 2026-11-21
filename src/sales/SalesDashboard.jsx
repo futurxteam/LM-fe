@@ -366,11 +366,21 @@ export default function SalesDashboard({ user, onLogout }) {
               <Search size={16} color="#94a3b8" />
               <input
                 type="text"
-                placeholder="Search assigned leads by name, phone or location..."
+                placeholder="Search leads by name, ID, phone number, or email..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 style={{ border: 'none', outline: 'none', width: '100%', fontSize: 13 }}
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'inline-flex' }}
+                  title="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: 6 }}>

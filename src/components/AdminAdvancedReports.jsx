@@ -17,6 +17,7 @@ import {
   Sparkles,
   Building2,
   BarChart3,
+  X,
 } from 'lucide-react'
 import { api } from '../api'
 import { formatINR, getStatusBadgeStyle, getHeatBadgeStyle } from '../constants/leadLifecycle'
@@ -50,6 +51,7 @@ export default function AdminAdvancedReports({
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [search, setSearch] = useState('')
+  const [lostSearch, setLostSearch] = useState('')
   const [heatPage, setHeatPage] = useState(1)
   const [heatLimit, setHeatLimit] = useState(30)
   const [recyclePage, setRecyclePage] = useState(1)
@@ -78,6 +80,7 @@ export default function AdminAdvancedReports({
         fromDate,
         toDate,
         search,
+        lostSearch,
         page: heatPage,
         limit: heatLimit,
         recyclePage,
@@ -95,7 +98,7 @@ export default function AdminAdvancedReports({
 
   useEffect(() => {
     loadReport()
-  }, [heatFilter, repFilter, fromDate, toDate, search, heatPage, heatLimit, recyclePage, recycleLimit, maxLostPage, maxLostLimit])
+  }, [heatFilter, repFilter, fromDate, toDate, search, lostSearch, heatPage, heatLimit, recyclePage, recycleLimit, maxLostPage, maxLostLimit])
 
   const parseRecycleDest = dest => {
     if (dest === 'round-robin') return { recycleMethod: 'round-robin', label: 'Auto Round-Robin' }
@@ -477,16 +480,31 @@ export default function AdminAdvancedReports({
                     {t}
                   </button>
                 ))}
-                <input
-                  type="text"
-                  value={search}
-                  onChange={e => {
-                    setSearch(e.target.value)
-                    setHeatPage(1)
-                  }}
-                  placeholder="Search lead / category..."
-                  style={{ padding: '4px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1' }}
-                />
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 8px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}>
+                  <Search size={13} color="#64748b" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={e => {
+                      setSearch(e.target.value)
+                      setHeatPage(1)
+                    }}
+                    placeholder="Search name, ID, phone, email..."
+                    style={{ border: 'none', outline: 'none', fontSize: 12, width: 195 }}
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearch('')
+                        setHeatPage(1)
+                      }}
+                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b', display: 'inline-flex', padding: 0 }}
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
                 <button
                   type="button"
                   className="btn-pulse-secondary"
@@ -538,6 +556,12 @@ export default function AdminAdvancedReports({
                             <td>
                               <div style={{ fontWeight: 700, color: '#0f172a' }}>{row.fullName}</div>
                               <div style={{ fontSize: 11, color: '#64748b' }}>{row.phone}</div>
+                              <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                                {row.email ? `${row.email} • ` : ''}
+                                <span style={{ fontFamily: 'monospace' }}>
+                                  #{row.metaLeadId ? row.metaLeadId.slice(-6) : row.id?.slice(-6)}
+                                </span>
+                              </div>
                             </td>
                             <td>
                               <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 9px', borderRadius: 12, background: hb.bg, color: hb.color, border: `1px solid ${hb.border}` }}>
@@ -813,6 +837,39 @@ export default function AdminAdvancedReports({
             </div>
           )}
 
+          {/* Search Bar across Lost Business Tables */}
+          <div
+            className="template-card"
+            style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}
+          >
+            <Search size={15} color="#64748b" />
+            <input
+              type="text"
+              value={lostSearch}
+              onChange={e => {
+                setLostSearch(e.target.value)
+                setRecyclePage(1)
+                setMaxLostPage(1)
+              }}
+              placeholder="Search lost leads by name, ID, phone number, email, or reason..."
+              style={{ border: 'none', outline: 'none', width: '100%', fontSize: 13, background: 'transparent' }}
+            />
+            {lostSearch && (
+              <button
+                type="button"
+                onClick={() => {
+                  setLostSearch('')
+                  setRecyclePage(1)
+                  setMaxLostPage(1)
+                }}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b', display: 'inline-flex', padding: 0 }}
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
           {/* TABLE 1: RECYCLABLE LOST BUSINESS (BELOW THRESHOLD) */}
           <div className="template-card">
             <div className="template-card-header" style={{ flexWrap: 'wrap', gap: 8 }}>
@@ -956,6 +1013,12 @@ export default function AdminAdvancedReports({
                           <td>
                             <div style={{ fontWeight: 700 }}>{l.fullName}</div>
                             <div style={{ fontSize: 11, color: '#64748b' }}>{l.phone}</div>
+                            <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                              {l.email ? `${l.email} • ` : ''}
+                              <span style={{ fontFamily: 'monospace' }}>
+                                #{l.metaLeadId ? l.metaLeadId.slice(-6) : l.id?.slice(-6)}
+                              </span>
+                            </div>
                           </td>
                           <td style={{ fontSize: 12, color: '#991b1b', fontWeight: 600 }}>{l.lostReason}</td>
                           <td style={{ fontSize: 12, fontWeight: 700 }}>
@@ -1170,6 +1233,12 @@ export default function AdminAdvancedReports({
                           <td>
                             <div style={{ fontWeight: 700 }}>{l.fullName}</div>
                             <div style={{ fontSize: 11, color: '#64748b' }}>{l.phone}</div>
+                            <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                              {l.email ? `${l.email} • ` : ''}
+                              <span style={{ fontFamily: 'monospace' }}>
+                                #{l.metaLeadId ? l.metaLeadId.slice(-6) : l.id?.slice(-6)}
+                              </span>
+                            </div>
                           </td>
                           <td style={{ fontSize: 12, color: '#991b1b', fontWeight: 600 }}>{l.lostReason}</td>
                           <td style={{ fontSize: 12, fontWeight: 800, color: '#dc2626' }}>

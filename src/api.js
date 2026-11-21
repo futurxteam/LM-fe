@@ -82,17 +82,17 @@ export const api = {
     })
   },
 
-  assignLeads: async (leadIds, repId) => {
+  assignLeads: async (leadIds, repId, options = {}) => {
     return await request('/leads/assign', {
       method: 'POST',
-      body: JSON.stringify({ leadIds, repId }),
+      body: JSON.stringify({ leadIds, repId, ...options }),
     })
   },
 
-  autoAssignLeads: async (leadIds = [], mode = 'round-robin') => {
+  autoAssignLeads: async (leadIds = [], mode = 'round-robin', options = {}) => {
     return await request('/leads/auto-assign', {
       method: 'POST',
-      body: JSON.stringify({ leadIds, mode }),
+      body: JSON.stringify({ leadIds, mode, ...options }),
     })
   },
 
@@ -123,10 +123,10 @@ export const api = {
     })
   },
 
-  bulkDeleteLeads: async ({ leadIds = [], metaLeadIds = [], applyToAll = false, scope } = {}) => {
+  bulkDeleteLeads: async ({ leadIds = [], metaLeadIds = [], applyToAll = false, scope, filters } = {}) => {
     return await request('/leads/bulk-delete', {
       method: 'POST',
-      body: JSON.stringify({ leadIds, metaLeadIds, applyToAll, scope }),
+      body: JSON.stringify({ leadIds, metaLeadIds, applyToAll, scope, filters }),
     })
   },
 

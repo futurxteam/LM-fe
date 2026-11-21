@@ -132,7 +132,10 @@ export default function AdminDashboard({ user, onLogout }) {
 
   // Selection for bulk assignment/deletion in Pool & Master Leads
   const [selectedLeadIds, setSelectedLeadIds] = useState([])
+  const [selectEntirePool, setSelectEntirePool] = useState(false)
+  const [poolSearch, setPoolSearch] = useState('')
   const [selectedMasterLeadIds, setSelectedMasterLeadIds] = useState([])
+  const [selectEntireMaster, setSelectEntireMaster] = useState(false)
   const [deletingLeads, setDeletingLeads] = useState(false)
   const [selectedRepId, setSelectedRepId] = useState('')
 
@@ -334,23 +337,35 @@ export default function AdminDashboard({ user, onLogout }) {
   useEffect(() => {
     if (activeTab === 'all-leads') {
       setSelectedMasterLeadIds([])
+      setSelectEntireMaster(false)
       loadMasterLeads(page, pageSize)
     }
   }, [page, pageSize, statusFilter, qualFilter, searchQuery, activeTab])
 
-  // Reload System Pool when poolPage changes
+  // Reload System Pool when poolPage or poolSearch changes
   useEffect(() => {
     if (activeTab === 'pool') {
-      loadOverviewData(false, poolPage)
+      setSelectedLeadIds([])
+      setSelectEntirePool(false)
+      loadOverviewData(false, poolPage, poolSearch)
     }
-  }, [poolPage])
+  }, [poolPage, poolSearch])
 
   // Overview loader (Backend-paginated System Pool)
-  const loadOverviewData = async (isBackgroundPoll = false, targetPoolPage = poolPage) => {
+  const loadOverviewData = async (
+    isBackgroundPoll = false,
+    targetPoolPage = poolPage,
+    targetPoolSearch = poolSearch
+  ) => {
     if (!isBackgroundPoll) setLoading(true)
     try {
       const [poolData, repsData, statsData] = await Promise.all([
-        api.getLeads({ poolOnly: true, page: targetPoolPage, limit: poolPageSize }),
+        api.getLeads({
+          poolOnly: true,
+          page: targetPoolPage,
+          limit: poolPageSize,
+          search: targetPoolSearch && targetPoolSearch.trim() ? targetPoolSearch.trim() : undefined,
+        }),
         api.getSalesReps(),
         api.getStats(),
       ])
@@ -435,23 +450,39 @@ export default function AdminDashboard({ user, onLogout }) {
 
   // Handle Pool Selection
   const toggleSelectLead = id => {
+    if (selectEntirePool) {
+      setSelectEntirePool(false)
+      setSelectedLeadIds(poolLeads.map(l => l.id).filter(x => x !== id))
+      return
+    }
     setSelectedLeadIds(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     )
   }
 
   const toggleSelectAllPool = () => {
+    setSelectEntirePool(false)
     const unassignedIds = poolLeads.map(l => l.id)
-    if (selectedLeadIds.length === unassignedIds.length) {
+    if (unassignedIds.length > 0 && unassignedIds.every(id => selectedLeadIds.includes(id))) {
       setSelectedLeadIds([])
     } else {
       setSelectedLeadIds(unassignedIds)
     }
   }
 
+  const toggleSelectEntirePool = () => {
+    if (selectEntirePool) {
+      setSelectEntirePool(false)
+      setSelectedLeadIds([])
+    } else if (poolTotalCount > 0) {
+      setSelectEntirePool(true)
+      setSelectedLeadIds(poolLeads.map(l => l.id))
+    }
+  }
+
   // Manual Assignment
   const handleManualAssign = async () => {
-    if (selectedLeadIds.length === 0) {
+    if (!selectEntirePool && selectedLeadIds.length === 0) {
       showNotify('error', 'Select at least one lead from the pool')
       return
     }
@@ -460,11 +491,28 @@ export default function AdminDashboard({ user, onLogout }) {
       return
     }
 
+    if (selectEntirePool) {
+      const targetRep = salesReps.find(r => String(r.id) === String(selectedRepId))
+      const repName = targetRep?.name || 'selected counselor'
+      const scopeLabel = poolSearch.trim()
+        ? `ALL ${poolTotalCount} matching pool lead(s)`
+        : `ENTIRE System Pool (${poolTotalCount} lead(s))`
+      if (!window.confirm(`Assign ${scopeLabel} to ${repName}?`)) return
+    }
+
     try {
-      const res = await api.assignLeads(selectedLeadIds, selectedRepId)
+      const res = selectEntirePool
+        ? await api.assignLeads([], selectedRepId, {
+            applyToAll: true,
+            scope: 'pool',
+            search: poolSearch.trim() || undefined,
+          })
+        : await api.assignLeads(selectedLeadIds, selectedRepId)
       showNotify('success', res.message || 'Leads assigned successfully')
+      setSelectEntirePool(false)
       setSelectedLeadIds([])
-      await loadOverviewData()
+      setPoolPage(1)
+      await loadOverviewData(false, 1, poolSearch)
     } catch (err) {
       showNotify('error', err.message || 'Assignment failed')
     }
@@ -472,14 +520,21 @@ export default function AdminDashboard({ user, onLogout }) {
 
   // Automated Round Robin
   const handleAutoAssign = async (mode = 'round-robin') => {
+    if (selectEntirePool) {
+      const modeLabel = mode === 'geo-smart' ? 'Geo-Smart GCC' : 'Auto Round-Robin'
+      if (!window.confirm(`Run ${modeLabel} on ALL ${poolTotalCount} pool lead(s)?`)) return
+    }
     try {
       const res = await api.autoAssignLeads(
-        selectedLeadIds.length > 0 ? selectedLeadIds : [],
-        mode
+        !selectEntirePool && selectedLeadIds.length > 0 ? selectedLeadIds : [],
+        mode,
+        { search: poolSearch.trim() || undefined }
       )
       showNotify('success', res.message || `Auto-assigned ${res.assignedCount} leads`)
+      setSelectEntirePool(false)
       setSelectedLeadIds([])
-      await loadOverviewData()
+      setPoolPage(1)
+      await loadOverviewData(false, 1, poolSearch)
     } catch (err) {
       showNotify('error', err.message || 'Auto-assignment failed')
     }
@@ -501,17 +556,33 @@ export default function AdminDashboard({ user, onLogout }) {
 
   // Toggle selection in Master Leads directory
   const toggleSelectMasterLead = leadId => {
+    if (selectEntireMaster) {
+      setSelectEntireMaster(false)
+      setSelectedMasterLeadIds(masterLeads.map(l => l.id).filter(id => id !== leadId))
+      return
+    }
     setSelectedMasterLeadIds(prev =>
       prev.includes(leadId) ? prev.filter(id => id !== leadId) : [...prev, leadId]
     )
   }
 
   const toggleSelectAllMasterLeads = () => {
+    setSelectEntireMaster(false)
     const allIds = masterLeads.map(l => l.id)
     if (allIds.length > 0 && allIds.every(id => selectedMasterLeadIds.includes(id))) {
       setSelectedMasterLeadIds([])
     } else {
       setSelectedMasterLeadIds(allIds)
+    }
+  }
+
+  const toggleSelectEntireMaster = () => {
+    if (selectEntireMaster) {
+      setSelectEntireMaster(false)
+      setSelectedMasterLeadIds([])
+    } else if (totalLeadsCount > 0) {
+      setSelectEntireMaster(true)
+      setSelectedMasterLeadIds(masterLeads.map(l => l.id))
     }
   }
 
@@ -546,27 +617,58 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   }
 
-  // Bulk delete selected leads (System Pool or Assigned/Master Leads)
+  // Bulk delete selected leads (System Pool or Assigned/Master Leads — page or entire list)
   const handleBulkDeleteLeads = async (leadIds, source = 'pool') => {
-    if (!Array.isArray(leadIds) || leadIds.length === 0) {
+    const isEntirePool = source === 'pool' && selectEntirePool
+    const isEntireMaster = source === 'master' && selectEntireMaster
+
+    if (!isEntirePool && !isEntireMaster && (!Array.isArray(leadIds) || leadIds.length === 0)) {
       showNotify('error', 'Select at least one lead to remove')
       return
     }
-    const label = source === 'pool' ? 'from System Pool' : 'from CRM (Assigned / Master Leads)'
-    if (!window.confirm(`Permanently remove ${leadIds.length} selected lead(s) ${label}?`)) return
+
+    const confirmMsg = isEntirePool
+      ? `Permanently remove ALL ${poolTotalCount} lead(s) from System Pool${poolSearch.trim() ? ' matching current search' : ''}? This cannot be undone.`
+      : isEntireMaster
+      ? `Permanently remove ALL ${totalLeadsCount} matching lead(s) from CRM (Master Leads)? This cannot be undone.`
+      : `Permanently remove ${leadIds.length} selected lead(s) ${source === 'pool' ? 'from System Pool' : 'from CRM (Assigned / Master Leads)'}?`
+
+    if (!window.confirm(confirmMsg)) return
 
     setDeletingLeads(true)
     try {
-      const res = await api.bulkDeleteLeads({ leadIds })
+      let res
+      if (isEntirePool) {
+        res = await api.bulkDeleteLeads({
+          applyToAll: true,
+          scope: 'pool',
+          filters: { search: poolSearch.trim() || undefined },
+        })
+      } else if (isEntireMaster) {
+        res = await api.bulkDeleteLeads({
+          applyToAll: true,
+          scope: 'master',
+          filters: {
+            status: statusFilter !== 'All' ? statusFilter : undefined,
+            qualification: qualFilter !== 'All' ? qualFilter : undefined,
+            search: searchQuery.trim() || undefined,
+          },
+        })
+      } else {
+        res = await api.bulkDeleteLeads({ leadIds })
+      }
       showNotify('success', res.message || `Removed ${res.deletedCount || leadIds.length} lead(s)`)
       if (source === 'pool') {
         setSelectedLeadIds([])
+        setSelectEntirePool(false)
+        setPoolPage(1)
+        await loadOverviewData(false, 1, poolSearch)
       } else {
         setSelectedMasterLeadIds([])
-      }
-      await loadOverviewData()
-      if (activeTab === 'all-leads') {
-        await loadMasterLeads(page, pageSize)
+        setSelectEntireMaster(false)
+        setPage(1)
+        await loadOverviewData()
+        await loadMasterLeads(1, pageSize)
       }
     } catch (err) {
       showNotify('error', err.message || 'Failed to remove selected leads')
@@ -1714,10 +1816,33 @@ export default function AdminDashboard({ user, onLogout }) {
                     onClick={toggleSelectAllPool}
                     style={{ fontSize: 12, padding: '6px 12px' }}
                   >
-                    {selectedLeadIds.length === poolLeads.length && poolLeads.length > 0
-                      ? 'Deselect All'
-                      : `Select All (${poolLeads.length})`}
+                    {!selectEntirePool && selectedLeadIds.length === poolLeads.length && poolLeads.length > 0
+                      ? `Deselect Page (${poolLeads.length})`
+                      : `Select Page (${poolLeads.length})`}
                   </button>
+
+                  {poolTotalCount > 0 && (
+                    <button
+                      type="button"
+                      className={selectEntirePool ? 'btn-pulse' : 'btn-pulse-secondary'}
+                      onClick={toggleSelectEntirePool}
+                      style={{
+                        fontSize: 12,
+                        padding: '6px 12px',
+                        border: selectEntirePool ? '1px solid #1b2b6b' : '1px solid #0284c7',
+                        color: selectEntirePool ? '#ffffff' : '#0369a1',
+                        background: selectEntirePool ? '#1b2b6b' : '#f0f9ff',
+                      }}
+                      title="Select all leads across every page in System Pool"
+                    >
+                      <CheckSquare size={14} />
+                      <span>
+                        {selectEntirePool
+                          ? `Deselect Entire (${poolTotalCount})`
+                          : `Select Entire (${poolTotalCount})`}
+                      </span>
+                    </button>
+                  )}
 
                   {/* Manual Assign Select */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1735,21 +1860,21 @@ export default function AdminDashboard({ user, onLogout }) {
                     <button
                       className="btn-pulse"
                       onClick={handleManualAssign}
-                      disabled={selectedLeadIds.length === 0}
-                      style={{ opacity: selectedLeadIds.length === 0 ? 0.5 : 1 }}
+                      disabled={!selectEntirePool && selectedLeadIds.length === 0}
+                      style={{ opacity: !selectEntirePool && selectedLeadIds.length === 0 ? 0.5 : 1 }}
                     >
                       <UserCheck size={14} />
-                      <span>Assign ({selectedLeadIds.length})</span>
+                      <span>Assign ({selectEntirePool ? poolTotalCount : selectedLeadIds.length})</span>
                     </button>
                     <button
                       className="btn-pulse-danger"
                       onClick={() => handleBulkDeleteLeads(selectedLeadIds, 'pool')}
-                      disabled={selectedLeadIds.length === 0 || deletingLeads}
-                      style={{ opacity: selectedLeadIds.length === 0 || deletingLeads ? 0.5 : 1 }}
+                      disabled={(!selectEntirePool && selectedLeadIds.length === 0) || deletingLeads}
+                      style={{ opacity: (!selectEntirePool && selectedLeadIds.length === 0) || deletingLeads ? 0.5 : 1 }}
                       title="Remove selected leads from System Pool"
                     >
                       <Trash2 size={14} />
-                      <span>Remove ({selectedLeadIds.length})</span>
+                      <span>Remove ({selectEntirePool ? poolTotalCount : selectedLeadIds.length})</span>
                     </button>
                   </div>
 
@@ -1772,14 +1897,82 @@ export default function AdminDashboard({ user, onLogout }) {
                     <span>Geo-Smart GCC</span>
                   </button>
                 </div>
+
+                {/* Pool Search Bar */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    width: '100%',
+                    marginTop: 8,
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                  }}
+                >
+                  <Search size={15} color="#64748b" />
+                  <input
+                    type="text"
+                    placeholder="Search pool leads by name, ID, phone number, or email..."
+                    value={poolSearch}
+                    onChange={e => {
+                      setPoolSearch(e.target.value)
+                      setPoolPage(1)
+                    }}
+                    style={{ border: 'none', outline: 'none', width: '100%', fontSize: 13, background: 'transparent' }}
+                  />
+                  {poolSearch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPoolSearch('')
+                        setPoolPage(1)
+                      }}
+                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', display: 'inline-flex' }}
+                      title="Clear search"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Pool Table Card */}
               <div className="template-card">
                 <div className="template-card-header">
                   <h3>Unassigned Leads in Pool</h3>
-                  <span className="header-badge">{poolLeads.length} Available to Allocate</span>
+                  <span className="header-badge">{poolTotalCount} Available to Allocate</span>
                 </div>
+                {selectEntirePool && poolTotalCount > 0 && (
+                  <div
+                    style={{
+                      padding: '8px 16px',
+                      background: '#eff6ff',
+                      borderBottom: '1px solid #bfdbfe',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: 12,
+                      color: '#1e3a8a',
+                    }}
+                  >
+                    <span>
+                      <strong>All {poolTotalCount} leads</strong> across all {poolTotalPages} page(s) in System Pool are selected.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectEntirePool(false)
+                        setSelectedLeadIds([])
+                      }}
+                      style={{ border: 'none', background: 'transparent', color: '#0284c7', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}
+                    >
+                      Clear Selection
+                    </button>
+                  </div>
+                )}
                 <div className="template-card-body" style={{ padding: 0 }}>
                   {loading ? (
                     <div className="data-loader-container">
@@ -1791,10 +1984,12 @@ export default function AdminDashboard({ user, onLogout }) {
                     <div style={{ padding: '48px 20px', textAlign: 'center', color: '#64748b' }}>
                       <CheckCircle2 size={40} color="#10b981" style={{ margin: '0 auto 12px' }} />
                       <p style={{ fontWeight: 700, fontSize: 16, color: '#1e293b' }}>
-                        Lead pool is currently clear!
+                        {poolSearch.trim() ? 'No pool leads match your search' : 'Lead pool is currently clear!'}
                       </p>
                       <p style={{ fontSize: 13, marginTop: 4 }}>
-                        All incoming leads have been assigned. Use the <strong>Import XLSX / CSV</strong> button above to upload a new batch.
+                        {poolSearch.trim()
+                          ? 'Try searching by candidate name, Lead ID, phone number, or email.'
+                          : <>All incoming leads have been assigned. Use the <strong>Import XLSX / CSV</strong> button above to upload a new batch.</>}
                       </p>
                     </div>
                   ) : (
@@ -1805,7 +2000,10 @@ export default function AdminDashboard({ user, onLogout }) {
                             <th style={{ width: 40 }}>
                               <input
                                 type="checkbox"
-                                checked={selectedLeadIds.length === poolLeads.length && poolLeads.length > 0}
+                                checked={
+                                  selectEntirePool ||
+                                  (selectedLeadIds.length === poolLeads.length && poolLeads.length > 0)
+                                }
                                 onChange={toggleSelectAllPool}
                               />
                             </th>
@@ -1820,7 +2018,7 @@ export default function AdminDashboard({ user, onLogout }) {
                         </thead>
                         <tbody>
                           {poolLeads.map(lead => {
-                            const isSelected = selectedLeadIds.includes(lead.id)
+                            const isSelected = selectEntirePool || selectedLeadIds.includes(lead.id)
                             return (
                               <tr
                                 key={lead.id}
@@ -1841,7 +2039,12 @@ export default function AdminDashboard({ user, onLogout }) {
                                     {lead.fullName}
                                   </div>
                                   <div style={{ fontSize: 12, color: '#475569' }}>{lead.phone}</div>
-                                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{lead.email}</div>
+                                  <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                                    {lead.email ? `${lead.email} • ` : ''}
+                                    <span style={{ fontFamily: 'monospace' }}>
+                                      #{lead.metaLeadId ? lead.metaLeadId.slice(-6) : lead.id?.slice(-6)}
+                                    </span>
+                                  </div>
                                 </td>
                                 <td>
                                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
@@ -1953,7 +2156,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <Search size={16} color="#94a3b8" />
                   <input
                     type="text"
-                    placeholder="Search candidate by name, phone, email, qualification or city..."
+                    placeholder="Search leads by name, ID, phone number, email, qualification or city..."
                     value={searchQuery}
                     onChange={e => {
                       setSearchQuery(e.target.value)
@@ -1963,7 +2166,10 @@ export default function AdminDashboard({ user, onLogout }) {
                   />
                   {searchQuery && (
                     <button
-                      onClick={() => setSearchQuery('')}
+                      onClick={() => {
+                        setSearchQuery('')
+                        setPage(1)
+                      }}
                       style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
                     >
                       <X size={14} />
@@ -2029,8 +2235,43 @@ export default function AdminDashboard({ user, onLogout }) {
                     </select>
                   </div>
 
-                  {/* Bulk Remove Selected Leads (Assigned / Pool) */}
-                  {selectedMasterLeadIds.length > 0 && (
+                  {/* Select Page / Select Entire & Bulk Remove */}
+                  {totalLeadsCount > 0 && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn-pulse-secondary"
+                        onClick={toggleSelectAllMasterLeads}
+                        style={{ padding: '5px 10px', fontSize: 12, fontWeight: 600 }}
+                      >
+                        {!selectEntireMaster && masterLeads.length > 0 && masterLeads.every(l => selectedMasterLeadIds.includes(l.id))
+                          ? `Deselect Page (${masterLeads.length})`
+                          : `Select Page (${masterLeads.length})`}
+                      </button>
+                      <button
+                        type="button"
+                        className={selectEntireMaster ? 'btn-pulse' : 'btn-pulse-secondary'}
+                        onClick={toggleSelectEntireMaster}
+                        style={{
+                          padding: '5px 10px',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          border: selectEntireMaster ? '1px solid #1b2b6b' : '1px solid #0284c7',
+                          color: selectEntireMaster ? '#ffffff' : '#0369a1',
+                          background: selectEntireMaster ? '#1b2b6b' : '#f0f9ff',
+                        }}
+                        title="Select all matching leads across all pages"
+                      >
+                        <CheckSquare size={13} />
+                        <span>
+                          {selectEntireMaster
+                            ? `Deselect Entire (${totalLeadsCount})`
+                            : `Select Entire (${totalLeadsCount})`}
+                        </span>
+                      </button>
+                    </>
+                  )}
+                  {(selectEntireMaster || selectedMasterLeadIds.length > 0) && (
                     <button
                       type="button"
                       className="btn-pulse-danger"
@@ -2047,7 +2288,9 @@ export default function AdminDashboard({ user, onLogout }) {
                       title="Remove selected leads from CRM"
                     >
                       <Trash2 size={13} />
-                      <span>Remove Selected ({selectedMasterLeadIds.length})</span>
+                      <span>
+                        Remove Selected ({selectEntireMaster ? totalLeadsCount : selectedMasterLeadIds.length})
+                      </span>
                     </button>
                   )}
 
@@ -2097,6 +2340,34 @@ export default function AdminDashboard({ user, onLogout }) {
                       : `Page ${page} of ${totalPages} (${totalLeadsCount} total leads)`}
                   </span>
                 </div>
+                {selectEntireMaster && totalLeadsCount > 0 && (
+                  <div
+                    style={{
+                      padding: '8px 16px',
+                      background: '#fef2f2',
+                      borderBottom: '1px solid #fecaca',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: 12,
+                      color: '#991b1b',
+                    }}
+                  >
+                    <span>
+                      <strong>All {totalLeadsCount} matching leads</strong> across all {totalPages} page(s) are selected.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectEntireMaster(false)
+                        setSelectedMasterLeadIds([])
+                      }}
+                      style={{ border: 'none', background: 'transparent', color: '#dc2626', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}
+                    >
+                      Clear Selection
+                    </button>
+                  </div>
+                )}
                 <div className="template-card-body" style={{ padding: 0 }}>
                   {loading ? (
                     <div className="data-loader-container">
@@ -2118,8 +2389,9 @@ export default function AdminDashboard({ user, onLogout }) {
                             <input
                               type="checkbox"
                               checked={
-                                masterLeads.length > 0 &&
-                                masterLeads.every(l => selectedMasterLeadIds.includes(l.id))
+                                selectEntireMaster ||
+                                (masterLeads.length > 0 &&
+                                  masterLeads.every(l => selectedMasterLeadIds.includes(l.id)))
                               }
                               onChange={toggleSelectAllMasterLeads}
                             />
@@ -2137,7 +2409,7 @@ export default function AdminDashboard({ user, onLogout }) {
                       <tbody>
                         {masterLeads.map(lead => {
                           const isAssigned = lead.assignmentStatus === 'ASSIGNED'
-                          const isMasterSelected = selectedMasterLeadIds.includes(lead.id)
+                          const isMasterSelected = selectEntireMaster || selectedMasterLeadIds.includes(lead.id)
                           return (
                             <tr
                               key={lead.id}
