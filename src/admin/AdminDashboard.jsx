@@ -3528,9 +3528,9 @@ export default function AdminDashboard({ user, onLogout }) {
                               {usersList.map(u => (
                                 <tr
                                   key={u.id}
-                                  onClick={() => setHistoryUserId(u.id)}
-                                  style={{ cursor: 'pointer' }}
-                                  title="Click to open allocated leads history & activity panel"
+                                  onClick={() => u.role === 'sales' && setHistoryUserId(u.id)}
+                                  style={{ cursor: u.role === 'sales' ? 'pointer' : 'default' }}
+                                  title={u.role === 'sales' ? 'Click to open allocated leads history & activity panel' : undefined}
                                 >
                                   <td>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -3629,16 +3629,18 @@ export default function AdminDashboard({ user, onLogout }) {
                                   </td>
                                   <td onClick={e => e.stopPropagation()}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
-                                      <button
-                                        type="button"
-                                        className="btn-pulse-secondary"
-                                        onClick={() => setHistoryUserId(u.id)}
-                                        style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4, color: '#0369a1', borderColor: '#bae6fd', background: '#f0f9ff' }}
-                                        title="View allocated leads history & activity"
-                                      >
-                                        <History size={12} />
-                                        <span>Leads &amp; Activity</span>
-                                      </button>
+                                      {u.role === 'sales' && (
+                                        <button
+                                          type="button"
+                                          className="btn-pulse-secondary"
+                                          onClick={() => setHistoryUserId(u.id)}
+                                          style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4, color: '#0369a1', borderColor: '#bae6fd', background: '#f0f9ff' }}
+                                          title="View allocated leads history & activity"
+                                        >
+                                          <History size={12} />
+                                          <span>Leads &amp; Activity</span>
+                                        </button>
+                                      )}
                                       {u.active ? (
                                         <>
                                           <button
@@ -3651,16 +3653,18 @@ export default function AdminDashboard({ user, onLogout }) {
                                             <Edit2 size={12} />
                                             <span>Edit</span>
                                           </button>
-                                          <button
-                                            type="button"
-                                            className="btn-pulse-danger"
-                                            onClick={() => handleOpenDisableUser(u)}
-                                            style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                                            title="Disable account login without deleting any lead data"
-                                          >
-                                            <UserX size={12} />
-                                            <span>Disable</span>
-                                          </button>
+                                          {u.role !== 'admin' && (
+                                            <button
+                                              type="button"
+                                              className="btn-pulse-danger"
+                                              onClick={() => handleOpenDisableUser(u)}
+                                              style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                              title="Disable account login without deleting any lead data"
+                                            >
+                                              <UserX size={12} />
+                                              <span>Disable</span>
+                                            </button>
+                                          )}
                                         </>
                                       ) : (
                                         <button
@@ -5527,54 +5531,56 @@ export default function AdminDashboard({ user, onLogout }) {
                   </div>
                 </div>
 
-                {/* Active Toggle */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 14px',
-                    borderRadius: 8,
-                    background: '#f8fafc',
-                    border: '1px solid #e2e8f0',
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>Account Status</div>
-                    <div style={{ fontSize: 11, color: '#64748b' }}>
-                      {userFormData.active
-                        ? 'Active — advisor can sign in and receive newly distributed leads'
-                        : 'Inactive — advisor cannot sign in or receive leads'}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setUserFormData({ ...userFormData, active: !userFormData.active })}
+                {/* Active Toggle (Sales accounts only — Admin accounts cannot be disabled) */}
+                {userFormData.role !== 'admin' && (
+                  <div
                     style={{
-                      background: userFormData.active ? '#10b981' : '#cbd5e1',
-                      border: 'none',
-                      width: 44,
-                      height: 24,
-                      borderRadius: 12,
-                      padding: 2,
-                      cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: userFormData.active ? 'flex-end' : 'flex-start',
-                      transition: 'background 0.2s',
+                      justifyContent: 'space-between',
+                      padding: '12px 14px',
+                      borderRadius: 8,
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
                     }}
                   >
-                    <div
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>Account Status</div>
+                      <div style={{ fontSize: 11, color: '#64748b' }}>
+                        {userFormData.active
+                          ? 'Active — advisor can sign in and receive newly distributed leads'
+                          : 'Disabled — advisor cannot sign in or receive leads'}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setUserFormData({ ...userFormData, active: !userFormData.active })}
                       style={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: '50%',
-                        background: '#ffffff',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                        background: userFormData.active ? '#10b981' : '#cbd5e1',
+                        border: 'none',
+                        width: 44,
+                        height: 24,
+                        borderRadius: 12,
+                        padding: 2,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: userFormData.active ? 'flex-end' : 'flex-start',
+                        transition: 'background 0.2s',
                       }}
-                    />
-                  </button>
-                </div>
+                    >
+                      <div
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: '50%',
+                          background: '#ffffff',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                        }}
+                      />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Modal Footer */}
