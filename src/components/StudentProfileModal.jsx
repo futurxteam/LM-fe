@@ -314,11 +314,21 @@ export default function StudentProfileModal({
             gap: 10,
           }}
         >
-          <div style={{ fontSize: 12, color: '#475569' }}>
-            <span>Assigned Counselor: </span>
-            <strong style={{ color: '#0369a1' }}>
-              {lead.assignedTo?.repName || 'Unassigned (In Pool)'}
-            </strong>
+          <div style={{ fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <div>
+              <span>Assigned Counselor: </span>
+              <strong style={{ color: '#0369a1' }}>
+                {lead.assignedTo?.repName || 'Unassigned (In Pool)'}
+              </strong>
+            </div>
+            {lead.initialAdvisor?.repName && (
+              <div style={{ paddingLeft: 10, borderLeft: '1px solid #cbd5e1' }}>
+                <span>Initial Advisor: </span>
+                <strong style={{ color: '#334155' }}>
+                  {lead.initialAdvisor.repName}
+                </strong>
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {!lead.isCompleted && (

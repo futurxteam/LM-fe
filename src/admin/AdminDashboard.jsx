@@ -53,6 +53,7 @@ import {
   Settings,
   MapPin,
   AlertTriangle,
+  History,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -63,6 +64,7 @@ import CounselorGroupModal from '../components/CounselorGroupModal'
 import LeadStepModal from '../components/LeadStepModal'
 import AdminAdvancedReports from '../components/AdminAdvancedReports'
 import AdminLifecycleSettingsModal from '../components/AdminLifecycleSettingsModal'
+import StaffHistoryDrawer from '../components/StaffHistoryDrawer'
 import { getStatusBadgeStyle, getHeatBadgeStyle, LEAD_STATUSES } from '../constants/leadLifecycle'
 
 export default function AdminDashboard({ user, onLogout }) {
@@ -200,12 +202,14 @@ export default function AdminDashboard({ user, onLogout }) {
   const [previewError, setPreviewError] = useState('')
   const [previewFilter, setPreviewFilter] = useState('all') // 'all' | 'new' | 'pool' | 'assigned'
 
-  // User Management State
+  // User Management State (Disable-Only — Disabled / Old Sales Reps hidden by default)
   const [usersList, setUsersList] = useState([])
   const [usersLoading, setUsersLoading] = useState(false)
   const [userSearch, setUserSearch] = useState('')
   const [userRoleFilter, setUserRoleFilter] = useState('all') // 'all' | 'sales' | 'admin'
-  const [userStatusFilter, setUserStatusFilter] = useState('all') // 'all' | 'active' | 'inactive'
+  const [showDisabledUsers, setShowDisabledUsers] = useState(false)
+  const [disabledUsersCount, setDisabledUsersCount] = useState(0)
+  const [historyUserId, setHistoryUserId] = useState(null)
   const [showUserModal, setShowUserModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [userFormData, setUserFormData] = useState({
@@ -218,10 +222,11 @@ export default function AdminDashboard({ user, onLogout }) {
     active: true,
   })
   const [savingUser, setSavingUser] = useState(false)
-  const [showDeleteUserModal, setShowDeleteUserModal] = useState(false)
-  const [deletingUser, setDeletingUser] = useState(null)
-  const [reassignLeadsOnDelete, setReassignLeadsOnDelete] = useState(true)
-  const [deletingInProgress, setDeletingInProgress] = useState(false)
+  const [showDisableUserModal, setShowDisableUserModal] = useState(false)
+  const [disablingUser, setDisablingUser] = useState(null)
+  const [disableHandoverMode, setDisableHandoverMode] = useState('keep') // 'keep' | 'reassign_open'
+  const [disableTargetRepId, setDisableTargetRepId] = useState('pool')
+  const [disablingInProgress, setDisablingInProgress] = useState(false)
 
   const prevPoolCountRef = useRef(null)
 
@@ -1201,16 +1206,28 @@ export default function AdminDashboard({ user, onLogout }) {
   }
 
   // -------------------------------------------------------------
-  // User Management Handlers (Sales Advisors & Admins)
+  // User Management Handlers (Disable-Only — Zero Account Deletion)
   // -------------------------------------------------------------
-  const loadUsers = async (targetPage = usersPage) => {
+  const loadUsers = async (
+    targetPage = usersPage,
+    targetShowDisabled = showDisabledUsers,
+    targetRole = userRoleFilter,
+    targetSearch = userSearch
+  ) => {
     setUsersLoading(true)
     try {
-      const res = await api.getUsers({ page: targetPage, limit: usersPageSize })
+      const res = await api.getUsers({
+        page: targetPage,
+        limit: usersPageSize,
+        status: targetShowDisabled ? 'disabled' : 'active',
+        role: targetRole,
+        search: targetSearch,
+      })
       if (res?.users) {
         setUsersList(res.users)
         setUsersTotalCount(res.totalCount ?? res.users.length)
         setUsersTotalPages(res.totalPages || 1)
+        setDisabledUsersCount(res.disabledCount ?? 0)
       }
     } catch (err) {
       console.error('Failed to load users:', err)
@@ -1222,9 +1239,9 @@ export default function AdminDashboard({ user, onLogout }) {
 
   useEffect(() => {
     if (activeTab === 'users') {
-      loadUsers(usersPage)
+      loadUsers(usersPage, showDisabledUsers, userRoleFilter, userSearch)
     }
-  }, [usersPage])
+  }, [usersPage, showDisabledUsers, userRoleFilter, userSearch])
 
   const handleOpenCreateUser = () => {
     setEditingUser(null)
@@ -1295,39 +1312,49 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   }
 
-  const handleToggleUserActive = async u => {
+  const handleOpenDisableUser = u => {
+    setDisablingUser(u)
+    setDisableHandoverMode('keep')
+    setDisableTargetRepId('pool')
+    setShowDisableUserModal(true)
+  }
+
+  const handleConfirmDisableUser = async () => {
+    if (!disablingUser) return
+    setDisablingInProgress(true)
     try {
-      const res = await api.updateUser(u.id, { active: !u.active })
-      showNotify('success', `${u.name} is now ${!u.active ? 'Active' : 'Inactive'}`)
-      await loadUsers()
+      const res = await api.disableOrEnableUser(disablingUser.id, {
+        active: false,
+        handoverMode: disableHandoverMode,
+        targetRepId: disableHandoverMode === 'reassign_open' ? disableTargetRepId : '',
+      })
+      showNotify('success', res.message || `${disablingUser.name} has been disabled`)
+      setShowDisableUserModal(false)
+      setDisablingUser(null)
+      await loadUsers(1, showDisabledUsers, userRoleFilter, userSearch)
+      setUsersPage(1)
       const repsData = await api.getSalesReps()
       setSalesReps(repsData || [])
-    } catch (err) {
-      showNotify('error', err.message || 'Failed to update user status')
-    }
-  }
-
-  const handleOpenDeleteUser = u => {
-    setDeletingUser(u)
-    setReassignLeadsOnDelete(true)
-    setShowDeleteUserModal(true)
-  }
-
-  const handleConfirmDeleteUser = async () => {
-    if (!deletingUser) return
-    setDeletingInProgress(true)
-    try {
-      const res = await api.deleteUser(deletingUser.id, reassignLeadsOnDelete)
-      showNotify('success', res.message || `Removed ${deletingUser.name}`)
-      setShowDeleteUserModal(false)
-      setDeletingUser(null)
-      await loadUsers()
       await loadOverviewData()
       if (activeTab === 'all-leads') await loadMasterLeads(1)
     } catch (err) {
-      showNotify('error', err.message || 'Failed to delete user')
+      showNotify('error', err.message || 'Failed to disable staff account')
     } finally {
-      setDeletingInProgress(false)
+      setDisablingInProgress(false)
+    }
+  }
+
+  const handleReEnableUser = async u => {
+    if (!window.confirm(`Re-enable ${u.name}'s account so they can log in again?`)) return
+    try {
+      const res = await api.disableOrEnableUser(u.id, { active: true })
+      showNotify('success', res.message || `${u.name} is now Active`)
+      await loadUsers(1, showDisabledUsers, userRoleFilter, userSearch)
+      setUsersPage(1)
+      const repsData = await api.getSalesReps()
+      setSalesReps(repsData || [])
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to re-enable user')
     }
   }
 
@@ -2469,6 +2496,12 @@ export default function AdminDashboard({ user, onLogout }) {
                                       <span style={{ fontSize: 12, fontWeight: 600, color: '#0369a1', display: 'flex', alignItems: 'center', gap: 4 }}>
                                         <UserCheck size={13} /> {lead.assignedTo?.repName || 'Assigned'}
                                       </span>
+                                      {lead.initialAdvisor?.repName &&
+                                        lead.initialAdvisor.repName !== lead.assignedTo?.repName && (
+                                          <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                                            Initial: <strong>{lead.initialAdvisor.repName}</strong>
+                                          </div>
+                                        )}
                                       <button
                                         onClick={() => handleUnassign([lead.id])}
                                         style={{ fontSize: 10, color: '#dc2626', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
@@ -2477,9 +2510,16 @@ export default function AdminDashboard({ user, onLogout }) {
                                       </button>
                                     </div>
                                   ) : (
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#6d28d9', background: '#ede9fe', padding: '2px 8px', borderRadius: 4 }}>
-                                      In Pool (Unassigned)
-                                    </span>
+                                    <div>
+                                      <span style={{ fontSize: 11, fontWeight: 700, color: '#6d28d9', background: '#ede9fe', padding: '2px 8px', borderRadius: 4 }}>
+                                        In Pool (Unassigned)
+                                      </span>
+                                      {lead.initialAdvisor?.repName && (
+                                        <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>
+                                          Initial: <strong>{lead.initialAdvisor.repName}</strong>
+                                        </div>
+                                      )}
+                                    </div>
                                   )}
                                 </td>
                                 <td>
@@ -3351,7 +3391,10 @@ export default function AdminDashboard({ user, onLogout }) {
                       {/* Role filter */}
                       <select
                         value={userRoleFilter}
-                        onChange={e => setUserRoleFilter(e.target.value)}
+                        onChange={e => {
+                          setUserRoleFilter(e.target.value)
+                          setUsersPage(1)
+                        }}
                         style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
                       >
                         <option value="all">All Roles</option>
@@ -3359,16 +3402,34 @@ export default function AdminDashboard({ user, onLogout }) {
                         <option value="admin">Administrators Only</option>
                       </select>
 
-                      {/* Status filter */}
-                      <select
-                        value={userStatusFilter}
-                        onChange={e => setUserStatusFilter(e.target.value)}
-                        style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
+                      {/* Show / Hide Disabled / Old Sales Reps Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDisabledUsers(prev => !prev)
+                          setUsersPage(1)
+                        }}
+                        className={showDisabledUsers ? 'btn-pulse' : 'btn-pulse-secondary'}
+                        style={{
+                          fontSize: 12,
+                          padding: '6px 12px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          border: showDisabledUsers ? '1px solid #991b1b' : '1px solid #cbd5e1',
+                          background: showDisabledUsers ? '#991b1b' : '#f8fafc',
+                          color: showDisabledUsers ? '#ffffff' : '#334155',
+                          fontWeight: 700,
+                        }}
+                        title="Toggle between Active Staff and Disabled / Old Sales Reps archive"
                       >
-                        <option value="all">All Status</option>
-                        <option value="active">Active Staff Only</option>
-                        <option value="inactive">Inactive Staff Only</option>
-                      </select>
+                        <UserX size={14} />
+                        <span>
+                          {showDisabledUsers
+                            ? `Showing Disabled / Old Sales Reps (${disabledUsersCount}) — Back to Active`
+                            : `Show Disabled / Old Sales Reps (${disabledUsersCount})`}
+                        </span>
+                      </button>
                     </div>
 
                     {/* Primary Add Button */}
@@ -3391,46 +3452,64 @@ export default function AdminDashboard({ user, onLogout }) {
                   </div>
 
                   {/* Users Directory Card */}
-                  <div className="template-card">
+                  <div className="template-card" style={showDisabledUsers ? { borderTop: '3px solid #991b1b' } : undefined}>
                     <div className="template-card-header">
-                      <h3>Staff & Admissions Advisors Directory</h3>
+                      <h3>
+                        {showDisabledUsers
+                          ? 'Disabled / Old Sales Reps & Staff Archive (Click any rep to inspect allocated leads & activity)'
+                          : 'Active Staff & Admissions Advisors Directory'}
+                      </h3>
                       <span className="header-badge">
-                        {usersList.filter(u => {
-                          if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false
-                          if (userStatusFilter === 'active' && !u.active) return false
-                          if (userStatusFilter === 'inactive' && u.active) return false
-                          if (userSearch.trim()) {
-                            const q = userSearch.toLowerCase()
-                            const matchName = (u.name || '').toLowerCase().includes(q)
-                            const matchEmail = (u.email || '').toLowerCase().includes(q)
-                            const matchSpec = (u.specialty || '').toLowerCase().includes(q)
-                            const matchTitle = (u.title || '').toLowerCase().includes(q)
-                            if (!matchName && !matchEmail && !matchSpec && !matchTitle) return false
-                          }
-                          return true
-                        }).length}{' '}
-                        Staff Members
+                        {usersTotalCount} {showDisabledUsers ? 'Disabled' : 'Active'} Staff Member(s)
                       </span>
                     </div>
+                    {showDisabledUsers && (
+                      <div
+                        style={{
+                          padding: '9px 16px',
+                          background: '#fef2f2',
+                          borderBottom: '1px solid #fecaca',
+                          fontSize: 12,
+                          color: '#991b1b',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 8,
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <span>
+                          Disabled staff cannot log in and do not receive new leads. All historical leads retain their <strong>Initial Advisor</strong> record — click any staff row below to inspect their full allocated leads &amp; activity timeline.
+                        </span>
+                      </div>
+                    )}
                     <div className="template-card-body" style={{ padding: 0 }}>
                       {usersLoading ? (
                         <div className="data-loader-container">
                           <div className="data-loader-spinner" />
-                          <div className="data-loader-text">Loading Staff & Admissions Advisors...</div>
+                          <div className="data-loader-text">
+                            Loading {showDisabledUsers ? 'Disabled / Old Sales Reps' : 'Active Staff'}...
+                          </div>
                           <div className="data-loader-sub">Querying Database</div>
                         </div>
                       ) : usersList.length === 0 ? (
                         <div style={{ padding: '48px 20px', textAlign: 'center', color: '#64748b' }}>
                           <UserCog size={36} color="#94a3b8" style={{ margin: '0 auto 12px' }} />
-                          <p style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>No staff members registered yet</p>
-                          <button
-                            className="btn-pulse"
-                            onClick={handleOpenCreateUser}
-                            style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                          >
-                            <UserPlus size={14} />
-                            <span>Add First Advisor</span>
-                          </button>
+                          <p style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>
+                            {showDisabledUsers
+                              ? 'No disabled / old sales reps found'
+                              : 'No active staff members match this filter'}
+                          </p>
+                          {!showDisabledUsers && (
+                            <button
+                              className="btn-pulse"
+                              onClick={handleOpenCreateUser}
+                              style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                            >
+                              <UserPlus size={14} />
+                              <span>Add New Advisor</span>
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <div className="leads-table-container">
@@ -3438,156 +3517,167 @@ export default function AdminDashboard({ user, onLogout }) {
                             <thead>
                               <tr>
                                 <th>Staff Member</th>
-                                <th>Role & Title</th>
+                                <th>Role &amp; Title</th>
                                 <th>Specialty / Territory</th>
-                                <th>Lead Load & Contact Rate</th>
+                                <th>{showDisabledUsers ? 'Historical Allocated Leads' : 'Lead Load & Contact Rate'}</th>
                                 <th>Status</th>
                                 <th style={{ textAlign: 'right' }}>Actions</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {usersList
-                                .filter(u => {
-                                  if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false
-                                  if (userStatusFilter === 'active' && !u.active) return false
-                                  if (userStatusFilter === 'inactive' && u.active) return false
-                                  if (userSearch.trim()) {
-                                    const q = userSearch.toLowerCase()
-                                    const matchName = (u.name || '').toLowerCase().includes(q)
-                                    const matchEmail = (u.email || '').toLowerCase().includes(q)
-                                    const matchSpec = (u.specialty || '').toLowerCase().includes(q)
-                                    const matchTitle = (u.title || '').toLowerCase().includes(q)
-                                    if (!matchName && !matchEmail && !matchSpec && !matchTitle) return false
-                                  }
-                                  return true
-                                })
-                                .map(u => (
-                                  <tr key={u.id}>
-                                    <td>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                        <span
-                                          className="rep-avatar"
-                                          style={{
-                                            background: u.role === 'admin' ? '#ede9fe' : '#e0f2fe',
-                                            color: u.role === 'admin' ? '#6d28d9' : '#0369a1',
-                                          }}
-                                        >
-                                          {u.avatar || 'SR'}
-                                        </span>
-                                        <div>
-                                          <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>
-                                            {u.name}
+                              {usersList.map(u => (
+                                <tr
+                                  key={u.id}
+                                  onClick={() => setHistoryUserId(u.id)}
+                                  style={{ cursor: 'pointer' }}
+                                  title="Click to open allocated leads history & activity panel"
+                                >
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                      <span
+                                        className="rep-avatar"
+                                        style={{
+                                          background: !u.active ? '#e2e8f0' : u.role === 'admin' ? '#ede9fe' : '#e0f2fe',
+                                          color: !u.active ? '#475569' : u.role === 'admin' ? '#6d28d9' : '#0369a1',
+                                        }}
+                                      >
+                                        {u.avatar || 'SR'}
+                                      </span>
+                                      <div>
+                                        <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>
+                                          {u.name}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#64748b' }}>{u.email}</div>
+                                        {!u.active && u.disabledAt && (
+                                          <div style={{ fontSize: 10, color: '#dc2626', fontWeight: 600 }}>
+                                            Disabled: {new Date(u.disabledAt).toLocaleDateString()}
                                           </div>
-                                          <div style={{ fontSize: 11, color: '#64748b' }}>{u.email}</div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <span
+                                      style={{
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                        padding: '3px 8px',
+                                        borderRadius: 12,
+                                        background: u.role === 'admin' ? '#ede9fe' : '#dcfce7',
+                                        color: u.role === 'admin' ? '#6d28d9' : '#15803d',
+                                        display: 'inline-block',
+                                        marginBottom: 3,
+                                      }}
+                                    >
+                                      {u.role === 'admin' ? 'Administrator' : 'Sales Advisor'}
+                                    </span>
+                                    <div style={{ fontSize: 11, color: '#475569', fontWeight: 500 }}>
+                                      {u.title}
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <span style={{ fontSize: 12, color: '#334155', fontWeight: 500 }}>
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                        <MapPin size={11} color="#64748b" />
+                                        <span>{u.specialty}</span>
+                                      </span>
+                                    </span>
+                                  </td>
+                                  <td>
+                                    {u.role === 'sales' ? (
+                                      <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#0f172a', flexWrap: 'wrap' }}>
+                                          <span>{u.historicalLeadsCount ?? u.totalAssigned ?? 0} Total History</span>
+                                          <span style={{ fontSize: 11, color: '#0369a1', fontWeight: 600 }}>
+                                            ({u.totalAssigned || 0} Assigned)
+                                          </span>
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                                          Initial Advisor on <strong>{u.initialAdvisorCount || 0}</strong> • Contacted: {u.contactRate || 0}%
                                         </div>
                                       </div>
-                                    </td>
-                                    <td>
+                                    ) : (
+                                      <span style={{ fontSize: 11, color: '#8b5cf6', fontWeight: 600 }}>
+                                        Full System Admin Access
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <span
+                                      style={{
+                                        background: u.active ? '#dcfce7' : '#fee2e2',
+                                        color: u.active ? '#15803d' : '#991b1b',
+                                        fontWeight: 700,
+                                        fontSize: 11,
+                                        padding: '3px 9px',
+                                        borderRadius: 12,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 4,
+                                      }}
+                                    >
                                       <span
                                         style={{
-                                          fontSize: 11,
-                                          fontWeight: 700,
-                                          padding: '3px 8px',
-                                          borderRadius: 12,
-                                          background: u.role === 'admin' ? '#ede9fe' : '#dcfce7',
-                                          color: u.role === 'admin' ? '#6d28d9' : '#15803d',
-                                          display: 'inline-block',
-                                          marginBottom: 3,
+                                          width: 6,
+                                          height: 6,
+                                          borderRadius: '50%',
+                                          background: u.active ? '#16a34a' : '#dc2626',
                                         }}
-                                      >
-                                        {u.role === 'admin' ? 'Administrator' : 'Sales Advisor'}
-                                      </span>
-                                      <div style={{ fontSize: 11, color: '#475569', fontWeight: 500 }}>
-                                        {u.title}
-                                      </div>
-                                    </td>
-                                    <td>
-                                      <span style={{ fontSize: 12, color: '#334155', fontWeight: 500 }}>
-                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                          <MapPin size={11} color="#64748b" />
-                                          <span>{u.specialty}</span>
-                                        </span>
-                                      </span>
-                                    </td>
-                                    <td>
-                                      {u.role === 'sales' ? (
-                                        <div>
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
-                                            <span>{u.totalAssigned || 0} Leads</span>
-                                            <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>
-                                              ({u.contactRate || 0}% Contacted)
-                                            </span>
-                                          </div>
-                                          <div className="progress-bar-container" style={{ width: 120, height: 5, marginTop: 4 }}>
-                                            <div
-                                              className="progress-bar-fill"
-                                              style={{
-                                                width: `${Math.min(u.contactRate || 0, 100)}%`,
-                                                background: '#10b981',
-                                              }}
-                                            />
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <span style={{ fontSize: 11, color: '#8b5cf6', fontWeight: 600 }}>
-                                          Full System Admin Access
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td>
+                                      />
+                                      <span>{u.active ? 'Active' : 'Disabled'}</span>
+                                    </span>
+                                  </td>
+                                  <td onClick={e => e.stopPropagation()}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
                                       <button
                                         type="button"
-                                        onClick={() => handleToggleUserActive(u)}
-                                        style={{
-                                          border: 'none',
-                                          background: u.active ? '#dcfce7' : '#f1f5f9',
-                                          color: u.active ? '#15803d' : '#94a3b8',
-                                          fontWeight: 700,
-                                          fontSize: 11,
-                                          padding: '3px 9px',
-                                          borderRadius: 12,
-                                          cursor: 'pointer',
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: 4,
-                                        }}
-                                        title="Click to toggle active/inactive status"
+                                        className="btn-pulse-secondary"
+                                        onClick={() => setHistoryUserId(u.id)}
+                                        style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4, color: '#0369a1', borderColor: '#bae6fd', background: '#f0f9ff' }}
+                                        title="View allocated leads history & activity"
                                       >
-                                        <span
-                                          style={{
-                                            width: 6,
-                                            height: 6,
-                                            borderRadius: '50%',
-                                            background: u.active ? '#16a34a' : '#94a3b8',
-                                          }}
-                                        />
-                                        <span>{u.active ? 'Active' : 'Inactive'}</span>
+                                        <History size={12} />
+                                        <span>Leads &amp; Activity</span>
                                       </button>
-                                    </td>
-                                    <td>
-                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                                      {u.active ? (
+                                        <>
+                                          <button
+                                            type="button"
+                                            className="btn-pulse-secondary"
+                                            onClick={() => handleOpenEditUser(u)}
+                                            style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                            title="Edit user profile & territory"
+                                          >
+                                            <Edit2 size={12} />
+                                            <span>Edit</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="btn-pulse-danger"
+                                            onClick={() => handleOpenDisableUser(u)}
+                                            style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                            title="Disable account login without deleting any lead data"
+                                          >
+                                            <UserX size={12} />
+                                            <span>Disable</span>
+                                          </button>
+                                        </>
+                                      ) : (
                                         <button
-                                          className="btn-pulse-secondary"
-                                          onClick={() => handleOpenEditUser(u)}
-                                          style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                                          title="Edit user profile & territory"
+                                          type="button"
+                                          className="btn-pulse"
+                                          onClick={() => handleReEnableUser(u)}
+                                          style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4, background: '#059669' }}
+                                          title="Re-enable account login"
                                         >
-                                          <Edit2 size={12} />
-                                          <span>Edit</span>
+                                          <RotateCcw size={12} />
+                                          <span>Re-Enable</span>
                                         </button>
-                                        <button
-                                          className="btn-pulse-danger"
-                                          onClick={() => handleOpenDeleteUser(u)}
-                                          style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                                          title="Remove user from CRM"
-                                        >
-                                          <Trash2 size={12} />
-                                          <span>Remove</span>
-                                        </button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
                             </tbody>
                           </table>
                         </div>
@@ -5685,12 +5775,12 @@ export default function AdminDashboard({ user, onLogout }) {
         </div>
       )}
 
-      {/* Delete User Confirmation Modal */}
-      {showDeleteUserModal && deletingUser && (
-        <div className="modal-overlay" style={{ zIndex: 1050 }} onClick={() => !deletingInProgress && setShowDeleteUserModal(false)}>
+      {/* Disable Staff Account Confirmation Modal (Zero Deletion — Preserves Initial Advisor) */}
+      {showDisableUserModal && disablingUser && (
+        <div className="modal-overlay" style={{ zIndex: 1050 }} onClick={() => !disablingInProgress && setShowDisableUserModal(false)}>
           <div
             className="modal-card"
-            style={{ maxWidth: 480, width: '100%' }}
+            style={{ maxWidth: 520, width: '100%' }}
             onClick={e => e.stopPropagation()}
           >
             <div
@@ -5721,17 +5811,17 @@ export default function AdminDashboard({ user, onLogout }) {
                 </div>
                 <div>
                   <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#991b1b' }}>
-                    Remove Team Member
+                    Disable Staff Account
                   </h3>
                   <p style={{ margin: 0, fontSize: 12, color: '#b91c1c' }}>
-                    Confirm deletion of user account
+                    Blocks login immediately — zero lead or activity data is lost
                   </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setShowDeleteUserModal(false)}
-                disabled={deletingInProgress}
+                onClick={() => setShowDisableUserModal(false)}
+                disabled={disablingInProgress}
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -5746,53 +5836,106 @@ export default function AdminDashboard({ user, onLogout }) {
             </div>
 
             <div className="modal-body" style={{ padding: '20px' }}>
-              <p style={{ fontSize: 14, color: '#334155', margin: '0 0 16px 0', lineHeight: 1.5 }}>
-                Are you sure you want to remove <strong>{deletingUser.name}</strong> ({deletingUser.email})?
+              <p style={{ fontSize: 14, color: '#334155', margin: '0 0 14px 0', lineHeight: 1.5 }}>
+                Disable login access for <strong>{disablingUser.name}</strong> ({disablingUser.email})?
+                Their account will move to the <strong>Disabled / Old Sales Reps</strong> archive and all historical leads will keep <strong>{disablingUser.name}</strong> as their <strong>Initial Advisor</strong>.
               </p>
 
-              {deletingUser.totalAssigned > 0 ? (
+              {(disablingUser.openAssignedCount || 0) > 0 ? (
                 <div
                   style={{
                     background: '#fffbeb',
-                    border: '1px solid #fef3c7',
+                    border: '1px solid #fde68a',
                     borderRadius: 8,
                     padding: '14px',
-                    marginBottom: 16,
+                    marginBottom: 14,
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <AlertCircle size={18} color="#d97706" />
+                    <AlertCircle size={17} color="#d97706" />
                     <span style={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>
-                      Active Assigned Leads: {deletingUser.totalAssigned}
+                      Open Leads: {disablingUser.openAssignedCount} (Total Assigned: {disablingUser.totalAssigned})
                     </span>
                   </div>
-                  <p style={{ fontSize: 12, color: '#78350f', margin: '0 0 12px 0', lineHeight: 1.4 }}>
-                    This advisor currently manages <strong>{deletingUser.totalAssigned}</strong> lead(s).
-                    Choose how to handle their active pipeline:
+                  <p style={{ fontSize: 12, color: '#78350f', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+                    Converted, Onboarded, Lost, and Non-Prospect leads are never altered. Choose how to handle their <strong>{disablingUser.openAssignedCount} open lead(s)</strong>:
                   </p>
-                  <label
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 10,
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      color: '#451a03',
-                      background: '#fef3c7',
-                      padding: '8px 10px',
-                      borderRadius: 6,
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={reassignLeadsOnDelete}
-                      onChange={e => setReassignLeadsOnDelete(e.target.checked)}
-                      style={{ marginTop: 2 }}
-                    />
-                    <span>
-                      <strong>Return all {deletingUser.totalAssigned} leads back to Unassigned Pool</strong> (Recommended — prevents prospective student inquiries from being orphaned).
-                    </span>
-                  </label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 8,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        color: '#1e293b',
+                        background: disableHandoverMode === 'keep' ? '#ffffff' : 'transparent',
+                        border: disableHandoverMode === 'keep' ? '1px solid #0284c7' : '1px solid #fde68a',
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="disableHandoverMode"
+                        checked={disableHandoverMode === 'keep'}
+                        onChange={() => setDisableHandoverMode('keep')}
+                        style={{ marginTop: 2 }}
+                      />
+                      <span>
+                        <strong>Keep all leads attributed to {disablingUser.name}</strong> (Recommended — read-only archive; you can reassign anytime later).
+                      </span>
+                    </label>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 8,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        color: '#1e293b',
+                        background: disableHandoverMode === 'reassign_open' ? '#ffffff' : 'transparent',
+                        border: disableHandoverMode === 'reassign_open' ? '1px solid #0284c7' : '1px solid #fde68a',
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="disableHandoverMode"
+                        checked={disableHandoverMode === 'reassign_open'}
+                        onChange={() => setDisableHandoverMode('reassign_open')}
+                        style={{ marginTop: 2 }}
+                      />
+                      <span style={{ flex: 1 }}>
+                        <strong>Hand over {disablingUser.openAssignedCount} open lead(s)</strong> (Initial Advisor stays permanently set to <strong>{disablingUser.name}</strong>):
+                        {disableHandoverMode === 'reassign_open' && (
+                          <select
+                            value={disableTargetRepId}
+                            onChange={e => setDisableTargetRepId(e.target.value)}
+                            style={{
+                              marginTop: 8,
+                              width: '100%',
+                              padding: '6px 10px',
+                              borderRadius: 6,
+                              border: '1px solid #cbd5e1',
+                              fontSize: 12,
+                              background: '#fff',
+                            }}
+                          >
+                            <option value="pool">Return open leads to System Pool (Unassigned)</option>
+                            {salesReps
+                              .filter(r => String(r.id) !== String(disablingUser.id))
+                              .map(r => (
+                                <option key={r.id} value={r.id}>
+                                  Reassign open leads to: {r.name}
+                                </option>
+                              ))}
+                          </select>
+                        )}
+                      </span>
+                    </label>
+                  </div>
                 </div>
               ) : (
                 <div
@@ -5801,18 +5944,18 @@ export default function AdminDashboard({ user, onLogout }) {
                     border: '1px solid #e2e8f0',
                     borderRadius: 8,
                     padding: '12px',
-                    marginBottom: 16,
+                    marginBottom: 14,
                     fontSize: 12,
-                    color: '#64748b',
+                    color: '#475569',
                   }}
                 >
-                  This member currently has 0 assigned leads. Their account and credentials will be removed.
+                  This staff member has 0 open leads. Disabling blocks login while preserving all {disablingUser.historicalLeadsCount || 0} historical lead record(s).
                 </div>
               )}
 
-              <p style={{ fontSize: 12, color: '#dc2626', margin: 0, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <AlertTriangle size={14} color="#dc2626" />
-                <span>This action is permanent and cannot be undone.</span>
+              <p style={{ fontSize: 12, color: '#0369a1', margin: 0, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <ShieldCheck size={14} color="#0369a1" />
+                <span>You can view their complete lead history or re-enable their account anytime from Disabled / Old Sales Reps.</span>
               </p>
             </div>
 
@@ -5829,15 +5972,15 @@ export default function AdminDashboard({ user, onLogout }) {
               <button
                 type="button"
                 className="btn-pulse-secondary"
-                onClick={() => setShowDeleteUserModal(false)}
-                disabled={deletingInProgress}
+                onClick={() => setShowDisableUserModal(false)}
+                disabled={disablingInProgress}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleConfirmDeleteUser}
-                disabled={deletingInProgress}
+                onClick={handleConfirmDisableUser}
+                disabled={disablingInProgress}
                 style={{
                   background: '#dc2626',
                   color: '#ffffff',
@@ -5852,11 +5995,27 @@ export default function AdminDashboard({ user, onLogout }) {
                   gap: 6,
                 }}
               >
-                {deletingInProgress ? 'Removing...' : 'Confirm Remove'}
+                <UserX size={14} />
+                <span>{disablingInProgress ? 'Disabling...' : 'Confirm Disable'}</span>
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Staff Allocated Leads History & Activity Detail Panel */}
+      {historyUserId && (
+        <StaffHistoryDrawer
+          userId={historyUserId}
+          onClose={() => setHistoryUserId(null)}
+          onInspectLead={lead => setActiveStepLead(lead)}
+          onStatusChanged={async () => {
+            await loadUsers(1, showDisabledUsers, userRoleFilter, userSearch)
+            const repsData = await api.getSalesReps()
+            setSalesReps(repsData || [])
+          }}
+          showNotify={showNotify}
+        />
       )}
     </div>
   )

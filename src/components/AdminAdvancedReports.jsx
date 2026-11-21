@@ -1481,7 +1481,14 @@ export default function AdminAdvancedReports({
                   {(report.counselorMatrix || []).map(c => (
                     <tr key={c.id}>
                       <td>
-                        <div style={{ fontWeight: 700 }}>{c.name}</div>
+                        <div style={{ fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          <span>{c.name}</span>
+                          {c.active === false && (
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: '#fee2e2', color: '#991b1b' }}>
+                              Disabled
+                            </span>
+                          )}
+                        </div>
                         <div style={{ fontSize: 11, color: '#64748b' }}>{c.title}</div>
                       </td>
                       <td style={{ fontWeight: 700 }}>{c.totalAssigned}</td>

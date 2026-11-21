@@ -19,6 +19,11 @@ async function request(endpoint, options = {}) {
 
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}))
+    if (res.status === 403 && errData.code === 'ACCOUNT_DISABLED' && !endpoint.startsWith('/auth/login')) {
+      localStorage.removeItem('leadpulse_token')
+      localStorage.removeItem('leadpulse_user')
+      window.location.href = '/'
+    }
     throw new Error(errData.message || `Request failed with status ${res.status}`)
   }
 
@@ -208,13 +213,27 @@ export const api = {
     })
   },
 
-  // User Management Handlers (Sales Advisors & Admins)
+  // User Management Handlers (Sales Advisors & Admins — Disable-Only, Zero Deletion)
   getUsers: async (params = {}) => {
     const query = new URLSearchParams()
     if (params.page !== undefined) query.append('page', params.page)
     if (params.limit !== undefined) query.append('limit', params.limit)
+    if (params.status && params.status !== 'all') query.append('status', params.status)
+    if (params.role && params.role !== 'all') query.append('role', params.role)
+    if (params.search && params.search.trim()) query.append('search', params.search.trim())
     const qs = query.toString()
     return await request(`/users${qs ? `?${qs}` : ''}`, {
+      method: 'GET',
+    })
+  },
+
+  getUserHistory: async (id, params = {}) => {
+    const query = new URLSearchParams()
+    if (params.page !== undefined) query.append('page', params.page)
+    if (params.limit !== undefined) query.append('limit', params.limit)
+    if (params.search && params.search.trim()) query.append('search', params.search.trim())
+    const qs = query.toString()
+    return await request(`/users/${id}/history${qs ? `?${qs}` : ''}`, {
       method: 'GET',
     })
   },
@@ -233,10 +252,10 @@ export const api = {
     })
   },
 
-  deleteUser: async (id, reassignToPool = true) => {
-    return await request(`/users/${id}`, {
-      method: 'DELETE',
-      body: JSON.stringify({ reassignToPool }),
+  disableOrEnableUser: async (id, payload = { active: false, handoverMode: 'keep' }) => {
+    return await request(`/users/${id}/disable`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
     })
   },
 
