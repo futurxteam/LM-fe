@@ -85,12 +85,15 @@ export default function LeadStepModal({
   const groupedCategories = useMemo(() => {
     const groups = {}
     for (const cat of categories) {
-      const g = cat.group || 'General'
+      let g = cat.group || 'General'
+      if (!isAdmin) {
+        g = g.replace(/\s*\((End of Cycle|Recyclable)\)/gi, '').trim()
+      }
       if (!groups[g]) groups[g] = []
       groups[g].push(cat)
     }
     return groups
-  }, [categories])
+  }, [categories, isAdmin])
 
   const selectedCatObj = useMemo(
     () => categories.find(c => c.key === selectedCategoryKey) || null,
@@ -217,7 +220,8 @@ export default function LeadStepModal({
                 Lead Progression: {lead.fullName}
               </h3>
               <div style={{ fontSize: 11, color: '#cbd5e1', marginTop: 2 }}>
-                {lead.phone} {lead.email ? `• ${lead.email}` : ''} • Cycle #{lead.cycleNumber || 1}
+                {lead.phone} {lead.email ? `• ${lead.email}` : ''}
+                {isAdmin ? ` • Cycle #${lead.cycleNumber || 1}` : ''}
               </div>
             </div>
           </div>
@@ -273,7 +277,7 @@ export default function LeadStepModal({
                 {currentHeatBadge.label}
               </span>
             )}
-            {lead.isCycleEnded && (
+            {isAdmin && lead.isCycleEnded && (
               <span
                 style={{
                   fontSize: 11,
@@ -287,7 +291,7 @@ export default function LeadStepModal({
                 End of Cycle
               </span>
             )}
-            {lead.lostCycleCount > 0 && (
+            {isAdmin && lead.lostCycleCount > 0 && (
               <span style={{ fontSize: 11, color: '#991b1b', fontWeight: 600 }}>
                 Lost Count: {lead.lostCycleCount}/{policy.maxLostCycles}
               </span>
@@ -355,7 +359,7 @@ export default function LeadStepModal({
                 >
                   <Lock size={15} />
                   <span>
-                    This lead has reached <strong>End of Cycle ({lead.leadStatus})</strong>. Only an Administrator can modify it further.
+                    This lead is currently closed. Contact an Administrator if further updates are needed.
                   </span>
                 </div>
               )}
@@ -401,9 +405,6 @@ export default function LeadStepModal({
                     ) : (
                       <>
                         Recorded Category: <strong>{selectedCatObj.label}</strong>
-                        {selectedCatObj.leadStatus === 'NON PROSPECT' && ' (End of Cycle)'}
-                        {selectedCatObj.leadStatus === 'CONVERTED BUSINESS' && ' (Converted Milestone — End of Cycle)'}
-                        {selectedCatObj.leadStatus === 'ONBOARDED BUSINESS' && ' (Onboarding Completed)'}
                       </>
                     )}
                   </div>
@@ -460,13 +461,15 @@ export default function LeadStepModal({
                       }}
                     />
                   )}
-                  <div style={{ fontSize: 11, color: '#7f1d1d', marginTop: 6 }}>
-                    {(lead.lostCycleCount || 0) + (lead.leadStatus === 'LOST' ? 0 : 1) >= policy.maxLostCycles
-                      ? `This reaches the max Lost cycle limit (${policy.maxLostCycles}/${policy.maxLostCycles}) and will close this lead.`
-                      : policy.lostRecycleMode === 'auto_pool'
-                      ? `Lost cycle ${(lead.lostCycleCount || 0) + 1}/${policy.maxLostCycles}: Lead will automatically return to System Pool for the next cycle.`
-                      : `Lost cycle ${(lead.lostCycleCount || 0) + 1}/${policy.maxLostCycles}: Lead stays recyclable by Admin until ${policy.maxLostCycles} cycles are reached.`}
-                  </div>
+                  {isAdmin && (
+                    <div style={{ fontSize: 11, color: '#7f1d1d', marginTop: 6 }}>
+                      {(lead.lostCycleCount || 0) + (lead.leadStatus === 'LOST' ? 0 : 1) >= policy.maxLostCycles
+                        ? `This reaches the max Lost cycle limit (${policy.maxLostCycles}/${policy.maxLostCycles}) and will close this lead.`
+                        : policy.lostRecycleMode === 'auto_pool'
+                        ? `Lost cycle ${(lead.lostCycleCount || 0) + 1}/${policy.maxLostCycles}: Lead will automatically return to System Pool for the next cycle.`
+                        : `Lost cycle ${(lead.lostCycleCount || 0) + 1}/${policy.maxLostCycles}: Lead stays recyclable by Admin until ${policy.maxLostCycles} cycles are reached.`}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -720,9 +723,11 @@ export default function LeadStepModal({
                             <span style={{ fontSize: 11, fontWeight: 800, color: '#0f172a' }}>
                               Step #{st.stepNumber}
                             </span>
-                            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, background: '#f1f5f9', color: '#475569', fontWeight: 700 }}>
-                              Cycle #{st.cycleNumber || 1}
-                            </span>
+                            {isAdmin && (
+                              <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, background: '#f1f5f9', color: '#475569', fontWeight: 700 }}>
+                                Cycle #{st.cycleNumber || 1}
+                              </span>
+                            )}
                             {isAdmin ? (
                               <>
                                 <span style={{ fontSize: 11, color: '#64748b' }}>

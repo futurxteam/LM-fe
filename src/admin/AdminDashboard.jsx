@@ -106,11 +106,21 @@ export default function AdminDashboard({ user, onLogout }) {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // Master List Pagination / View Mode ('all' | '30' | '50' | '100')
+  // Master List & System Pool Backend Pagination ('20' | '30' | '50' | '100')
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState('all') // Default to 'all' shown as requested
+  const [pageSize, setPageSize] = useState('30')
   const [totalPages, setTotalPages] = useState(1)
   const [totalLeadsCount, setTotalLeadsCount] = useState(0)
+
+  const [poolPage, setPoolPage] = useState(1)
+  const [poolPageSize] = useState(30)
+  const [poolTotalPages, setPoolTotalPages] = useState(1)
+  const [poolTotalCount, setPoolTotalCount] = useState(0)
+
+  const [usersPage, setUsersPage] = useState(1)
+  const [usersPageSize] = useState(20)
+  const [usersTotalPages, setUsersTotalPages] = useState(1)
+  const [usersTotalCount, setUsersTotalCount] = useState(0)
 
   // Reports Sub-tab: 'advanced' | 'stage' | 'reps' | 'campaigns' | 'demographics'
   const [activeReportSubTab, setActiveReportSubTab] = useState('advanced')
@@ -326,18 +336,29 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   }, [page, pageSize, statusFilter, qualFilter, searchQuery, activeTab])
 
-  // Overview loader
-  const loadOverviewData = async (isBackgroundPoll = false) => {
+  // Reload System Pool when poolPage changes
+  useEffect(() => {
+    if (activeTab === 'pool') {
+      loadOverviewData(false, poolPage)
+    }
+  }, [poolPage])
+
+  // Overview loader (Backend-paginated System Pool)
+  const loadOverviewData = async (isBackgroundPoll = false, targetPoolPage = poolPage) => {
     if (!isBackgroundPoll) setLoading(true)
     try {
       const [poolData, repsData, statsData] = await Promise.all([
-        api.getLeads({ poolOnly: true }),
+        api.getLeads({ poolOnly: true, page: targetPoolPage, limit: poolPageSize }),
         api.getSalesReps(),
         api.getStats(),
       ])
 
       const list = Array.isArray(poolData) ? poolData : (poolData?.leads || [])
+      const pTotal = Array.isArray(poolData) ? list.length : (poolData?.total ?? list.length)
+      const pPages = Array.isArray(poolData) ? 1 : (poolData?.totalPages || 1)
       setPoolLeads(list)
+      setPoolTotalCount(pTotal)
+      setPoolTotalPages(pPages)
       setSalesReps(repsData || [])
       setStats(statsData || null)
       if (repsData && repsData.length > 0 && !selectedRepId) {
@@ -346,7 +367,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
       // Detect newly arrived leads in pool for Sound / Browser Notification alert
       if (prevPoolCountRef.current !== null && isBackgroundPoll) {
-        const diff = list.length - prevPoolCountRef.current
+        const diff = pTotal - prevPoolCountRef.current
         if (diff > 0) {
           if (metaAlerts.soundAlert) {
             playChime()
@@ -360,7 +381,7 @@ export default function AdminDashboard({ user, onLogout }) {
           showNotify('success', `🔔 ${diff} new candidate lead(s) arrived in the pool!`)
         }
       }
-      prevPoolCountRef.current = list.length
+      prevPoolCountRef.current = pTotal
     } catch (err) {
       if (!isBackgroundPoll) {
         console.error('Error fetching overview data:', err)
@@ -371,20 +392,17 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   }
 
-  // Master leads loader (Backend-paginated by 30 or Show All)
+  // Master leads loader (Strictly Backend-Paginated)
   const loadMasterLeads = async (targetPage = page, sizeOption = pageSize) => {
     setLoading(true)
     try {
-      const isAll = sizeOption === 'all'
+      const limitNum = parseInt(sizeOption) || 30
       const queryParams = {
         status: statusFilter !== 'All' ? statusFilter : undefined,
         qualification: qualFilter !== 'All' ? qualFilter : undefined,
         search: searchQuery.trim() || undefined,
-      }
-
-      if (!isAll) {
-        queryParams.page = targetPage
-        queryParams.limit = parseInt(sizeOption) || 30
+        page: targetPage,
+        limit: limitNum,
       }
 
       const res = await api.getLeads(queryParams)
@@ -1082,12 +1100,14 @@ export default function AdminDashboard({ user, onLogout }) {
   // -------------------------------------------------------------
   // User Management Handlers (Sales Advisors & Admins)
   // -------------------------------------------------------------
-  const loadUsers = async () => {
+  const loadUsers = async (targetPage = usersPage) => {
     setUsersLoading(true)
     try {
-      const res = await api.getUsers()
+      const res = await api.getUsers({ page: targetPage, limit: usersPageSize })
       if (res?.users) {
         setUsersList(res.users)
+        setUsersTotalCount(res.totalCount ?? res.users.length)
+        setUsersTotalPages(res.totalPages || 1)
       }
     } catch (err) {
       console.error('Failed to load users:', err)
@@ -1096,6 +1116,12 @@ export default function AdminDashboard({ user, onLogout }) {
       setUsersLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (activeTab === 'users') {
+      loadUsers(usersPage)
+    }
+  }, [usersPage])
 
   const handleOpenCreateUser = () => {
     setEditingUser(null)
@@ -1892,6 +1918,37 @@ export default function AdminDashboard({ user, onLogout }) {
                       </table>
                     </div>
                   )}
+                  {poolTotalCount > 0 && (
+                    <div className="pagination-container">
+                      <div>
+                        Showing{' '}
+                        <strong>
+                          {(poolPage - 1) * poolPageSize + 1} - {Math.min(poolPage * poolPageSize, poolTotalCount)}
+                        </strong>{' '}
+                        of <strong>{poolTotalCount}</strong> pool leads (Page {poolPage} of {poolTotalPages})
+                      </div>
+                      <div className="pagination-controls">
+                        <button
+                          type="button"
+                          className="btn-pagination"
+                          disabled={poolPage <= 1 || loading}
+                          onClick={() => setPoolPage(p => Math.max(1, p - 1))}
+                        >
+                          <ChevronLeft size={14} />
+                          <span>Previous</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-pagination"
+                          disabled={poolPage >= poolTotalPages || loading}
+                          onClick={() => setPoolPage(p => Math.min(poolTotalPages, p + 1))}
+                        >
+                          <span>Next</span>
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1978,7 +2035,7 @@ export default function AdminDashboard({ user, onLogout }) {
                       }}
                       style={{ padding: '5px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 600, background: '#fff' }}
                     >
-                      <option value="all">All Leads (Show All)</option>
+                      <option value="20">20 per page</option>
                       <option value="30">30 per page</option>
                       <option value="50">50 per page</option>
                       <option value="100">100 per page</option>
@@ -3253,6 +3310,37 @@ export default function AdminDashboard({ user, onLogout }) {
                             ))}
                         </tbody>
                       </table>
+                    </div>
+                  )}
+                  {usersTotalCount > 0 && (
+                    <div className="pagination-container">
+                      <div>
+                        Showing{' '}
+                        <strong>
+                          {(usersPage - 1) * usersPageSize + 1} - {Math.min(usersPage * usersPageSize, usersTotalCount)}
+                        </strong>{' '}
+                        of <strong>{usersTotalCount}</strong> staff users (Page {usersPage} of {usersTotalPages})
+                      </div>
+                      <div className="pagination-controls">
+                        <button
+                          type="button"
+                          className="btn-pagination"
+                          disabled={usersPage <= 1 || usersLoading}
+                          onClick={() => setUsersPage(p => Math.max(1, p - 1))}
+                        >
+                          <ChevronLeft size={14} />
+                          <span>Previous</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-pagination"
+                          disabled={usersPage >= usersTotalPages || usersLoading}
+                          onClick={() => setUsersPage(p => Math.min(usersTotalPages, p + 1))}
+                        >
+                          <span>Next</span>
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

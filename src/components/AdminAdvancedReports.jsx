@@ -40,12 +40,16 @@ export default function AdminAdvancedReports({
   const [loading, setLoading] = useState(true)
   const [report, setReport] = useState(null)
 
-  // Filters
+  // Filters & Backend Pagination
   const [heatFilter, setHeatFilter] = useState('All')
   const [repFilter, setRepFilter] = useState('All')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [search, setSearch] = useState('')
+  const [heatPage, setHeatPage] = useState(1)
+  const [heatLimit, setHeatLimit] = useState(30)
+  const [recyclePage, setRecyclePage] = useState(1)
+  const [recycleLimit, setRecycleLimit] = useState(30)
 
   // Lost Recycle state
   const [selectedRecycleIds, setSelectedRecycleIds] = useState([])
@@ -61,6 +65,10 @@ export default function AdminAdvancedReports({
         fromDate,
         toDate,
         search,
+        page: heatPage,
+        limit: heatLimit,
+        recyclePage,
+        recycleLimit,
       })
       setReport(res)
     } catch (err) {
@@ -72,7 +80,7 @@ export default function AdminAdvancedReports({
 
   useEffect(() => {
     loadReport()
-  }, [heatFilter, repFilter, fromDate, toDate])
+  }, [heatFilter, repFilter, fromDate, toDate, search, heatPage, heatLimit, recyclePage, recycleLimit])
 
   const handleRecycleSingle = async lead => {
     const destName =
@@ -118,16 +126,9 @@ export default function AdminAdvancedReports({
 
   const totals = report?.totals || { totalLeads: 0, classifiedTotal: 0, hotCount: 0, warmCount: 0, coldCount: 0, unclassifiedCount: 0 }
   const heatSummary = report?.heatSummary || []
-  const heatRows = (report?.heatTableRows || []).filter(r => {
-    if (!search.trim()) return true
-    const q = search.trim().toLowerCase()
-    return (
-      (r.fullName || '').toLowerCase().includes(q) ||
-      (r.phone || '').toLowerCase().includes(q) ||
-      (r.selectedCategoryLabel || '').toLowerCase().includes(q) ||
-      (r.assignedRepName || '').toLowerCase().includes(q)
-    )
-  })
+  const heatRows = report?.heatTableRows || []
+  const heatPagination = report?.heatPagination || { page: 1, limit: heatLimit, total: heatRows.length, totalPages: 1 }
+  const recyclePagination = report?.lostCycleReport?.pagination || { page: 1, limit: recycleLimit, total: 0, totalPages: 1 }
 
   // Donut chart percentages (SVG stroke-dasharray on radius 54 -> circumference ~339.29)
   const C = 2 * Math.PI * 54
@@ -146,6 +147,7 @@ export default function AdminAdvancedReports({
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[
             { id: 'heat', label: '🔥 Hot / Warm / Cold (Admin Only)' },
+            { id: 'groups', label: `🏢 Group-Wise Report (${(report?.groupReport || []).length})` },
             { id: 'lifecycle', label: '📊 10-Status Lifecycle Funnel' },
             { id: 'recycle', label: `♻️ Lost Recycle Queue (${report?.lostCycleReport?.recyclableCount || 0})` },
             { id: 'finance', label: '💰 Business Value vs Collected' },
@@ -357,7 +359,10 @@ export default function AdminAdvancedReports({
                   <button
                     key={t}
                     type="button"
-                    onClick={() => setHeatFilter(t)}
+                    onClick={() => {
+                      setHeatFilter(t)
+                      setHeatPage(1)
+                    }}
                     style={{
                       padding: '4px 10px',
                       borderRadius: 16,
@@ -375,7 +380,10 @@ export default function AdminAdvancedReports({
                 <input
                   type="text"
                   value={search}
-                  onChange={e => setSearch(e.target.value)}
+                  onChange={e => {
+                    setSearch(e.target.value)
+                    setHeatPage(1)
+                  }}
                   placeholder="Search lead / category..."
                   style={{ padding: '4px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1' }}
                 />
@@ -478,6 +486,145 @@ export default function AdminAdvancedReports({
                           </tr>
                         )
                       })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="pagination-container">
+                <div>
+                  Showing{' '}
+                  <strong>
+                    {heatPagination.total === 0 ? 0 : (heatPagination.page - 1) * heatPagination.limit + 1} -{' '}
+                    {Math.min(heatPagination.page * heatPagination.limit, heatPagination.total)}
+                  </strong>{' '}
+                  of <strong>{heatPagination.total}</strong> leads (Page {heatPagination.page} of {heatPagination.totalPages})
+                </div>
+                <div className="pagination-controls">
+                  <button
+                    type="button"
+                    className="btn-pagination"
+                    disabled={heatPagination.page <= 1 || loading}
+                    onClick={() => setHeatPage(p => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-pagination"
+                    disabled={heatPagination.page >= heatPagination.totalPages || loading}
+                    onClick={() => setHeatPage(p => Math.min(heatPagination.totalPages, p + 1))}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : subTab === 'groups' ? (
+        /* =====================================================
+           SUB-TAB 1B: GROUP-WISE REPORT (COUNSELOR GROUPS)
+           ===================================================== */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+            {(report.groupReport || []).map(g => (
+              <div key={g.id} className="template-card" style={{ padding: 16, borderTop: `3px solid ${g.isSystemBucket ? '#64748b' : '#1b2b6b'}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: '#0f172a' }}>{g.groupName}</div>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 12, background: '#eff6ff', color: '#1d4ed8' }}>
+                    {g.totalLeads} Leads
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                  Manager: <strong>{g.managerName}</strong> {!g.isSystemBucket && `• ${g.memberCount} Member(s)`}
+                </div>
+                <div style={{ display: 'flex', gap: 10, marginTop: 10, fontSize: 11, fontWeight: 700 }}>
+                  <span style={{ color: '#dc2626' }}>HOT: {g.hot}</span>
+                  <span style={{ color: '#d97706' }}>WARM: {g.warm}</span>
+                  <span style={{ color: '#2563eb' }}>COLD: {g.cold}</span>
+                </div>
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #e2e8f0', fontSize: 11, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Fees: <strong>{formatINR(g.businessValue)}</strong></span>
+                  <span style={{ color: '#059669' }}>Paid: <strong>{formatINR(g.paidCollection)}</strong></span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="template-card">
+            <div className="template-card-header">
+              <h3>Group-Wise Performance, Heat Split &amp; Revenue Table</h3>
+              <button
+                type="button"
+                className="btn-pulse-secondary"
+                style={{ fontSize: 11, padding: '4px 10px' }}
+                onClick={() =>
+                  downloadCsv(
+                    `group-wise-report-${new Date().toISOString().slice(0, 10)}.csv`,
+                    ['Group', 'Manager', 'Members', 'Total Leads', 'HOT', 'WARM', 'COLD', 'Non-Connect', 'Non-Prospect', 'Lost', 'Qualified', 'Converted', 'Onboarded', 'Steps', 'Course Fees', 'Paid Collection', 'Pending Balance', 'Conversion %'],
+                    (report.groupReport || []).map(g => [
+                      g.groupName, g.managerName, g.memberCount, g.totalLeads,
+                      g.hot, g.warm, g.cold, g.nonConnect, g.nonProspect, g.lost,
+                      g.qualified, g.converted, g.onboarded, g.totalSteps,
+                      g.businessValue, g.paidCollection, g.pendingBalance, `${g.conversionRate}%`,
+                    ])
+                  )
+                }
+              >
+                <Download size={12} /> Export CSV
+              </button>
+            </div>
+            <div className="template-card-body" style={{ padding: 0 }}>
+              <div className="leads-table-container">
+                <table className="leads-table">
+                  <thead>
+                    <tr>
+                      <th>Group Name</th>
+                      <th>Manager / Size</th>
+                      <th>Leads</th>
+                      <th style={{ color: '#dc2626' }}>HOT</th>
+                      <th style={{ color: '#d97706' }}>WARM</th>
+                      <th style={{ color: '#2563eb' }}>COLD</th>
+                      <th>Non-Conn / Non-Pros / Lost</th>
+                      <th>Qual / Conv / Onb</th>
+                      <th>Steps</th>
+                      <th>Course Fees / Paid</th>
+                      <th>Conv %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(report.groupReport || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={11} style={{ textAlign: 'center', padding: 28, color: '#64748b' }}>
+                          No counselor groups or leads found for this period.
+                        </td>
+                      </tr>
+                    ) : (
+                      report.groupReport.map(g => (
+                        <tr key={g.id}>
+                          <td style={{ fontWeight: 700, color: '#0f172a' }}>{g.groupName}</td>
+                          <td style={{ fontSize: 12 }}>
+                            <div>{g.managerName}</div>
+                            {!g.isSystemBucket && <div style={{ fontSize: 11, color: '#64748b' }}>{g.memberCount} counselor(s)</div>}
+                          </td>
+                          <td style={{ fontWeight: 700 }}>{g.totalLeads}</td>
+                          <td style={{ fontWeight: 700, color: '#dc2626' }}>{g.hot}</td>
+                          <td style={{ fontWeight: 700, color: '#d97706' }}>{g.warm}</td>
+                          <td style={{ fontWeight: 700, color: '#2563eb' }}>{g.cold}</td>
+                          <td style={{ fontSize: 12 }}>
+                            {g.nonConnect} / {g.nonProspect} / {g.lost}
+                          </td>
+                          <td style={{ fontSize: 12, fontWeight: 700, color: '#047857' }}>
+                            {g.qualified} / {g.converted} / {g.onboarded}
+                          </td>
+                          <td>{g.totalSteps}</td>
+                          <td style={{ fontSize: 12 }}>
+                            <div><strong>{formatINR(g.businessValue)}</strong></div>
+                            <div style={{ fontSize: 11, color: '#059669' }}>Paid: {formatINR(g.paidCollection)}</div>
+                          </td>
+                          <td style={{ fontWeight: 700, color: '#1b2b6b' }}>{g.conversionRate}%</td>
+                        </tr>
+                      ))
                     )}
                   </tbody>
                 </table>
@@ -668,6 +815,34 @@ export default function AdminAdvancedReports({
                     )}
                   </tbody>
                 </table>
+              </div>
+              <div className="pagination-container">
+                <div>
+                  Showing{' '}
+                  <strong>
+                    {recyclePagination.total === 0 ? 0 : (recyclePagination.page - 1) * recyclePagination.limit + 1} -{' '}
+                    {Math.min(recyclePagination.page * recyclePagination.limit, recyclePagination.total)}
+                  </strong>{' '}
+                  of <strong>{recyclePagination.total}</strong> recyclable leads (Page {recyclePagination.page} of {recyclePagination.totalPages})
+                </div>
+                <div className="pagination-controls">
+                  <button
+                    type="button"
+                    className="btn-pagination"
+                    disabled={recyclePagination.page <= 1 || loading}
+                    onClick={() => setRecyclePage(p => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-pagination"
+                    disabled={recyclePagination.page >= recyclePagination.totalPages || loading}
+                    onClick={() => setRecyclePage(p => Math.min(recyclePagination.totalPages, p + 1))}
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -40,10 +40,13 @@ export const KERALA_DISTRICTS = [
 export const QUALIFICATIONS = [
   'SSLC',
   'Plus Two',
-  'Degree',
-  'Masters',
+  'Higher Secondary (+2)',
   'Diploma',
   'ITI',
+  'Degree',
+  'Graduation / Degree',
+  'Masters',
+  'Post Graduation',
 ]
 
 export const COURSE_PROGRAMS = [
@@ -85,11 +88,11 @@ export default function StudentProfileModal({
   const [fullName, setFullName] = useState(lead.fullName || '')
   const [phone, setPhone] = useState(lead.phone || '')
   const [email, setEmail] = useState(lead.email || '')
-  const [qualification, setQualification] = useState(lead.qualification || 'Degree')
+  const [qualification, setQualification] = useState(lead.qualification || '')
   const [age, setAge] = useState(lead.age || '')
-  const [state, setState] = useState(lead.state || 'Kerala')
+  const [state, setState] = useState(lead.state || '')
   const [otherState, setOtherState] = useState(lead.otherState || '')
-  const [district, setDistrict] = useState(lead.district || 'Ernakulam')
+  const [district, setDistrict] = useState(lead.district || '')
   const [courseProgram, setCourseProgram] = useState(lead.courseProgram || 'Healthcare Management')
   const [courseVariant, setCourseVariant] = useState(lead.courseVariant || '')
   const [customerCategory, setCustomerCategory] = useState(lead.customerCategory || 'Ongoing Student')
@@ -105,11 +108,11 @@ export default function StudentProfileModal({
       setFullName(lead.fullName || '')
       setPhone(lead.phone || '')
       setEmail(lead.email || '')
-      setQualification(lead.qualification || 'Degree')
+      setQualification(lead.qualification || '')
       setAge(lead.age || '')
-      setState(lead.state || 'Kerala')
+      setState(lead.state || '')
       setOtherState(lead.otherState || '')
-      setDistrict(lead.district || 'Ernakulam')
+      setDistrict(lead.district || '')
       setCourseProgram(lead.courseProgram || 'Healthcare Management')
       setCourseVariant(lead.courseVariant || '')
       setCustomerCategory(lead.customerCategory || 'Ongoing Student')
@@ -148,7 +151,7 @@ export default function StudentProfileModal({
         age: age ? Number(age) : null,
         state,
         otherState: state === 'Other' ? otherState.trim() : '',
-        district: state === 'Kerala' ? district : (otherState || 'Other'),
+        district: state === 'Kerala' ? district : state === 'Other' ? district.trim() : '',
         courseProgram,
         courseVariant: courseProgram === 'Healthcare Management' ? courseVariant : '',
         customerCategory,
@@ -443,6 +446,10 @@ export default function StudentProfileModal({
                       onChange={e => setQualification(e.target.value)}
                       style={{ width: '100%', padding: '7px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
                     >
+                      <option value="">-- Select Qualification --</option>
+                      {qualification && !QUALIFICATIONS.includes(qualification) && (
+                        <option value={qualification}>{qualification}</option>
+                      )}
                       {QUALIFICATIONS.map(q => (
                         <option key={q} value={q}>{q}</option>
                       ))}
@@ -472,9 +479,20 @@ export default function StudentProfileModal({
                     </label>
                     <select
                       value={state}
-                      onChange={e => setState(e.target.value)}
+                      onChange={e => {
+                        const nextState = e.target.value
+                        setState(nextState)
+                        if (nextState !== 'Kerala' && KERALA_DISTRICTS.includes(district)) {
+                          setDistrict('')
+                        }
+                        if (!nextState) {
+                          setDistrict('')
+                          setOtherState('')
+                        }
+                      }}
                       style={{ width: '100%', padding: '7px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
                     >
+                      <option value="">-- Select State --</option>
                       <option value="Kerala">Kerala</option>
                       <option value="Other">Other</option>
                     </select>
@@ -505,6 +523,7 @@ export default function StudentProfileModal({
                         onChange={e => setDistrict(e.target.value)}
                         style={{ width: '100%', padding: '7px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
                       >
+                        <option value="">-- Select District --</option>
                         {KERALA_DISTRICTS.map(d => (
                           <option key={d} value={d}>{d}</option>
                         ))}
@@ -512,10 +531,11 @@ export default function StudentProfileModal({
                     ) : (
                       <input
                         type="text"
-                        placeholder="District / City"
+                        placeholder={state === 'Other' ? 'Enter District / City' : 'Select a State first'}
+                        disabled={!state}
                         value={district}
                         onChange={e => setDistrict(e.target.value)}
-                        style={{ width: '100%', padding: '7px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                        style={{ width: '100%', padding: '7px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: !state ? '#f8fafc' : '#fff' }}
                       />
                     )}
                   </div>

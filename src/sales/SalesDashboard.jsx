@@ -42,6 +42,10 @@ export default function SalesDashboard({ user, onLogout }) {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('All')
   const [searchQuery, setSearchQuery] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize] = useState(30)
+  const [totalLeadsCount, setTotalLeadsCount] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
 
   // Student Profile Drawer / Modal & Step Progression Modal
   const [activeStudentModal, setActiveStudentModal] = useState(null)
@@ -57,9 +61,16 @@ export default function SalesDashboard({ user, onLogout }) {
   const [notification, setNotification] = useState(null)
 
   useEffect(() => {
-    loadData()
     api.getCrmMeta().then(setCrmMeta).catch(() => {})
-  }, [location.pathname])
+  }, [])
+
+  useEffect(() => {
+    setPage(1)
+  }, [location.pathname, statusFilter, searchQuery])
+
+  useEffect(() => {
+    loadData(page)
+  }, [location.pathname, page, statusFilter, searchQuery])
 
   const isLeadAssignedToMe = lead => {
     if (!lead || !user) return false
@@ -73,15 +84,18 @@ export default function SalesDashboard({ user, onLogout }) {
     return false
   }
 
-  const loadData = async () => {
+  const loadData = async (targetPage = page) => {
     setLoading(true)
     try {
-      let leadsPromise
-      if (isTeamView) {
-        leadsPromise = api.getLeads({ role: 'sales' })
-      } else {
-        leadsPromise = api.getLeads({ repId: user?.id || user?._id || 'sales_01' })
+      const commonParams = {
+        page: targetPage,
+        limit: pageSize,
+        status: statusFilter !== 'All' ? statusFilter : undefined,
+        search: searchQuery.trim() || undefined,
       }
+      const leadsPromise = isTeamView
+        ? api.getLeads({ ...commonParams, role: 'sales' })
+        : api.getLeads({ ...commonParams, repId: user?.id || user?._id || 'sales_01' })
 
       const [leadsData, statsData] = await Promise.all([
         leadsPromise,
@@ -90,6 +104,8 @@ export default function SalesDashboard({ user, onLogout }) {
 
       const list = Array.isArray(leadsData) ? leadsData : (leadsData?.leads || [])
       setLeads(list)
+      setTotalLeadsCount(Array.isArray(leadsData) ? list.length : (leadsData?.total ?? list.length))
+      setTotalPages(Array.isArray(leadsData) ? 1 : (leadsData?.totalPages || 1))
       setStats(statsData)
     } catch (err) {
       console.error('Error fetching sales data:', err)
@@ -150,20 +166,8 @@ export default function SalesDashboard({ user, onLogout }) {
     }
   }
 
-  // Filter leads
-  const filteredLeads = leads.filter(l => {
-    const matchesSearch =
-      !searchQuery ||
-      (l.fullName && l.fullName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (l.phone && l.phone.includes(searchQuery)) ||
-      (l.preferredLocation && l.preferredLocation.toLowerCase().includes(searchQuery.toLowerCase()))
-
-    const matchesStatus =
-      statusFilter === 'All' ||
-      l.status.toLowerCase() === statusFilter.toLowerCase()
-
-    return matchesSearch && matchesStatus
-  })
+  // Leads are already filtered & paginated on backend
+  const filteredLeads = leads
 
   // Circular gauge definition
   const contactedCount = leads.filter(l => l.status === 'Contacted').length
@@ -468,7 +472,7 @@ export default function SalesDashboard({ user, onLogout }) {
                                 </span>
                                 {lead.isCycleEnded && (
                                   <span style={{ fontSize: 10, color: '#475569', fontWeight: 700 }}>
-                                    End of Cycle
+                                    Closed
                                   </span>
                                 )}
                               </div>
@@ -478,7 +482,7 @@ export default function SalesDashboard({ user, onLogout }) {
                                 {lead.selectedCategoryLabel || lead.subStatus}
                               </div>
                               <div style={{ fontSize: 11, color: '#64748b' }}>
-                                Cycle #{lead.cycleNumber || 1} • Steps: {lead.steps?.length || 0} • Calls: {lead.callAttempts || 0}
+                                Steps: {lead.steps?.length || 0} • Calls: {lead.callAttempts || 0}
                                 {lead.callbackAt && (
                                   <span style={{ color: '#ea580c', fontWeight: 600, display: 'block' }}>
                                     Callback: {new Date(lead.callbackAt).toLocaleDateString()}
@@ -567,6 +571,35 @@ export default function SalesDashboard({ user, onLogout }) {
                       })}
                     </tbody>
                   </table>
+                </div>
+              )}
+              {totalLeadsCount > 0 && (
+                <div className="pagination-container">
+                  <div>
+                    Showing{' '}
+                    <strong>
+                      {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, totalLeadsCount)}
+                    </strong>{' '}
+                    of <strong>{totalLeadsCount}</strong> leads (Page {page} of {totalPages})
+                  </div>
+                  <div className="pagination-controls">
+                    <button
+                      type="button"
+                      className="btn-pagination"
+                      disabled={page <= 1 || loading}
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-pagination"
+                      disabled={page >= totalPages || loading}
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

@@ -209,8 +209,12 @@ export const api = {
   },
 
   // User Management Handlers (Sales Advisors & Admins)
-  getUsers: async () => {
-    return await request('/users', {
+  getUsers: async (params = {}) => {
+    const query = new URLSearchParams()
+    if (params.page !== undefined) query.append('page', params.page)
+    if (params.limit !== undefined) query.append('limit', params.limit)
+    const qs = query.toString()
+    return await request(`/users${qs ? `?${qs}` : ''}`, {
       method: 'GET',
     })
   },

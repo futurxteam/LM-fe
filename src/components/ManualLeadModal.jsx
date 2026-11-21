@@ -26,11 +26,11 @@ export default function ManualLeadModal({
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
-  const [qualification, setQualification] = useState('Degree')
+  const [qualification, setQualification] = useState('')
   const [age, setAge] = useState('')
-  const [state, setState] = useState('Kerala')
+  const [state, setState] = useState('')
   const [otherState, setOtherState] = useState('')
-  const [district, setDistrict] = useState('Ernakulam')
+  const [district, setDistrict] = useState('')
   const [courseProgram, setCourseProgram] = useState('Healthcare Management')
   const [courseVariant, setCourseVariant] = useState('Advanced Diploma HM & HA')
   const [customerCategory, setCustomerCategory] = useState('Ongoing Student')
@@ -68,7 +68,7 @@ export default function ManualLeadModal({
         age: age ? Number(age) : null,
         state,
         otherState: state === 'Other' ? otherState.trim() : '',
-        district: state === 'Kerala' ? district : (otherState.trim() || 'Other'),
+        district: state === 'Kerala' ? district : state === 'Other' ? district.trim() : '',
         courseProgram,
         courseVariant: courseProgram === 'Healthcare Management' ? courseVariant : '',
         customerCategory,
@@ -192,6 +192,7 @@ export default function ManualLeadModal({
                   onChange={e => setQualification(e.target.value)}
                   style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
                 >
+                  <option value="">-- Select Qualification --</option>
                   {QUALIFICATIONS.map(q => (
                     <option key={q} value={q}>{q}</option>
                   ))}
@@ -221,9 +222,19 @@ export default function ManualLeadModal({
                 </label>
                 <select
                   value={state}
-                  onChange={e => setState(e.target.value)}
+                  onChange={e => {
+                    const nextState = e.target.value
+                    setState(nextState)
+                    if (!nextState) {
+                      setDistrict('')
+                      setOtherState('')
+                    } else if (nextState !== 'Kerala' && KERALA_DISTRICTS.includes(district)) {
+                      setDistrict('')
+                    }
+                  }}
                   style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
                 >
+                  <option value="">-- Select State --</option>
                   <option value="Kerala">Kerala</option>
                   <option value="Other">Other</option>
                 </select>
@@ -254,6 +265,7 @@ export default function ManualLeadModal({
                     onChange={e => setDistrict(e.target.value)}
                     style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
                   >
+                    <option value="">-- Select District --</option>
                     {KERALA_DISTRICTS.map(d => (
                       <option key={d} value={d}>{d}</option>
                     ))}
@@ -261,10 +273,11 @@ export default function ManualLeadModal({
                 ) : (
                   <input
                     type="text"
-                    placeholder="District / City name"
+                    placeholder={state === 'Other' ? 'District / City name' : 'Select a State first'}
+                    disabled={!state}
                     value={district}
                     onChange={e => setDistrict(e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: !state ? '#f8fafc' : '#fff' }}
                   />
                 )}
               </div>
