@@ -64,7 +64,7 @@ export default function SalesDashboard({ user, onLogout }) {
   const [notification, setNotification] = useState(null)
 
   useEffect(() => {
-    api.getCrmMeta().then(setCrmMeta).catch(() => {})
+    api.getCrmMeta().then(setCrmMeta).catch(() => { })
   }, [])
 
   useEffect(() => {
@@ -213,7 +213,7 @@ export default function SalesDashboard({ user, onLogout }) {
             <img src="/logo-brand-white.png" alt="Futureace Academy Logo" className="brand-logo-img" />
           </div>
           <div className="sidebar-brand-text">
-            <h2>Futureace Academy CRM</h2>
+            <h2>CRM</h2>
             <span>Sales Counselor Portal</span>
           </div>
         </div>

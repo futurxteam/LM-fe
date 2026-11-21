@@ -80,7 +80,7 @@ export default function Login({ onLoginSuccess }) {
           <div style={{ display: 'inline-block', marginBottom: 12 }}>
             <img src="/logo-brand-white.png" alt="Futureace Academy Logo" style={{ maxHeight: 46, width: 'auto' }} />
           </div>
-          <h2>Futureace Academy CRM</h2>
+          <h2>CRM</h2>
           <p>Admissions & Counselor Portal</p>
         </div>
 
