@@ -410,8 +410,8 @@ export default function AdminDashboard({ user, onLogout }) {
       if (res && res.leads) {
         setMasterLeads(res.leads)
         setTotalLeadsCount(res.total)
-        setTotalPages(isAll ? 1 : (res.totalPages || 1))
-        setPage(isAll ? 1 : (res.page || 1))
+        setTotalPages(res.totalPages || 1)
+        setPage(res.page || 1)
       } else if (Array.isArray(res)) {
         setMasterLeads(res)
         setTotalLeadsCount(res.length)
