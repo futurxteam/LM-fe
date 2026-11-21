@@ -519,15 +519,14 @@ export default function AdminDashboard({ user, onLogout }) {
   }
 
   // Automated Round Robin
-  const handleAutoAssign = async (mode = 'round-robin') => {
+  const handleAutoAssign = async () => {
     if (selectEntirePool) {
-      const modeLabel = mode === 'geo-smart' ? 'Geo-Smart GCC' : 'Auto Round-Robin'
-      if (!window.confirm(`Run ${modeLabel} on ALL ${poolTotalCount} pool lead(s)?`)) return
+      if (!window.confirm(`Run Auto Round-Robin on ALL ${poolTotalCount} pool lead(s)?`)) return
     }
     try {
       const res = await api.autoAssignLeads(
         !selectEntirePool && selectedLeadIds.length > 0 ? selectedLeadIds : [],
-        mode,
+        'round-robin',
         { search: poolSearch.trim() || undefined }
       )
       showNotify('success', res.message || `Auto-assigned ${res.assignedCount} leads`)
@@ -1878,23 +1877,14 @@ export default function AdminDashboard({ user, onLogout }) {
                     </button>
                   </div>
 
-                  {/* Auto Assign Buttons */}
+                  {/* Auto Round-Robin Button */}
                   <button
                     className="btn-pulse-accent"
-                    onClick={() => handleAutoAssign('round-robin')}
+                    onClick={handleAutoAssign}
                     title="Evenly distribute pool leads among all active sales reps"
                   >
                     <Sparkles size={14} />
                     <span>Auto Round-Robin</span>
-                  </button>
-
-                  <button
-                    className="btn-pulse-secondary"
-                    onClick={() => handleAutoAssign('geo-smart')}
-                    title="Routes GCC/UAE leads to International Admissions, others to domestic counselors"
-                  >
-                    <Globe size={14} color="#0284c7" />
-                    <span>Geo-Smart GCC</span>
                   </button>
                 </div>
 
@@ -2008,6 +1998,7 @@ export default function AdminDashboard({ user, onLogout }) {
                               />
                             </th>
                             <th>Candidate / Contact</th>
+                            <th>Course Enquired</th>
                             <th>Time of Arrival</th>
                             <th>Qualification & Degree</th>
                             <th>Preferred Location</th>
@@ -2045,6 +2036,16 @@ export default function AdminDashboard({ user, onLogout }) {
                                       #{lead.metaLeadId ? lead.metaLeadId.slice(-6) : lead.id?.slice(-6)}
                                     </span>
                                   </div>
+                                </td>
+                                <td>
+                                  <div style={{ fontSize: 12, fontWeight: 600, color: '#0369a1' }}>
+                                    {lead.courseProgram || lead.businessProgramName || 'Not Specified'}
+                                  </div>
+                                  {(lead.courseVariant || lead.businessProgramVariant) && (
+                                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                                      {lead.courseVariant || lead.businessProgramVariant}
+                                    </div>
+                                  )}
                                 </td>
                                 <td>
                                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
@@ -2398,6 +2399,7 @@ export default function AdminDashboard({ user, onLogout }) {
                             </th>
                             <th>Lead ID</th>
                             <th>Candidate & Contacts</th>
+                            <th>Course Enquired</th>
                             <th>Time of Arrival</th>
                             <th>Qualification / City</th>
                             <th>Assignment State</th>
@@ -2434,6 +2436,16 @@ export default function AdminDashboard({ user, onLogout }) {
                                   </div>
                                   <div style={{ fontSize: 12, color: '#475569' }}>{lead.phone}</div>
                                   <div style={{ fontSize: 11, color: '#94a3b8' }}>{lead.email}</div>
+                                </td>
+                                <td>
+                                  <div style={{ fontSize: 12, fontWeight: 600, color: '#0369a1' }}>
+                                    {lead.courseProgram || lead.businessProgramName || 'Not Specified'}
+                                  </div>
+                                  {(lead.courseVariant || lead.businessProgramVariant) && (
+                                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                                      {lead.courseVariant || lead.businessProgramVariant}
+                                    </div>
+                                  )}
                                 </td>
                                 <td>
                                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#0f172a' }}>

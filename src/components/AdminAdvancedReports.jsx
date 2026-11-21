@@ -512,9 +512,11 @@ export default function AdminAdvancedReports({
                   onClick={() =>
                     downloadCsv(
                       `hot-warm-cold-report-${new Date().toISOString().slice(0, 10)}.csv`,
-                      ['Candidate', 'Phone', 'Heat Tier', 'Lead Status', 'Selected Category', 'Counselor', 'Cycle', 'Steps', 'Program', 'Course Fees', 'Paid Amount'],
+                      ['Candidate', 'Phone', 'Email', 'Course Enquired', 'Heat Tier', 'Lead Status', 'Selected Category', 'Counselor', 'Cycle', 'Steps', 'Program', 'Course Fees', 'Paid Amount'],
                       heatRows.map(r => [
-                        r.fullName, r.phone, r.heatTier, r.leadStatus, r.selectedCategoryLabel,
+                        r.fullName, r.phone, r.email || '',
+                        [r.courseProgram, r.courseVariant].filter(Boolean).join(' - '),
+                        r.heatTier, r.leadStatus, r.selectedCategoryLabel,
                         r.assignedRepName, r.cycleNumber, r.stepsCount, r.businessProgramName,
                         r.courseFees ?? '', r.paidAmount ?? '',
                       ])
@@ -531,6 +533,7 @@ export default function AdminAdvancedReports({
                   <thead>
                     <tr>
                       <th>Candidate</th>
+                      <th>Course Enquired</th>
                       <th>Heat Tier</th>
                       <th>System Status</th>
                       <th>Selected Category</th>
@@ -543,7 +546,7 @@ export default function AdminAdvancedReports({
                   <tbody>
                     {heatRows.length === 0 ? (
                       <tr>
-                        <td colSpan={8} style={{ textAlign: 'center', padding: 30, color: '#64748b' }}>
+                        <td colSpan={9} style={{ textAlign: 'center', padding: 30, color: '#64748b' }}>
                           No leads match this Hot/Warm/Cold filter.
                         </td>
                       </tr>
@@ -562,6 +565,14 @@ export default function AdminAdvancedReports({
                                   #{row.metaLeadId ? row.metaLeadId.slice(-6) : row.id?.slice(-6)}
                                 </span>
                               </div>
+                            </td>
+                            <td>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: '#0369a1' }}>
+                                {row.courseProgram || row.businessProgramName || 'Not Specified'}
+                              </div>
+                              {row.courseVariant && (
+                                <div style={{ fontSize: 11, color: '#64748b' }}>{row.courseVariant}</div>
+                              )}
                             </td>
                             <td>
                               <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 9px', borderRadius: 12, background: hb.bg, color: hb.color, border: `1px solid ${hb.border}` }}>
@@ -981,6 +992,7 @@ export default function AdminAdvancedReports({
                         />
                       </th>
                       <th>Candidate</th>
+                      <th>Course Enquired</th>
                       <th>Lost Reason</th>
                       <th>Lost Cycle</th>
                       <th>Last Counselor</th>
@@ -991,7 +1003,7 @@ export default function AdminAdvancedReports({
                   <tbody>
                     {(report.lostCycleReport?.recyclableLeads || []).length === 0 ? (
                       <tr>
-                        <td colSpan={7} style={{ textAlign: 'center', padding: 28, color: '#64748b' }}>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: 28, color: '#64748b' }}>
                           No recyclable LOST leads waiting below threshold.
                         </td>
                       </tr>
@@ -1019,6 +1031,14 @@ export default function AdminAdvancedReports({
                                 #{l.metaLeadId ? l.metaLeadId.slice(-6) : l.id?.slice(-6)}
                               </span>
                             </div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#0369a1' }}>
+                              {l.courseProgram || 'Not Specified'}
+                            </div>
+                            {l.courseVariant && (
+                              <div style={{ fontSize: 11, color: '#64748b' }}>{l.courseVariant}</div>
+                            )}
                           </td>
                           <td style={{ fontSize: 12, color: '#991b1b', fontWeight: 600 }}>{l.lostReason}</td>
                           <td style={{ fontSize: 12, fontWeight: 700 }}>
@@ -1201,6 +1221,7 @@ export default function AdminAdvancedReports({
                         />
                       </th>
                       <th>Candidate</th>
+                      <th>Course Enquired</th>
                       <th>Lost Reason</th>
                       <th>Lost Cycles</th>
                       <th>Last Counselor</th>
@@ -1211,7 +1232,7 @@ export default function AdminAdvancedReports({
                   <tbody>
                     {(report.lostCycleReport?.maxLostLeads || []).length === 0 ? (
                       <tr>
-                        <td colSpan={7} style={{ textAlign: 'center', padding: 28, color: '#64748b' }}>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: 28, color: '#64748b' }}>
                           No leads have reached the maximum Lost cycle limit yet.
                         </td>
                       </tr>
@@ -1239,6 +1260,14 @@ export default function AdminAdvancedReports({
                                 #{l.metaLeadId ? l.metaLeadId.slice(-6) : l.id?.slice(-6)}
                               </span>
                             </div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#0369a1' }}>
+                              {l.courseProgram || 'Not Specified'}
+                            </div>
+                            {l.courseVariant && (
+                              <div style={{ fontSize: 11, color: '#64748b' }}>{l.courseVariant}</div>
+                            )}
                           </td>
                           <td style={{ fontSize: 12, color: '#991b1b', fontWeight: 600 }}>{l.lostReason}</td>
                           <td style={{ fontSize: 12, fontWeight: 800, color: '#dc2626' }}>

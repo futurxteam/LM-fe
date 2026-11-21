@@ -428,6 +428,7 @@ export default function SalesDashboard({ user, onLogout }) {
                     <thead>
                       <tr>
                         <th>Candidate / Phone</th>
+                        <th>Course Enquired</th>
                         <th>Qualification & Destination</th>
                         <th>Status</th>
                         <th>Attempts & Sub-status</th>
@@ -462,6 +463,16 @@ export default function SalesDashboard({ user, onLogout }) {
                                 <Clock size={11} color="#0284c7" />
                                 <span>{formatArrivalTime(lead.createdTime || lead.createdAt)}</span>
                               </div>
+                            </td>
+                            <td>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: '#0369a1' }}>
+                                {lead.courseProgram || lead.businessProgramName || 'Not Specified'}
+                              </div>
+                              {(lead.courseVariant || lead.businessProgramVariant) && (
+                                <div style={{ fontSize: 11, color: '#64748b' }}>
+                                  {lead.courseVariant || lead.businessProgramVariant}
+                                </div>
+                              )}
                             </td>
                             <td>
                               <div style={{ fontSize: 12, fontWeight: 500 }}>{lead.qualification}</div>
