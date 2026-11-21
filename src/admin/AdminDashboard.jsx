@@ -321,7 +321,7 @@ export default function AdminDashboard({ user, onLogout }) {
       loadUsers()
       loadCounselorGroups()
     } else if (activeTab === 'reports') {
-      api.getStats().then(setStats).catch(() => {})
+      api.getStats().then(setStats).catch(() => { })
     }
   }, [activeTab])
 
@@ -503,10 +503,10 @@ export default function AdminDashboard({ user, onLogout }) {
     try {
       const res = selectEntirePool
         ? await api.assignLeads([], selectedRepId, {
-            applyToAll: true,
-            scope: 'pool',
-            search: poolSearch.trim() || undefined,
-          })
+          applyToAll: true,
+          scope: 'pool',
+          search: poolSearch.trim() || undefined,
+        })
         : await api.assignLeads(selectedLeadIds, selectedRepId)
       showNotify('success', res.message || 'Leads assigned successfully')
       setSelectEntirePool(false)
@@ -630,8 +630,8 @@ export default function AdminDashboard({ user, onLogout }) {
     const confirmMsg = isEntirePool
       ? `Permanently remove ALL ${poolTotalCount} lead(s) from System Pool${poolSearch.trim() ? ' matching current search' : ''}? This cannot be undone.`
       : isEntireMaster
-      ? `Permanently remove ALL ${totalLeadsCount} matching lead(s) from CRM (Master Leads)? This cannot be undone.`
-      : `Permanently remove ${leadIds.length} selected lead(s) ${source === 'pool' ? 'from System Pool' : 'from CRM (Assigned / Master Leads)'}?`
+        ? `Permanently remove ALL ${totalLeadsCount} matching lead(s) from CRM (Master Leads)? This cannot be undone.`
+        : `Permanently remove ${leadIds.length} selected lead(s) ${source === 'pool' ? 'from System Pool' : 'from CRM (Assigned / Master Leads)'}?`
 
     if (!window.confirm(confirmMsg)) return
 
@@ -706,13 +706,13 @@ export default function AdminDashboard({ user, onLogout }) {
         prev.map(l =>
           removedMetaSet.has(l.metaLeadId)
             ? {
-                ...l,
-                isExistingInDb: false,
-                systemState: 'NOT_IN_SYSTEM',
-                assignedAdvisor: null,
-                existingLeadId: null,
-                existingAssignment: null,
-              }
+              ...l,
+              isExistingInDb: false,
+              systemState: 'NOT_IN_SYSTEM',
+              assignedAdvisor: null,
+              existingLeadId: null,
+              existingAssignment: null,
+            }
             : l
         )
       )
@@ -1549,160 +1549,160 @@ export default function AdminDashboard({ user, onLogout }) {
                 <div className="data-loader-container">
                   <div className="data-loader-spinner" />
                   <div className="data-loader-text">Loading Real-Time CRM Analytics & Pipeline...</div>
-                  <div className="data-loader-sub">Connecting to MongoDB Atlas database</div>
+                  <div className="data-loader-sub">Connecting to database</div>
                 </div>
               </div>
             ) : (
-            <div>
-              {/* LIVE INGESTION & CONVERSION PIPELINE (Only on Dashboard Overview!) */}
-              <div className="template-card" style={{ marginBottom: 20 }}>
-                <div className="template-card-header">
-                  <h3>Live Ingestion & Conversion Pipeline</h3>
-                  <span className="header-badge">{totalCount} Total Extracted Leads</span>
-                </div>
-                <div className="template-card-body">
-                  <div className="dial-grid">
-                    {gaugeMetrics.map((gauge, idx) => {
-                      const radius = 38
-                      const circumference = 2 * Math.PI * radius
-                      const offset = circumference - (gauge.percent / 100) * circumference
-                      return (
-                        <div key={idx} className="dial-item">
-                          <div className="dial-circle-wrapper">
-                            <svg className="dial-circle-svg" viewBox="0 0 96 96">
-                              <circle className="dial-circle-bg" cx="48" cy="48" r={radius} />
-                              <circle
-                                className="dial-circle-fill"
-                                cx="48"
-                                cy="48"
-                                r={radius}
-                                stroke={gauge.color}
-                                strokeWidth="8"
-                                strokeDasharray={circumference}
-                                strokeDashoffset={offset}
-                              />
-                            </svg>
-                            <div className="dial-circle-text">{gauge.percent}%</div>
+              <div>
+                {/* LIVE INGESTION & CONVERSION PIPELINE (Only on Dashboard Overview!) */}
+                <div className="template-card" style={{ marginBottom: 20 }}>
+                  <div className="template-card-header">
+                    <h3>Live Ingestion & Conversion Pipeline</h3>
+                    <span className="header-badge">{totalCount} Total Extracted Leads</span>
+                  </div>
+                  <div className="template-card-body">
+                    <div className="dial-grid">
+                      {gaugeMetrics.map((gauge, idx) => {
+                        const radius = 38
+                        const circumference = 2 * Math.PI * radius
+                        const offset = circumference - (gauge.percent / 100) * circumference
+                        return (
+                          <div key={idx} className="dial-item">
+                            <div className="dial-circle-wrapper">
+                              <svg className="dial-circle-svg" viewBox="0 0 96 96">
+                                <circle className="dial-circle-bg" cx="48" cy="48" r={radius} />
+                                <circle
+                                  className="dial-circle-fill"
+                                  cx="48"
+                                  cy="48"
+                                  r={radius}
+                                  stroke={gauge.color}
+                                  strokeWidth="8"
+                                  strokeDasharray={circumference}
+                                  strokeDashoffset={offset}
+                                />
+                              </svg>
+                              <div className="dial-circle-text">{gauge.percent}%</div>
+                            </div>
+                            <div className="dial-label">{gauge.label}</div>
+                            <div className="dial-subtext">{gauge.subtext}</div>
                           </div>
-                          <div className="dial-label">{gauge.label}</div>
-                          <div className="dial-subtext">{gauge.subtext}</div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Actions & Navigation Cards */}
-              <div className="stage-report-grid">
-                <div
-                  className="stage-stat-card"
-                  style={{ borderLeft: '4px solid #8b5cf6', cursor: 'pointer' }}
-                  onClick={() => setActiveTab('pool')}
-                >
-                  <div className="stage-stat-title">Unassigned Lead Pool</div>
-                  <div className="stage-stat-value">{poolCount}</div>
-                  <div className="stage-stat-sub">
-                    Leads waiting for counselor assignment → Click to Allocate
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
 
-                <div
-                  className="stage-stat-card"
-                  style={{ borderLeft: '4px solid #10b981', cursor: 'pointer' }}
-                  onClick={() => {
-                    setActiveTab('all-leads')
-                    setStatusFilter('Contacted')
-                  }}
-                >
-                  <div className="stage-stat-title">Contacted Prospects</div>
-                  <div className="stage-stat-value" style={{ color: '#10b981' }}>{contactedCount}</div>
-                  <div className="stage-stat-sub">
-                    {stats?.contactRate || 0}% overall contact rate across team
+                {/* Quick Actions & Navigation Cards */}
+                <div className="stage-report-grid">
+                  <div
+                    className="stage-stat-card"
+                    style={{ borderLeft: '4px solid #8b5cf6', cursor: 'pointer' }}
+                    onClick={() => setActiveTab('pool')}
+                  >
+                    <div className="stage-stat-title">Unassigned Lead Pool</div>
+                    <div className="stage-stat-value">{poolCount}</div>
+                    <div className="stage-stat-sub">
+                      Leads waiting for counselor assignment → Click to Allocate
+                    </div>
                   </div>
-                </div>
 
-                <div
-                  className="stage-stat-card"
-                  style={{ borderLeft: '4px solid #0284c7', cursor: 'pointer' }}
-                  onClick={() => {
-                    setActiveTab('reports')
-                    setActiveReportSubTab('stage')
-                  }}
-                >
-                  <div className="stage-stat-title">Active Outreach Stage</div>
-                  <div className="stage-stat-value" style={{ color: '#0284c7' }}>
-                    {assignedCount}
-                  </div>
-                  <div className="stage-stat-sub">
-                    Distributed across {salesReps.length} admissions counselors
-                  </div>
-                </div>
-
-                <div
-                  className="stage-stat-card"
-                  style={{ borderLeft: '4px solid #059669', cursor: 'pointer' }}
-                  onClick={() => {
-                    setActiveTab('reports')
-                    setActiveReportSubTab('stage')
-                  }}
-                >
-                  <div className="stage-stat-title">Confirmed Enrolled</div>
-                  <div className="stage-stat-value" style={{ color: '#059669' }}>{enrolledCount}</div>
-                  <div className="stage-stat-sub">
-                    {stats?.conversionRate || 0}% student conversion rate
-                  </div>
-                </div>
-              </div>
-
-              {/* Rep Leaderboard Snapshot on Dashboard */}
-              <div className="template-card">
-                <div className="template-card-header">
-                  <h3>Sales Representatives Quick Snapshot</h3>
-                  <button
-                    className="header-badge"
-                    style={{ cursor: 'pointer', border: 'none' }}
+                  <div
+                    className="stage-stat-card"
+                    style={{ borderLeft: '4px solid #10b981', cursor: 'pointer' }}
                     onClick={() => {
-                      setActiveTab('reports')
-                      setActiveReportSubTab('reps')
+                      setActiveTab('all-leads')
+                      setStatusFilter('Contacted')
                     }}
                   >
-                    View Detailed Leaderboard →
-                  </button>
+                    <div className="stage-stat-title">Contacted Prospects</div>
+                    <div className="stage-stat-value" style={{ color: '#10b981' }}>{contactedCount}</div>
+                    <div className="stage-stat-sub">
+                      {stats?.contactRate || 0}% overall contact rate across team
+                    </div>
+                  </div>
+
+                  <div
+                    className="stage-stat-card"
+                    style={{ borderLeft: '4px solid #0284c7', cursor: 'pointer' }}
+                    onClick={() => {
+                      setActiveTab('reports')
+                      setActiveReportSubTab('stage')
+                    }}
+                  >
+                    <div className="stage-stat-title">Active Outreach Stage</div>
+                    <div className="stage-stat-value" style={{ color: '#0284c7' }}>
+                      {assignedCount}
+                    </div>
+                    <div className="stage-stat-sub">
+                      Distributed across {salesReps.length} admissions counselors
+                    </div>
+                  </div>
+
+                  <div
+                    className="stage-stat-card"
+                    style={{ borderLeft: '4px solid #059669', cursor: 'pointer' }}
+                    onClick={() => {
+                      setActiveTab('reports')
+                      setActiveReportSubTab('stage')
+                    }}
+                  >
+                    <div className="stage-stat-title">Confirmed Enrolled</div>
+                    <div className="stage-stat-value" style={{ color: '#059669' }}>{enrolledCount}</div>
+                    <div className="stage-stat-sub">
+                      {stats?.conversionRate || 0}% student conversion rate
+                    </div>
+                  </div>
                 </div>
-                <div className="template-card-body" style={{ padding: 0 }}>
-                  <table className="reps-table">
-                    <thead>
-                      <tr>
-                        <th>Counselor</th>
-                        <th>Specialty Territory</th>
-                        <th>Assigned</th>
-                        <th>Contacted</th>
-                        <th>Contact Rate %</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {salesReps.map(rep => (
-                        <tr key={rep.id}>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center' }}>
-                              <span className="rep-avatar">{rep.avatar}</span>
-                              <div style={{ fontWeight: 600 }}>{rep.name}</div>
-                            </div>
-                          </td>
-                          <td style={{ fontSize: 12, color: '#475569' }}>{rep.specialty}</td>
-                          <td style={{ fontWeight: 600 }}>{rep.totalAssigned || 0}</td>
-                          <td style={{ color: '#166534', fontWeight: 600 }}>{rep.contactedCount || 0}</td>
-                          <td>
-                            <span style={{ fontWeight: 700, color: '#10b981' }}>{rep.contactRate || 0}%</span>
-                          </td>
+
+                {/* Rep Leaderboard Snapshot on Dashboard */}
+                <div className="template-card">
+                  <div className="template-card-header">
+                    <h3>Sales Representatives Quick Snapshot</h3>
+                    <button
+                      className="header-badge"
+                      style={{ cursor: 'pointer', border: 'none' }}
+                      onClick={() => {
+                        setActiveTab('reports')
+                        setActiveReportSubTab('reps')
+                      }}
+                    >
+                      View Detailed Leaderboard →
+                    </button>
+                  </div>
+                  <div className="template-card-body" style={{ padding: 0 }}>
+                    <table className="reps-table">
+                      <thead>
+                        <tr>
+                          <th>Counselor</th>
+                          <th>Specialty Territory</th>
+                          <th>Assigned</th>
+                          <th>Contacted</th>
+                          <th>Contact Rate %</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {salesReps.map(rep => (
+                          <tr key={rep.id}>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <span className="rep-avatar">{rep.avatar}</span>
+                                <div style={{ fontWeight: 600 }}>{rep.name}</div>
+                              </div>
+                            </td>
+                            <td style={{ fontSize: 12, color: '#475569' }}>{rep.specialty}</td>
+                            <td style={{ fontWeight: 600 }}>{rep.totalAssigned || 0}</td>
+                            <td style={{ color: '#166534', fontWeight: 600 }}>{rep.contactedCount || 0}</td>
+                            <td>
+                              <span style={{ fontWeight: 700, color: '#10b981' }}>{rep.contactRate || 0}%</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
-            </div>
             )
           )}
 
@@ -2373,7 +2373,7 @@ export default function AdminDashboard({ user, onLogout }) {
                     <div className="data-loader-container">
                       <div className="data-loader-spinner" />
                       <div className="data-loader-text">Loading {pageSize === 'all' ? 'all' : `Page ${page}`} leads...</div>
-                      <div className="data-loader-sub">Querying MongoDB Atlas database</div>
+                      <div className="data-loader-sub">Querying  database</div>
                     </div>
                   ) : masterLeads.length === 0 ? (
                     <div style={{ padding: '48px 20px', textAlign: 'center', color: '#64748b' }}>
@@ -2383,196 +2383,196 @@ export default function AdminDashboard({ user, onLogout }) {
                   ) : (
                     <div className="leads-table-container">
                       <table className="leads-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: 38 }}>
-                            <input
-                              type="checkbox"
-                              checked={
-                                selectEntireMaster ||
-                                (masterLeads.length > 0 &&
-                                  masterLeads.every(l => selectedMasterLeadIds.includes(l.id)))
-                              }
-                              onChange={toggleSelectAllMasterLeads}
-                            />
-                          </th>
-                          <th>Lead ID</th>
-                          <th>Candidate & Contacts</th>
-                          <th>Time of Arrival</th>
-                          <th>Qualification / City</th>
-                          <th>Assignment State</th>
-                          <th>Contact Status</th>
-                          <th>Attempts & Sub-status</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {masterLeads.map(lead => {
-                          const isAssigned = lead.assignmentStatus === 'ASSIGNED'
-                          const isMasterSelected = selectEntireMaster || selectedMasterLeadIds.includes(lead.id)
-                          return (
-                            <tr
-                              key={lead.id}
-                              style={{ background: isMasterSelected ? '#fef2f2' : 'transparent' }}
-                            >
-                              <td>
-                                <input
-                                  type="checkbox"
-                                  checked={isMasterSelected}
-                                  onChange={() => toggleSelectMasterLead(lead.id)}
-                                />
-                              </td>
-                              <td style={{ fontSize: 11, fontFamily: 'monospace', color: '#64748b' }}>
-                                #{lead.metaLeadId ? lead.metaLeadId.slice(-6) : lead.id?.slice(-6)}
-                              </td>
-                              <td>
-                                <div
-                                  style={{ fontWeight: 600, color: '#1e293b', cursor: 'pointer' }}
-                                  onClick={() => setActiveLeadModal(lead)}
-                                >
-                                  {lead.fullName}
-                                </div>
-                                <div style={{ fontSize: 12, color: '#475569' }}>{lead.phone}</div>
-                                <div style={{ fontSize: 11, color: '#94a3b8' }}>{lead.email}</div>
-                              </td>
-                              <td>
-                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
-                                  <Clock size={13} color="#0284c7" />
-                                  <span>{formatArrivalTime(lead.createdTime || lead.createdAt)}</span>
-                                </div>
-                                <div style={{ fontSize: 10, color: '#94a3b8' }}>
-                                  {lead.createdTime ? new Date(lead.createdTime).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
-                                </div>
-                              </td>
-                              <td>
-                                <div style={{ fontSize: 12, fontWeight: 500 }}>{lead.qualification}</div>
-                                <div style={{ fontSize: 11, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                  <MapPin size={11} color="#64748b" />
-                                  <span>{lead.preferredLocation}</span>
-                                </div>
-                              </td>
-                              <td>
-                                {isAssigned ? (
-                                  <div>
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#0369a1', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                      <UserCheck size={13} /> {lead.assignedTo?.repName || 'Assigned'}
-                                    </span>
-                                    <button
-                                      onClick={() => handleUnassign([lead.id])}
-                                      style={{ fontSize: 10, color: '#dc2626', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
-                                    >
-                                      Return to Pool
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <span style={{ fontSize: 11, fontWeight: 700, color: '#6d28d9', background: '#ede9fe', padding: '2px 8px', borderRadius: 4 }}>
-                                    In Pool (Unassigned)
-                                  </span>
-                                )}
-                              </td>
-                              <td>
-                                {(() => {
-                                  const stVal = lead.leadStatus || 'NEW LEAD'
-                                  const sb = getStatusBadgeStyle(stVal)
-                                  const hb = lead.heatTier ? getHeatBadgeStyle(lead.heatTier) : null
-                                  return (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                                      <span
-                                        style={{
-                                          fontSize: 11,
-                                          fontWeight: 700,
-                                          padding: '2px 8px',
-                                          borderRadius: 12,
-                                          background: sb.bg,
-                                          color: sb.color,
-                                          border: `1px solid ${sb.border}`,
-                                          whiteSpace: 'nowrap',
-                                        }}
-                                      >
-                                        {stVal}
-                                      </span>
-                                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                        {hb && (
-                                          <span
-                                            style={{
-                                              fontSize: 10,
-                                              fontWeight: 800,
-                                              padding: '1px 6px',
-                                              borderRadius: 10,
-                                              background: hb.bg,
-                                              color: hb.color,
-                                            }}
-                                          >
-                                            {hb.label}
-                                          </span>
-                                        )}
-                                        {lead.isCycleEnded && (
-                                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: '#1e293b', color: '#fff' }}>
-                                            End
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )
-                                })()}
-                              </td>
-                              <td>
-                                <div style={{ fontSize: 12, fontWeight: 500 }}>
-                                  {lead.selectedCategoryLabel || lead.subStatus}
-                                </div>
-                                <div style={{ fontSize: 11, color: '#64748b' }}>
-                                  Cycle #{lead.cycleNumber || 1} • Steps: {lead.steps?.length || 0} • Calls: {lead.callAttempts || 0}
-                                  {lead.callbackAt && ' • Callback'}
-                                </div>
-                                {lead.lostReason && lead.leadStatus === 'LOST' && (
-                                  <div style={{ fontSize: 10, color: '#991b1b', fontWeight: 600 }}>
-                                    Lost: {lead.lostReason} ({lead.lostCycleCount || 1}/{crmMeta?.policy?.maxLostCycles || 3})
-                                  </div>
-                                )}
-                              </td>
-                              <td>
-                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                  <button
-                                    type="button"
-                                    className="btn-pulse"
-                                    onClick={() => setActiveStepLead(lead)}
-                                    style={{ padding: '3px 8px', fontSize: 11 }}
-                                    title="Add lifecycle step, update status, or view timeline"
-                                  >
-                                    + Step
-                                  </button>
-                                  <button
-                                    className="btn-action-sm"
+                        <thead>
+                          <tr>
+                            <th style={{ width: 38 }}>
+                              <input
+                                type="checkbox"
+                                checked={
+                                  selectEntireMaster ||
+                                  (masterLeads.length > 0 &&
+                                    masterLeads.every(l => selectedMasterLeadIds.includes(l.id)))
+                                }
+                                onChange={toggleSelectAllMasterLeads}
+                              />
+                            </th>
+                            <th>Lead ID</th>
+                            <th>Candidate & Contacts</th>
+                            <th>Time of Arrival</th>
+                            <th>Qualification / City</th>
+                            <th>Assignment State</th>
+                            <th>Contact Status</th>
+                            <th>Attempts & Sub-status</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {masterLeads.map(lead => {
+                            const isAssigned = lead.assignmentStatus === 'ASSIGNED'
+                            const isMasterSelected = selectEntireMaster || selectedMasterLeadIds.includes(lead.id)
+                            return (
+                              <tr
+                                key={lead.id}
+                                style={{ background: isMasterSelected ? '#fef2f2' : 'transparent' }}
+                              >
+                                <td>
+                                  <input
+                                    type="checkbox"
+                                    checked={isMasterSelected}
+                                    onChange={() => toggleSelectMasterLead(lead.id)}
+                                  />
+                                </td>
+                                <td style={{ fontSize: 11, fontFamily: 'monospace', color: '#64748b' }}>
+                                  #{lead.metaLeadId ? lead.metaLeadId.slice(-6) : lead.id?.slice(-6)}
+                                </td>
+                                <td>
+                                  <div
+                                    style={{ fontWeight: 600, color: '#1e293b', cursor: 'pointer' }}
                                     onClick={() => setActiveLeadModal(lead)}
                                   >
-                                    Profile
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteLead(lead)}
-                                    disabled={deletingLeads}
-                                    title={isAssigned ? 'Remove assigned lead' : 'Remove lead from pool'}
-                                    style={{
-                                      padding: '3px 7px',
-                                      borderRadius: 4,
-                                      border: '1px solid #fecaca',
-                                      background: '#fef2f2',
-                                      color: '#dc2626',
-                                      cursor: deletingLeads ? 'not-allowed' : 'pointer',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                    }}
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                                    {lead.fullName}
+                                  </div>
+                                  <div style={{ fontSize: 12, color: '#475569' }}>{lead.phone}</div>
+                                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{lead.email}</div>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
+                                    <Clock size={13} color="#0284c7" />
+                                    <span>{formatArrivalTime(lead.createdTime || lead.createdAt)}</span>
+                                  </div>
+                                  <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                                    {lead.createdTime ? new Date(lead.createdTime).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                                  </div>
+                                </td>
+                                <td>
+                                  <div style={{ fontSize: 12, fontWeight: 500 }}>{lead.qualification}</div>
+                                  <div style={{ fontSize: 11, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                    <MapPin size={11} color="#64748b" />
+                                    <span>{lead.preferredLocation}</span>
+                                  </div>
+                                </td>
+                                <td>
+                                  {isAssigned ? (
+                                    <div>
+                                      <span style={{ fontSize: 12, fontWeight: 600, color: '#0369a1', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <UserCheck size={13} /> {lead.assignedTo?.repName || 'Assigned'}
+                                      </span>
+                                      <button
+                                        onClick={() => handleUnassign([lead.id])}
+                                        style={{ fontSize: 10, color: '#dc2626', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+                                      >
+                                        Return to Pool
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#6d28d9', background: '#ede9fe', padding: '2px 8px', borderRadius: 4 }}>
+                                      In Pool (Unassigned)
+                                    </span>
+                                  )}
+                                </td>
+                                <td>
+                                  {(() => {
+                                    const stVal = lead.leadStatus || 'NEW LEAD'
+                                    const sb = getStatusBadgeStyle(stVal)
+                                    const hb = lead.heatTier ? getHeatBadgeStyle(lead.heatTier) : null
+                                    return (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                                        <span
+                                          style={{
+                                            fontSize: 11,
+                                            fontWeight: 700,
+                                            padding: '2px 8px',
+                                            borderRadius: 12,
+                                            background: sb.bg,
+                                            color: sb.color,
+                                            border: `1px solid ${sb.border}`,
+                                            whiteSpace: 'nowrap',
+                                          }}
+                                        >
+                                          {stVal}
+                                        </span>
+                                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                          {hb && (
+                                            <span
+                                              style={{
+                                                fontSize: 10,
+                                                fontWeight: 800,
+                                                padding: '1px 6px',
+                                                borderRadius: 10,
+                                                background: hb.bg,
+                                                color: hb.color,
+                                              }}
+                                            >
+                                              {hb.label}
+                                            </span>
+                                          )}
+                                          {lead.isCycleEnded && (
+                                            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: '#1e293b', color: '#fff' }}>
+                                              End
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )
+                                  })()}
+                                </td>
+                                <td>
+                                  <div style={{ fontSize: 12, fontWeight: 500 }}>
+                                    {lead.selectedCategoryLabel || lead.subStatus}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#64748b' }}>
+                                    Cycle #{lead.cycleNumber || 1} • Steps: {lead.steps?.length || 0} • Calls: {lead.callAttempts || 0}
+                                    {lead.callbackAt && ' • Callback'}
+                                  </div>
+                                  {lead.lostReason && lead.leadStatus === 'LOST' && (
+                                    <div style={{ fontSize: 10, color: '#991b1b', fontWeight: 600 }}>
+                                      Lost: {lead.lostReason} ({lead.lostCycleCount || 1}/{crmMeta?.policy?.maxLostCycles || 3})
+                                    </div>
+                                  )}
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                    <button
+                                      type="button"
+                                      className="btn-pulse"
+                                      onClick={() => setActiveStepLead(lead)}
+                                      style={{ padding: '3px 8px', fontSize: 11 }}
+                                      title="Add lifecycle step, update status, or view timeline"
+                                    >
+                                      + Step
+                                    </button>
+                                    <button
+                                      className="btn-action-sm"
+                                      onClick={() => setActiveLeadModal(lead)}
+                                    >
+                                      Profile
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteLead(lead)}
+                                      disabled={deletingLeads}
+                                      title={isAssigned ? 'Remove assigned lead' : 'Remove lead from pool'}
+                                      style={{
+                                        padding: '3px 7px',
+                                        borderRadius: 4,
+                                        border: '1px solid #fecaca',
+                                        background: '#fef2f2',
+                                        color: '#dc2626',
+                                        cursor: deletingLeads ? 'not-allowed' : 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                      }}
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
 
                   {/* Pagination Bar or All Leads Indicator */}
@@ -2644,335 +2644,335 @@ export default function AdminDashboard({ user, onLogout }) {
                 </div>
               </div>
             ) : (
-            <div>
-              {/* Report Sub-tabs Header */}
-              <div className="admin-tab-nav">
-                <button
-                  className={`admin-tab-btn ${activeReportSubTab === 'advanced' ? 'active' : ''}`}
-                  onClick={() => setActiveReportSubTab('advanced')}
-                >
-                  <Sparkles size={15} />
-                  <span>Advanced Reports (Hot/Warm/Cold, Cycles &amp; Revenue)</span>
-                </button>
-                <button
-                  className={`admin-tab-btn ${activeReportSubTab === 'stage' ? 'active' : ''}`}
-                  onClick={() => setActiveReportSubTab('stage')}
-                >
-                  <Activity size={15} />
-                  <span>Current Success Status &amp; Current Stage</span>
-                </button>
-                <button
-                  className={`admin-tab-btn ${activeReportSubTab === 'reps' ? 'active' : ''}`}
-                  onClick={() => setActiveReportSubTab('reps')}
-                >
-                  <Users size={15} />
-                  <span>Sales Rep Leaderboard</span>
-                </button>
-                <button
-                  className={`admin-tab-btn ${activeReportSubTab === 'campaigns' ? 'active' : ''}`}
-                  onClick={() => setActiveReportSubTab('campaigns')}
-                >
-                  <BarChart3 size={15} />
-                  <span>Campaign &amp; Channel ROI</span>
-                </button>
-                <button
-                  className={`admin-tab-btn ${activeReportSubTab === 'demographics' ? 'active' : ''}`}
-                  onClick={() => setActiveReportSubTab('demographics')}
-                >
-                  <Globe size={15} />
-                  <span>Demographics &amp; Geography</span>
-                </button>
-              </div>
+              <div>
+                {/* Report Sub-tabs Header */}
+                <div className="admin-tab-nav">
+                  <button
+                    className={`admin-tab-btn ${activeReportSubTab === 'advanced' ? 'active' : ''}`}
+                    onClick={() => setActiveReportSubTab('advanced')}
+                  >
+                    <Sparkles size={15} />
+                    <span>Advanced Reports (Hot/Warm/Cold, Cycles &amp; Revenue)</span>
+                  </button>
+                  <button
+                    className={`admin-tab-btn ${activeReportSubTab === 'stage' ? 'active' : ''}`}
+                    onClick={() => setActiveReportSubTab('stage')}
+                  >
+                    <Activity size={15} />
+                    <span>Current Success Status &amp; Current Stage</span>
+                  </button>
+                  <button
+                    className={`admin-tab-btn ${activeReportSubTab === 'reps' ? 'active' : ''}`}
+                    onClick={() => setActiveReportSubTab('reps')}
+                  >
+                    <Users size={15} />
+                    <span>Sales Rep Leaderboard</span>
+                  </button>
+                  <button
+                    className={`admin-tab-btn ${activeReportSubTab === 'campaigns' ? 'active' : ''}`}
+                    onClick={() => setActiveReportSubTab('campaigns')}
+                  >
+                    <BarChart3 size={15} />
+                    <span>Campaign &amp; Channel ROI</span>
+                  </button>
+                  <button
+                    className={`admin-tab-btn ${activeReportSubTab === 'demographics' ? 'active' : ''}`}
+                    onClick={() => setActiveReportSubTab('demographics')}
+                  >
+                    <Globe size={15} />
+                    <span>Demographics &amp; Geography</span>
+                  </button>
+                </div>
 
-              {/* ----------------------------------------------------
+                {/* ----------------------------------------------------
                   SUB-TAB 0: ADMIN-ONLY ADVANCED REPORTS (HOT/WARM/COLD, LIFECYCLE, RECYCLE, REVENUE)
                   ---------------------------------------------------- */}
-              {activeReportSubTab === 'advanced' && (
-                <AdminAdvancedReports
-                  salesReps={salesReps}
-                  onOpenSettings={() => setShowLifecycleSettingsModal(true)}
-                  onInspectLeadById={openStepModalById}
-                  onRefreshParent={() => {
-                    loadOverviewData()
-                    if (activeTab === 'all-leads') loadMasterLeads(page, pageSize)
-                  }}
-                  showNotify={showNotify}
-                />
-              )}
+                {activeReportSubTab === 'advanced' && (
+                  <AdminAdvancedReports
+                    salesReps={salesReps}
+                    onOpenSettings={() => setShowLifecycleSettingsModal(true)}
+                    onInspectLeadById={openStepModalById}
+                    onRefreshParent={() => {
+                      loadOverviewData()
+                      if (activeTab === 'all-leads') loadMasterLeads(page, pageSize)
+                    }}
+                    showNotify={showNotify}
+                  />
+                )}
 
-              {/* ----------------------------------------------------
+                {/* ----------------------------------------------------
                   SUB-TAB 1: CURRENT SUCCESS STATUS & CURRENT STAGE
                   ---------------------------------------------------- */}
-              {activeReportSubTab === 'stage' && (
-                <div>
-                  {/* High-level Success Status Overview Cards */}
-                  <div className="stage-report-grid">
-                    {stats?.successStatusReport?.map((st, i) => (
-                      <div key={i} className="stage-stat-card" style={{ borderLeft: `4px solid ${st.color}` }}>
-                        <div className="stage-stat-title">{st.status}</div>
-                        <div className="stage-stat-value" style={{ color: st.color }}>
-                          {st.count}
+                {activeReportSubTab === 'stage' && (
+                  <div>
+                    {/* High-level Success Status Overview Cards */}
+                    <div className="stage-report-grid">
+                      {stats?.successStatusReport?.map((st, i) => (
+                        <div key={i} className="stage-stat-card" style={{ borderLeft: `4px solid ${st.color}` }}>
+                          <div className="stage-stat-title">{st.status}</div>
+                          <div className="stage-stat-value" style={{ color: st.color }}>
+                            {st.count}
+                          </div>
+                          <div className="stage-stat-sub">
+                            {st.percentage}% of all leads in database
+                          </div>
                         </div>
-                        <div className="stage-stat-sub">
-                          {st.percentage}% of all leads in database
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
 
-                  {/* Detailed Current Stage Breakdown Table & Visual Bars */}
+                    {/* Detailed Current Stage Breakdown Table & Visual Bars */}
+                    <div className="template-card">
+                      <div className="template-card-header">
+                        <h3>Current Lead Pipeline Stage & Sub-Status Breakdown</h3>
+                        <span className="header-badge">{stats?.stageReport?.length || 0} Active Stages</span>
+                      </div>
+                      <div className="template-card-body" style={{ padding: 0 }}>
+                        <table className="reps-table">
+                          <thead>
+                            <tr>
+                              <th>Current Stage / Sub-Status</th>
+                              <th>Category</th>
+                              <th>Lead Volume</th>
+                              <th>Pipeline Share (%)</th>
+                              <th>Average Attempts</th>
+                              <th>Progress Distribution</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {stats?.stageReport && stats.stageReport.length > 0 ? (
+                              stats.stageReport.map((stage, idx) => (
+                                <tr key={idx}>
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <span
+                                        style={{
+                                          width: 10,
+                                          height: 10,
+                                          borderRadius: '50%',
+                                          background: stage.color,
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                      <strong style={{ color: '#1e293b' }}>{stage.stage}</strong>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <span style={{ fontSize: 11, background: '#f1f5f9', padding: '3px 8px', borderRadius: 4, color: '#475569', fontWeight: 600 }}>
+                                      {stage.category}
+                                    </span>
+                                  </td>
+                                  <td style={{ fontWeight: 700, fontSize: 14 }}>{stage.count}</td>
+                                  <td>
+                                    <strong style={{ color: stage.color }}>{stage.percentage}%</strong>
+                                  </td>
+                                  <td style={{ color: '#64748b' }}>{stage.avgAttempts} calls</td>
+                                  <td style={{ width: 160 }}>
+                                    <div style={{ width: '100%', height: 7, background: '#e2e8f0', borderRadius: 4 }}>
+                                      <div
+                                        style={{
+                                          width: `${Math.min(stage.percentage * 2, 100)}%`,
+                                          height: '100%',
+                                          background: stage.color,
+                                          borderRadius: 4,
+                                        }}
+                                      />
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan="6" style={{ textAlign: 'center', padding: 24, color: '#94a3b8' }}>
+                                  No stages recorded yet.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ----------------------------------------------------
+                  SUB-TAB 2: SALES REP LEADERBOARD
+                  ---------------------------------------------------- */}
+                {activeReportSubTab === 'reps' && (
                   <div className="template-card">
                     <div className="template-card-header">
-                      <h3>Current Lead Pipeline Stage & Sub-Status Breakdown</h3>
-                      <span className="header-badge">{stats?.stageReport?.length || 0} Active Stages</span>
+                      <h3>Counselor Productivity & Contact Leaderboard</h3>
+                      <span className="header-badge">Live Team Performance</span>
                     </div>
                     <div className="template-card-body" style={{ padding: 0 }}>
                       <table className="reps-table">
                         <thead>
                           <tr>
-                            <th>Current Stage / Sub-Status</th>
-                            <th>Category</th>
-                            <th>Lead Volume</th>
-                            <th>Pipeline Share (%)</th>
-                            <th>Average Attempts</th>
-                            <th>Progress Distribution</th>
+                            <th>Sales Counselor</th>
+                            <th>Specialty Territory</th>
+                            <th>Total Assigned</th>
+                            <th>Contacted</th>
+                            <th>Pending</th>
+                            <th>Contact Rate %</th>
+                            <th>Avg Attempts</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {stats?.stageReport && stats.stageReport.length > 0 ? (
-                            stats.stageReport.map((stage, idx) => (
-                              <tr key={idx}>
-                                <td>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <span
-                                      style={{
-                                        width: 10,
-                                        height: 10,
-                                        borderRadius: '50%',
-                                        background: stage.color,
-                                        flexShrink: 0,
-                                      }}
-                                    />
-                                    <strong style={{ color: '#1e293b' }}>{stage.stage}</strong>
+                          {stats?.repsReport?.map(rep => (
+                            <tr key={rep.id}>
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                  <span className="rep-avatar">{rep.avatar}</span>
+                                  <div>
+                                    <div style={{ fontWeight: 600 }}>{rep.name}</div>
+                                    <div style={{ fontSize: 11, color: '#64748b' }}>{rep.role}</div>
                                   </div>
-                                </td>
-                                <td>
-                                  <span style={{ fontSize: 11, background: '#f1f5f9', padding: '3px 8px', borderRadius: 4, color: '#475569', fontWeight: 600 }}>
-                                    {stage.category}
-                                  </span>
-                                </td>
-                                <td style={{ fontWeight: 700, fontSize: 14 }}>{stage.count}</td>
-                                <td>
-                                  <strong style={{ color: stage.color }}>{stage.percentage}%</strong>
-                                </td>
-                                <td style={{ color: '#64748b' }}>{stage.avgAttempts} calls</td>
-                                <td style={{ width: 160 }}>
-                                  <div style={{ width: '100%', height: 7, background: '#e2e8f0', borderRadius: 4 }}>
+                                </div>
+                              </td>
+                              <td style={{ fontSize: 12, color: '#475569' }}>{rep.specialty}</td>
+                              <td style={{ fontWeight: 600 }}>{rep.assignedCount}</td>
+                              <td style={{ color: '#166534', fontWeight: 600 }}>{rep.contactedCount}</td>
+                              <td style={{ color: '#c2410c', fontWeight: 600 }}>{rep.notContactedCount}</td>
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <div style={{ flex: 1, height: 6, background: '#e2e8f0', borderRadius: 3, maxWidth: 80 }}>
                                     <div
                                       style={{
-                                        width: `${Math.min(stage.percentage * 2, 100)}%`,
+                                        width: `${rep.contactRate}%`,
                                         height: '100%',
-                                        background: stage.color,
-                                        borderRadius: 4,
+                                        background: '#10b981',
+                                        borderRadius: 3,
                                       }}
                                     />
                                   </div>
-                                </td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan="6" style={{ textAlign: 'center', padding: 24, color: '#94a3b8' }}>
-                                No stages recorded yet.
+                                  <span style={{ fontWeight: 700, fontSize: 12 }}>{rep.contactRate}%</span>
+                                </div>
                               </td>
+                              <td>{rep.avgCallAttempts}</td>
                             </tr>
-                          )}
+                          ))}
                         </tbody>
                       </table>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* ----------------------------------------------------
-                  SUB-TAB 2: SALES REP LEADERBOARD
-                  ---------------------------------------------------- */}
-              {activeReportSubTab === 'reps' && (
-                <div className="template-card">
-                  <div className="template-card-header">
-                    <h3>Counselor Productivity & Contact Leaderboard</h3>
-                    <span className="header-badge">Live Team Performance</span>
-                  </div>
-                  <div className="template-card-body" style={{ padding: 0 }}>
-                    <table className="reps-table">
-                      <thead>
-                        <tr>
-                          <th>Sales Counselor</th>
-                          <th>Specialty Territory</th>
-                          <th>Total Assigned</th>
-                          <th>Contacted</th>
-                          <th>Pending</th>
-                          <th>Contact Rate %</th>
-                          <th>Avg Attempts</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stats?.repsReport?.map(rep => (
-                          <tr key={rep.id}>
-                            <td>
-                              <div style={{ display: 'flex', alignItems: 'center' }}>
-                                <span className="rep-avatar">{rep.avatar}</span>
-                                <div>
-                                  <div style={{ fontWeight: 600 }}>{rep.name}</div>
-                                  <div style={{ fontSize: 11, color: '#64748b' }}>{rep.role}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td style={{ fontSize: 12, color: '#475569' }}>{rep.specialty}</td>
-                            <td style={{ fontWeight: 600 }}>{rep.assignedCount}</td>
-                            <td style={{ color: '#166534', fontWeight: 600 }}>{rep.contactedCount}</td>
-                            <td style={{ color: '#c2410c', fontWeight: 600 }}>{rep.notContactedCount}</td>
-                            <td>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <div style={{ flex: 1, height: 6, background: '#e2e8f0', borderRadius: 3, maxWidth: 80 }}>
-                                  <div
-                                    style={{
-                                      width: `${rep.contactRate}%`,
-                                      height: '100%',
-                                      background: '#10b981',
-                                      borderRadius: 3,
-                                    }}
-                                  />
-                                </div>
-                                <span style={{ fontWeight: 700, fontSize: 12 }}>{rep.contactRate}%</span>
-                              </div>
-                            </td>
-                            <td>{rep.avgCallAttempts}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* ----------------------------------------------------
+                {/* ----------------------------------------------------
                   SUB-TAB 3: CAMPAIGNS & CHANNELS
                   ---------------------------------------------------- */}
-              {activeReportSubTab === 'campaigns' && (
-                <div className="grid-2-col">
-                  {/* Campaign Breakdown */}
-                  <div className="template-card">
-                    <div className="template-card-header">
-                      <h3>Meta Campaign Performance</h3>
-                      <span className="header-badge">Lead Attribution</span>
-                    </div>
-                    <div className="template-card-body">
-                      <div className="progress-list">
-                        {stats?.campaignReport?.map((c, i) => (
-                          <div key={i} className="progress-item-row" style={{ alignItems: 'flex-start' }}>
-                            <div style={{ width: '45%' }}>
-                              <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }} title={c.name}>
-                                {c.name.slice(0, 32)}...
+                {activeReportSubTab === 'campaigns' && (
+                  <div className="grid-2-col">
+                    {/* Campaign Breakdown */}
+                    <div className="template-card">
+                      <div className="template-card-header">
+                        <h3>Meta Campaign Performance</h3>
+                        <span className="header-badge">Lead Attribution</span>
+                      </div>
+                      <div className="template-card-body">
+                        <div className="progress-list">
+                          {stats?.campaignReport?.map((c, i) => (
+                            <div key={i} className="progress-item-row" style={{ alignItems: 'flex-start' }}>
+                              <div style={{ width: '45%' }}>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }} title={c.name}>
+                                  {c.name.slice(0, 32)}...
+                                </div>
+                                <div style={{ fontSize: 11, color: '#64748b' }}>{c.total} Total Leads</div>
                               </div>
-                              <div style={{ fontSize: 11, color: '#64748b' }}>{c.total} Total Leads</div>
+                              <div className="progress-bar-track" style={{ marginTop: 6 }}>
+                                <div
+                                  className="progress-bar-fill"
+                                  style={{ width: `${Math.min(c.contactRate, 100)}%` }}
+                                />
+                              </div>
+                              <span className="progress-percentage">{c.contactRate}% Contacted</span>
                             </div>
-                            <div className="progress-bar-track" style={{ marginTop: 6 }}>
-                              <div
-                                className="progress-bar-fill"
-                                style={{ width: `${Math.min(c.contactRate, 100)}%` }}
-                              />
-                            </div>
-                            <span className="progress-percentage">{c.contactRate}% Contacted</span>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Platform Split */}
-                  <div className="template-card">
-                    <div className="template-card-header">
-                      <h3>Platform Split (Instagram vs Facebook)</h3>
-                      <span className="header-badge">Source Platform</span>
-                    </div>
-                    <div className="template-card-body">
-                      {stats?.platformReport?.map((p, i) => (
-                        <div key={i} className="progress-item-row">
-                          <span className="progress-country-name">{p.name}</span>
-                          <div className="progress-bar-track">
-                            <div
-                              className="progress-bar-fill"
-                              style={{
-                                width: `${p.percentage}%`,
-                                background: p.name === 'Instagram' ? '#e1306c' : '#1877f2',
-                              }}
-                            />
-                          </div>
-                          <span className="progress-percentage">{p.count} leads ({p.percentage}%)</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ----------------------------------------------------
-                  SUB-TAB 4: DEMOGRAPHICS & GEOGRAPHY
-                  ---------------------------------------------------- */}
-              {activeReportSubTab === 'demographics' && (
-                <div className="grid-2-col">
-                  {/* Preferred Location */}
-                  <div className="template-card">
-                    <div className="template-card-header">
-                      <h3>Preferred Work City / Placement</h3>
-                      <span className="header-badge">Kerala vs Abroad</span>
-                    </div>
-                    <div className="template-card-body">
-                      <div className="progress-list">
-                        {stats?.locationReport?.map((loc, i) => (
+                    {/* Platform Split */}
+                    <div className="template-card">
+                      <div className="template-card-header">
+                        <h3>Platform Split (Instagram vs Facebook)</h3>
+                        <span className="header-badge">Source Platform</span>
+                      </div>
+                      <div className="template-card-body">
+                        {stats?.platformReport?.map((p, i) => (
                           <div key={i} className="progress-item-row">
-                            <span className="progress-country-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                              <MapPin size={12} color="#0284c7" />
-                              <span>{loc.name}</span>
-                            </span>
+                            <span className="progress-country-name">{p.name}</span>
                             <div className="progress-bar-track">
                               <div
                                 className="progress-bar-fill"
-                                style={{ width: `${loc.percentage}%`, background: '#0284c7' }}
+                                style={{
+                                  width: `${p.percentage}%`,
+                                  background: p.name === 'Instagram' ? '#e1306c' : '#1877f2',
+                                }}
                               />
                             </div>
-                            <span className="progress-percentage">{loc.count} ({loc.percentage}%)</span>
+                            <span className="progress-percentage">{p.count} leads ({p.percentage}%)</span>
                           </div>
                         ))}
                       </div>
                     </div>
                   </div>
+                )}
 
-                  {/* Qualification */}
-                  <div className="template-card">
-                    <div className="template-card-header">
-                      <h3>Qualification Demographics</h3>
-                      <span className="header-badge">Highest Education</span>
-                    </div>
-                    <div className="template-card-body">
-                      {stats?.qualificationReport?.map((q, i) => (
-                        <div key={i} className="progress-item-row">
-                          <span className="progress-country-name">{q.name}</span>
-                          <div className="progress-bar-track">
-                            <div
-                              className="progress-bar-fill"
-                              style={{ width: `${q.percentage}%`, background: '#8b5cf6' }}
-                            />
-                          </div>
-                          <span className="progress-percentage">{q.count} leads ({q.percentage}%)</span>
+                {/* ----------------------------------------------------
+                  SUB-TAB 4: DEMOGRAPHICS & GEOGRAPHY
+                  ---------------------------------------------------- */}
+                {activeReportSubTab === 'demographics' && (
+                  <div className="grid-2-col">
+                    {/* Preferred Location */}
+                    <div className="template-card">
+                      <div className="template-card-header">
+                        <h3>Preferred Work City / Placement</h3>
+                        <span className="header-badge">Kerala vs Abroad</span>
+                      </div>
+                      <div className="template-card-body">
+                        <div className="progress-list">
+                          {stats?.locationReport?.map((loc, i) => (
+                            <div key={i} className="progress-item-row">
+                              <span className="progress-country-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                                <MapPin size={12} color="#0284c7" />
+                                <span>{loc.name}</span>
+                              </span>
+                              <div className="progress-bar-track">
+                                <div
+                                  className="progress-bar-fill"
+                                  style={{ width: `${loc.percentage}%`, background: '#0284c7' }}
+                                />
+                              </div>
+                              <span className="progress-percentage">{loc.count} ({loc.percentage}%)</span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      </div>
+                    </div>
+
+                    {/* Qualification */}
+                    <div className="template-card">
+                      <div className="template-card-header">
+                        <h3>Qualification Demographics</h3>
+                        <span className="header-badge">Highest Education</span>
+                      </div>
+                      <div className="template-card-body">
+                        {stats?.qualificationReport?.map((q, i) => (
+                          <div key={i} className="progress-item-row">
+                            <span className="progress-country-name">{q.name}</span>
+                            <div className="progress-bar-track">
+                              <div
+                                className="progress-bar-fill"
+                                style={{ width: `${q.percentage}%`, background: '#8b5cf6' }}
+                              />
+                            </div>
+                            <span className="progress-percentage">{q.count} leads ({q.percentage}%)</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
             )
           )}
 
@@ -3312,313 +3312,313 @@ export default function AdminDashboard({ user, onLogout }) {
                       gap: 12,
                     }}
                   >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flex: 1 }}>
-                  {/* Search input */}
-                  <div style={{ position: 'relative', minWidth: 220, maxWidth: 320, width: '100%' }}>
-                    <Search
-                      size={14}
-                      color="#94a3b8"
-                      style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Search advisor by name, email, territory..."
-                      value={userSearch}
-                      onChange={e => setUserSearch(e.target.value)}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flex: 1 }}>
+                      {/* Search input */}
+                      <div style={{ position: 'relative', minWidth: 220, maxWidth: 320, width: '100%' }}>
+                        <Search
+                          size={14}
+                          color="#94a3b8"
+                          style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Search advisor by name, email, territory..."
+                          value={userSearch}
+                          onChange={e => setUserSearch(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '7px 12px 7px 32px',
+                            fontSize: 12,
+                            borderRadius: 6,
+                            border: '1px solid #cbd5e1',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+
+                      {/* Role filter */}
+                      <select
+                        value={userRoleFilter}
+                        onChange={e => setUserRoleFilter(e.target.value)}
+                        style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
+                      >
+                        <option value="all">All Roles</option>
+                        <option value="sales">Sales Advisors Only</option>
+                        <option value="admin">Administrators Only</option>
+                      </select>
+
+                      {/* Status filter */}
+                      <select
+                        value={userStatusFilter}
+                        onChange={e => setUserStatusFilter(e.target.value)}
+                        style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
+                      >
+                        <option value="all">All Status</option>
+                        <option value="active">Active Staff Only</option>
+                        <option value="inactive">Inactive Staff Only</option>
+                      </select>
+                    </div>
+
+                    {/* Primary Add Button */}
+                    <button
+                      className="btn-pulse"
+                      onClick={handleOpenCreateUser}
                       style={{
-                        width: '100%',
-                        padding: '7px 12px 7px 32px',
-                        fontSize: 12,
-                        borderRadius: 6,
-                        border: '1px solid #cbd5e1',
-                        outline: 'none',
+                        background: 'linear-gradient(135deg, #1877f2 0%, #0d5cb6 100%)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '8px 16px',
+                        fontSize: 13,
+                        fontWeight: 700,
                       }}
-                    />
+                    >
+                      <UserPlus size={15} />
+                      <span>Add New Advisor / User</span>
+                    </button>
                   </div>
 
-                  {/* Role filter */}
-                  <select
-                    value={userRoleFilter}
-                    onChange={e => setUserRoleFilter(e.target.value)}
-                    style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
-                  >
-                    <option value="all">All Roles</option>
-                    <option value="sales">Sales Advisors Only</option>
-                    <option value="admin">Administrators Only</option>
-                  </select>
-
-                  {/* Status filter */}
-                  <select
-                    value={userStatusFilter}
-                    onChange={e => setUserStatusFilter(e.target.value)}
-                    style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
-                  >
-                    <option value="all">All Status</option>
-                    <option value="active">Active Staff Only</option>
-                    <option value="inactive">Inactive Staff Only</option>
-                  </select>
-                </div>
-
-                {/* Primary Add Button */}
-                <button
-                  className="btn-pulse"
-                  onClick={handleOpenCreateUser}
-                  style={{
-                    background: 'linear-gradient(135deg, #1877f2 0%, #0d5cb6 100%)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '8px 16px',
-                    fontSize: 13,
-                    fontWeight: 700,
-                  }}
-                >
-                  <UserPlus size={15} />
-                  <span>Add New Advisor / User</span>
-                </button>
-              </div>
-
-              {/* Users Directory Card */}
-              <div className="template-card">
-                <div className="template-card-header">
-                  <h3>Staff & Admissions Advisors Directory</h3>
-                  <span className="header-badge">
-                    {usersList.filter(u => {
-                      if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false
-                      if (userStatusFilter === 'active' && !u.active) return false
-                      if (userStatusFilter === 'inactive' && u.active) return false
-                      if (userSearch.trim()) {
-                        const q = userSearch.toLowerCase()
-                        const matchName = (u.name || '').toLowerCase().includes(q)
-                        const matchEmail = (u.email || '').toLowerCase().includes(q)
-                        const matchSpec = (u.specialty || '').toLowerCase().includes(q)
-                        const matchTitle = (u.title || '').toLowerCase().includes(q)
-                        if (!matchName && !matchEmail && !matchSpec && !matchTitle) return false
-                      }
-                      return true
-                    }).length}{' '}
-                    Staff Members
-                  </span>
-                </div>
-                <div className="template-card-body" style={{ padding: 0 }}>
-                  {usersLoading ? (
-                    <div className="data-loader-container">
-                      <div className="data-loader-spinner" />
-                      <div className="data-loader-text">Loading Staff & Admissions Advisors...</div>
-                      <div className="data-loader-sub">Querying MongoDB user collections</div>
+                  {/* Users Directory Card */}
+                  <div className="template-card">
+                    <div className="template-card-header">
+                      <h3>Staff & Admissions Advisors Directory</h3>
+                      <span className="header-badge">
+                        {usersList.filter(u => {
+                          if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false
+                          if (userStatusFilter === 'active' && !u.active) return false
+                          if (userStatusFilter === 'inactive' && u.active) return false
+                          if (userSearch.trim()) {
+                            const q = userSearch.toLowerCase()
+                            const matchName = (u.name || '').toLowerCase().includes(q)
+                            const matchEmail = (u.email || '').toLowerCase().includes(q)
+                            const matchSpec = (u.specialty || '').toLowerCase().includes(q)
+                            const matchTitle = (u.title || '').toLowerCase().includes(q)
+                            if (!matchName && !matchEmail && !matchSpec && !matchTitle) return false
+                          }
+                          return true
+                        }).length}{' '}
+                        Staff Members
+                      </span>
                     </div>
-                  ) : usersList.length === 0 ? (
-                    <div style={{ padding: '48px 20px', textAlign: 'center', color: '#64748b' }}>
-                      <UserCog size={36} color="#94a3b8" style={{ margin: '0 auto 12px' }} />
-                      <p style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>No staff members registered yet</p>
-                      <button
-                        className="btn-pulse"
-                        onClick={handleOpenCreateUser}
-                        style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                      >
-                        <UserPlus size={14} />
-                        <span>Add First Advisor</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="leads-table-container">
-                      <table className="leads-table">
-                        <thead>
-                          <tr>
-                            <th>Staff Member</th>
-                            <th>Role & Title</th>
-                            <th>Specialty / Territory</th>
-                            <th>Lead Load & Contact Rate</th>
-                            <th>Status</th>
-                            <th style={{ textAlign: 'right' }}>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {usersList
-                            .filter(u => {
-                              if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false
-                              if (userStatusFilter === 'active' && !u.active) return false
-                              if (userStatusFilter === 'inactive' && u.active) return false
-                              if (userSearch.trim()) {
-                                const q = userSearch.toLowerCase()
-                                const matchName = (u.name || '').toLowerCase().includes(q)
-                                const matchEmail = (u.email || '').toLowerCase().includes(q)
-                                const matchSpec = (u.specialty || '').toLowerCase().includes(q)
-                                const matchTitle = (u.title || '').toLowerCase().includes(q)
-                                if (!matchName && !matchEmail && !matchSpec && !matchTitle) return false
-                              }
-                              return true
-                            })
-                            .map(u => (
-                              <tr key={u.id}>
-                                <td>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                    <span
-                                      className="rep-avatar"
-                                      style={{
-                                        background: u.role === 'admin' ? '#ede9fe' : '#e0f2fe',
-                                        color: u.role === 'admin' ? '#6d28d9' : '#0369a1',
-                                      }}
-                                    >
-                                      {u.avatar || 'SR'}
-                                    </span>
-                                    <div>
-                                      <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>
-                                        {u.name}
-                                      </div>
-                                      <div style={{ fontSize: 11, color: '#64748b' }}>{u.email}</div>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td>
-                                  <span
-                                    style={{
-                                      fontSize: 11,
-                                      fontWeight: 700,
-                                      padding: '3px 8px',
-                                      borderRadius: 12,
-                                      background: u.role === 'admin' ? '#ede9fe' : '#dcfce7',
-                                      color: u.role === 'admin' ? '#6d28d9' : '#15803d',
-                                      display: 'inline-block',
-                                      marginBottom: 3,
-                                    }}
-                                  >
-                                    {u.role === 'admin' ? 'Administrator' : 'Sales Advisor'}
-                                  </span>
-                                  <div style={{ fontSize: 11, color: '#475569', fontWeight: 500 }}>
-                                    {u.title}
-                                  </div>
-                                </td>
-                                <td>
-                                  <span style={{ fontSize: 12, color: '#334155', fontWeight: 500 }}>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                      <MapPin size={11} color="#64748b" />
-                                      <span>{u.specialty}</span>
-                                    </span>
-                                  </span>
-                                </td>
-                                <td>
-                                  {u.role === 'sales' ? (
-                                    <div>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
-                                        <span>{u.totalAssigned || 0} Leads</span>
-                                        <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>
-                                          ({u.contactRate || 0}% Contacted)
-                                        </span>
-                                      </div>
-                                      <div className="progress-bar-container" style={{ width: 120, height: 5, marginTop: 4 }}>
-                                        <div
-                                          className="progress-bar-fill"
+                    <div className="template-card-body" style={{ padding: 0 }}>
+                      {usersLoading ? (
+                        <div className="data-loader-container">
+                          <div className="data-loader-spinner" />
+                          <div className="data-loader-text">Loading Staff & Admissions Advisors...</div>
+                          <div className="data-loader-sub">Querying Database</div>
+                        </div>
+                      ) : usersList.length === 0 ? (
+                        <div style={{ padding: '48px 20px', textAlign: 'center', color: '#64748b' }}>
+                          <UserCog size={36} color="#94a3b8" style={{ margin: '0 auto 12px' }} />
+                          <p style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>No staff members registered yet</p>
+                          <button
+                            className="btn-pulse"
+                            onClick={handleOpenCreateUser}
+                            style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                          >
+                            <UserPlus size={14} />
+                            <span>Add First Advisor</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="leads-table-container">
+                          <table className="leads-table">
+                            <thead>
+                              <tr>
+                                <th>Staff Member</th>
+                                <th>Role & Title</th>
+                                <th>Specialty / Territory</th>
+                                <th>Lead Load & Contact Rate</th>
+                                <th>Status</th>
+                                <th style={{ textAlign: 'right' }}>Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {usersList
+                                .filter(u => {
+                                  if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false
+                                  if (userStatusFilter === 'active' && !u.active) return false
+                                  if (userStatusFilter === 'inactive' && u.active) return false
+                                  if (userSearch.trim()) {
+                                    const q = userSearch.toLowerCase()
+                                    const matchName = (u.name || '').toLowerCase().includes(q)
+                                    const matchEmail = (u.email || '').toLowerCase().includes(q)
+                                    const matchSpec = (u.specialty || '').toLowerCase().includes(q)
+                                    const matchTitle = (u.title || '').toLowerCase().includes(q)
+                                    if (!matchName && !matchEmail && !matchSpec && !matchTitle) return false
+                                  }
+                                  return true
+                                })
+                                .map(u => (
+                                  <tr key={u.id}>
+                                    <td>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                        <span
+                                          className="rep-avatar"
                                           style={{
-                                            width: `${Math.min(u.contactRate || 0, 100)}%`,
-                                            background: '#10b981',
+                                            background: u.role === 'admin' ? '#ede9fe' : '#e0f2fe',
+                                            color: u.role === 'admin' ? '#6d28d9' : '#0369a1',
+                                          }}
+                                        >
+                                          {u.avatar || 'SR'}
+                                        </span>
+                                        <div>
+                                          <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>
+                                            {u.name}
+                                          </div>
+                                          <div style={{ fontSize: 11, color: '#64748b' }}>{u.email}</div>
+                                        </div>
+                                      </div>
+                                    </td>
+                                    <td>
+                                      <span
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: 700,
+                                          padding: '3px 8px',
+                                          borderRadius: 12,
+                                          background: u.role === 'admin' ? '#ede9fe' : '#dcfce7',
+                                          color: u.role === 'admin' ? '#6d28d9' : '#15803d',
+                                          display: 'inline-block',
+                                          marginBottom: 3,
+                                        }}
+                                      >
+                                        {u.role === 'admin' ? 'Administrator' : 'Sales Advisor'}
+                                      </span>
+                                      <div style={{ fontSize: 11, color: '#475569', fontWeight: 500 }}>
+                                        {u.title}
+                                      </div>
+                                    </td>
+                                    <td>
+                                      <span style={{ fontSize: 12, color: '#334155', fontWeight: 500 }}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                          <MapPin size={11} color="#64748b" />
+                                          <span>{u.specialty}</span>
+                                        </span>
+                                      </span>
+                                    </td>
+                                    <td>
+                                      {u.role === 'sales' ? (
+                                        <div>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                                            <span>{u.totalAssigned || 0} Leads</span>
+                                            <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>
+                                              ({u.contactRate || 0}% Contacted)
+                                            </span>
+                                          </div>
+                                          <div className="progress-bar-container" style={{ width: 120, height: 5, marginTop: 4 }}>
+                                            <div
+                                              className="progress-bar-fill"
+                                              style={{
+                                                width: `${Math.min(u.contactRate || 0, 100)}%`,
+                                                background: '#10b981',
+                                              }}
+                                            />
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <span style={{ fontSize: 11, color: '#8b5cf6', fontWeight: 600 }}>
+                                          Full System Admin Access
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleUserActive(u)}
+                                        style={{
+                                          border: 'none',
+                                          background: u.active ? '#dcfce7' : '#f1f5f9',
+                                          color: u.active ? '#15803d' : '#94a3b8',
+                                          fontWeight: 700,
+                                          fontSize: 11,
+                                          padding: '3px 9px',
+                                          borderRadius: 12,
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                        }}
+                                        title="Click to toggle active/inactive status"
+                                      >
+                                        <span
+                                          style={{
+                                            width: 6,
+                                            height: 6,
+                                            borderRadius: '50%',
+                                            background: u.active ? '#16a34a' : '#94a3b8',
                                           }}
                                         />
+                                        <span>{u.active ? 'Active' : 'Inactive'}</span>
+                                      </button>
+                                    </td>
+                                    <td>
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                                        <button
+                                          className="btn-pulse-secondary"
+                                          onClick={() => handleOpenEditUser(u)}
+                                          style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                          title="Edit user profile & territory"
+                                        >
+                                          <Edit2 size={12} />
+                                          <span>Edit</span>
+                                        </button>
+                                        <button
+                                          className="btn-pulse-danger"
+                                          onClick={() => handleOpenDeleteUser(u)}
+                                          style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                          title="Remove user from CRM"
+                                        >
+                                          <Trash2 size={12} />
+                                          <span>Remove</span>
+                                        </button>
                                       </div>
-                                    </div>
-                                  ) : (
-                                    <span style={{ fontSize: 11, color: '#8b5cf6', fontWeight: 600 }}>
-                                      Full System Admin Access
-                                    </span>
-                                  )}
-                                </td>
-                                <td>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleUserActive(u)}
-                                    style={{
-                                      border: 'none',
-                                      background: u.active ? '#dcfce7' : '#f1f5f9',
-                                      color: u.active ? '#15803d' : '#94a3b8',
-                                      fontWeight: 700,
-                                      fontSize: 11,
-                                      padding: '3px 9px',
-                                      borderRadius: 12,
-                                      cursor: 'pointer',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: 4,
-                                    }}
-                                    title="Click to toggle active/inactive status"
-                                  >
-                                    <span
-                                      style={{
-                                        width: 6,
-                                        height: 6,
-                                        borderRadius: '50%',
-                                        background: u.active ? '#16a34a' : '#94a3b8',
-                                      }}
-                                    />
-                                    <span>{u.active ? 'Active' : 'Inactive'}</span>
-                                  </button>
-                                </td>
-                                <td>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                                    <button
-                                      className="btn-pulse-secondary"
-                                      onClick={() => handleOpenEditUser(u)}
-                                      style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                                      title="Edit user profile & territory"
-                                    >
-                                      <Edit2 size={12} />
-                                      <span>Edit</span>
-                                    </button>
-                                    <button
-                                      className="btn-pulse-danger"
-                                      onClick={() => handleOpenDeleteUser(u)}
-                                      style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                                      title="Remove user from CRM"
-                                    >
-                                      <Trash2 size={12} />
-                                      <span>Remove</span>
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                      {usersTotalCount > 0 && (
+                        <div className="pagination-container">
+                          <div>
+                            Showing{' '}
+                            <strong>
+                              {(usersPage - 1) * usersPageSize + 1} - {Math.min(usersPage * usersPageSize, usersTotalCount)}
+                            </strong>{' '}
+                            of <strong>{usersTotalCount}</strong> staff users (Page {usersPage} of {usersTotalPages})
+                          </div>
+                          <div className="pagination-controls">
+                            <button
+                              type="button"
+                              className="btn-pagination"
+                              disabled={usersPage <= 1 || usersLoading}
+                              onClick={() => setUsersPage(p => Math.max(1, p - 1))}
+                            >
+                              <ChevronLeft size={14} />
+                              <span>Previous</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-pagination"
+                              disabled={usersPage >= usersTotalPages || usersLoading}
+                              onClick={() => setUsersPage(p => Math.min(usersTotalPages, p + 1))}
+                            >
+                              <span>Next</span>
+                              <ChevronRight size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {usersTotalCount > 0 && (
-                    <div className="pagination-container">
-                      <div>
-                        Showing{' '}
-                        <strong>
-                          {(usersPage - 1) * usersPageSize + 1} - {Math.min(usersPage * usersPageSize, usersTotalCount)}
-                        </strong>{' '}
-                        of <strong>{usersTotalCount}</strong> staff users (Page {usersPage} of {usersTotalPages})
-                      </div>
-                      <div className="pagination-controls">
-                        <button
-                          type="button"
-                          className="btn-pagination"
-                          disabled={usersPage <= 1 || usersLoading}
-                          onClick={() => setUsersPage(p => Math.max(1, p - 1))}
-                        >
-                          <ChevronLeft size={14} />
-                          <span>Previous</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-pagination"
-                          disabled={usersPage >= usersTotalPages || usersLoading}
-                          onClick={() => setUsersPage(p => Math.min(usersTotalPages, p + 1))}
-                        >
-                          <span>Next</span>
-                          <ChevronRight size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>
-      )}
-    </div>
-  </main>
+      </main>
 
       {/* ========================================================
           MODAL: FILE UPLOAD (XLSX, XLS, CSV, TSV)
@@ -3631,7 +3631,7 @@ export default function AdminDashboard({ user, onLogout }) {
               <div className="modal-loading-overlay">
                 <div className="data-loader-spinner" />
                 <div className="data-loader-text">Extracting & Normalizing Leads...</div>
-                <div className="data-loader-sub">Parsing Meta columns, Malayalam cities & saving to MongoDB</div>
+                <div className="data-loader-sub">Parsing Meta columns, Malayalam cities & saving to DB</div>
               </div>
             )}
             <div className="modal-header">
@@ -3700,7 +3700,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <li>Extracts candidate full name, phone number, email.</li>
                   <li>Normalizes phone numbers, stripping prefixes like <code>p:</code>.</li>
                   <li>Extracts educational qualification, preferred work city (supports Malayalam questions), and learning mode.</li>
-                  <li>Deduplicates leads automatically by phone and email in MongoDB.</li>
+                  <li>Deduplicates leads automatically by phone and email in DB.</li>
                 </ul>
               </div>
             </div>
@@ -3730,7 +3730,7 @@ export default function AdminDashboard({ user, onLogout }) {
             {uploading && (
               <div className="modal-loading-overlay">
                 <div className="data-loader-spinner" />
-                <div className="data-loader-text">Parsing & Ingesting Leads into MongoDB...</div>
+                <div className="data-loader-text">Parsing & Ingesting Leads into Database...</div>
                 <div className="data-loader-sub">Extracting fields & deduplicating phone numbers</div>
               </div>
             )}
@@ -3798,7 +3798,7 @@ export default function AdminDashboard({ user, onLogout }) {
               <div className="modal-loading-overlay">
                 <div className="data-loader-spinner" />
                 <div className="data-loader-text">Clearing Lead Database...</div>
-                <div className="data-loader-sub">Updating MongoDB Atlas collections</div>
+                <div className="data-loader-sub">Updating Database Atlas collections</div>
               </div>
             )}
             <div className="modal-header" style={{ background: '#991b1b' }}>
@@ -3942,10 +3942,10 @@ export default function AdminDashboard({ user, onLogout }) {
                   {fetchingMetaForms
                     ? 'Connecting to Meta Graph API & Retrieving Forms...'
                     : syncingMetaLeads
-                    ? 'Synchronizing Meta Leads & Updating CRM Pool...'
-                    : savingMetaForms
-                    ? 'Saving Active Form Selection...'
-                    : 'Saving Configuration...'}
+                      ? 'Synchronizing Meta Leads & Updating CRM Pool...'
+                      : savingMetaForms
+                        ? 'Saving Active Form Selection...'
+                        : 'Saving Configuration...'}
                 </div>
                 <div className="data-loader-sub">
                   Graph API v21.0 • Incremental Ingestion & Phone Deduplication
@@ -4320,7 +4320,7 @@ export default function AdminDashboard({ user, onLogout }) {
                       Facebook Page & Graph API Access Token
                     </div>
                     <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
-                      Enter your Meta Page ID and Page Access Token. Tokens are securely encrypted and stored in MongoDB Atlas and never exposed in client payloads.
+                      Enter your Meta Page ID and Page Access Token. Tokens are securely encrypted and stored in Database Atlas and never exposed in client payloads.
                     </div>
                   </div>
 
@@ -4674,7 +4674,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
             <div className="modal-footer" style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                Meta Graph API v21.0 • Connected to MongoDB Lead Pool
+                Meta Graph API v21.0 • Connected to Database Lead Pool
               </div>
               <button
                 className="btn-pulse-secondary"
@@ -4705,7 +4705,7 @@ export default function AdminDashboard({ user, onLogout }) {
               <div className="modal-loading-overlay">
                 <div className="data-loader-spinner" />
                 <div className="data-loader-text">Adding Selected Leads to Pool...</div>
-                <div className="data-loader-sub">Saving unassigned leads into MongoDB Atlas</div>
+                <div className="data-loader-sub">Saving unassigned leads into Database Atlas</div>
               </div>
             )}
 
@@ -4942,8 +4942,8 @@ export default function AdminDashboard({ user, onLogout }) {
                       {previewTokenExpired
                         ? 'Cannot load leads: Meta access token expired. Please renew token above.'
                         : previewFilter !== 'all'
-                        ? `No leads found with filter "${previewFilter}".`
-                        : 'No lead submissions found for this form on Meta.'}
+                          ? `No leads found with filter "${previewFilter}".`
+                          : 'No lead submissions found for this form on Meta.'}
                     </div>
                   )
                 }
@@ -5574,7 +5574,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <input
                     type="checkbox"
                     checked={isFormAllSelected(assigningForm)}
-                    onChange={() => {}}
+                    onChange={() => { }}
                     style={{ width: 16, height: 16, cursor: 'pointer' }}
                   />
                   <div>
@@ -5622,7 +5622,7 @@ export default function AdminDashboard({ user, onLogout }) {
                           <input
                             type="checkbox"
                             checked={isSelected}
-                            onChange={() => {}}
+                            onChange={() => { }}
                             style={{ width: 15, height: 15, cursor: 'pointer' }}
                           />
                           <div>
