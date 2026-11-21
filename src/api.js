@@ -123,10 +123,10 @@ export const api = {
     })
   },
 
-  bulkDeleteLeads: async ({ leadIds = [], metaLeadIds = [] } = {}) => {
+  bulkDeleteLeads: async ({ leadIds = [], metaLeadIds = [], applyToAll = false, scope } = {}) => {
     return await request('/leads/bulk-delete', {
       method: 'POST',
-      body: JSON.stringify({ leadIds, metaLeadIds }),
+      body: JSON.stringify({ leadIds, metaLeadIds, applyToAll, scope }),
     })
   },
 

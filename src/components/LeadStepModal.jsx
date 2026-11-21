@@ -117,10 +117,46 @@ export default function LeadStepModal({
   const isFinancialLockedForSales =
     !isAdmin && hasPreviousFinancial && policy.allowSalesFinancialEdit === false
 
+  // Count prior interactions logged in the current cycle (excludes system/admin recycle entries)
+  const currentCycleInteractions = useMemo(() => {
+    const curCycle = lead.cycleNumber || 1
+    const allSteps = Array.isArray(lead.steps) ? lead.steps : []
+    const cycleSteps = allSteps.filter(
+      s =>
+        (s.cycleNumber || 1) === curCycle &&
+        s.selectedCategory !== 'admin_recycled' &&
+        s.selectedCategory !== 'auto_recycled'
+    )
+    if (cycleSteps.length > 0) return cycleSteps.length
+    if (curCycle === 1 && (lead.callAttempts || 0) > 0) return lead.callAttempts
+    return 0
+  }, [lead])
+
+  const requiresFirstInteractionStatuses = ['LOST', 'CONVERTED BUSINESS', 'ONBOARDED BUSINESS']
+  const irreversibleStatusesForSales = ['LOST', 'NON PROSPECT', 'CONVERTED BUSINESS', 'ONBOARDED BUSINESS']
+  const currentLeadStatus = lead.leadStatus || 'NEW LEAD'
+
+  const isCategoryLockedForSales = cat => {
+    if (isAdmin) return false
+    // Once Converted Business, only forward progression to Onboarded Business is allowed
+    if (currentLeadStatus === 'CONVERTED BUSINESS') {
+      return cat.leadStatus !== 'ONBOARDED BUSINESS'
+    }
+    // Once Lost, Non Prospect, or Onboarded Business -> fully irreversible by Sales
+    if (['LOST', 'NON PROSPECT', 'ONBOARDED BUSINESS'].includes(currentLeadStatus) || lead.isCycleEnded) {
+      return true
+    }
+    // Unlock LOST, CONVERTED BUSINESS, ONBOARDED BUSINESS only after 1st interaction
+    if (requiresFirstInteractionStatuses.includes(cat.leadStatus) && currentCycleInteractions === 0) {
+      return true
+    }
+    return false
+  }
+
   const isCycleLockedForSales =
     !isAdmin &&
-    Boolean(lead.isCycleEnded) &&
-    !(lead.leadStatus === 'CONVERTED BUSINESS' && targetStatus === 'ONBOARDED BUSINESS')
+    (Boolean(lead.isCycleEnded) || irreversibleStatusesForSales.includes(currentLeadStatus)) &&
+    !(currentLeadStatus === 'CONVERTED BUSINESS' && targetStatus === 'ONBOARDED BUSINESS')
 
   const handleProgramChange = newId => {
     setBusinessProgramId(newId)
@@ -137,6 +173,13 @@ export default function LeadStepModal({
     e.preventDefault()
     if (!selectedCategoryKey) {
       showNotify?.('error', 'Please select an interaction / outcome category.')
+      return
+    }
+    if (!isAdmin && selectedCatObj && isCategoryLockedForSales(selectedCatObj)) {
+      showNotify?.(
+        'error',
+        `${selectedCatObj.leadStatus} is locked until after the 1st interaction is logged.`
+      )
       return
     }
     if (showLostFields && !lostReason.trim()) {
@@ -156,6 +199,19 @@ export default function LeadStepModal({
         showNotify?.('error', 'Please enter Paid Amount (>= 0).')
         return
       }
+    }
+
+    // Sales Rep explicit confirmation prompts for irreversible actions
+    if (!isAdmin && targetStatus === 'LOST') {
+      const ok = window.confirm(
+        `Are you sure you want to mark "${lead.fullName}" as LOST?\n\nThis action cannot be reversed and the lead will be removed from your active queue.`
+      )
+      if (!ok) return
+    } else if (!isAdmin && ['CONVERTED BUSINESS', 'ONBOARDED BUSINESS', 'NON PROSPECT'].includes(targetStatus)) {
+      const ok = window.confirm(
+        `Confirm marking "${lead.fullName}" as ${targetStatus}?\n\nThis cannot be reversed once saved.`
+      )
+      if (!ok) return
     }
 
     setSaving(true)
@@ -386,15 +442,28 @@ export default function LeadStepModal({
                   <option value="">-- Choose outcome category --</option>
                   {Object.entries(groupedCategories).map(([groupName, items]) => (
                     <optgroup key={groupName} label={groupName}>
-                      {items.map(cat => (
-                        <option key={cat.key} value={cat.key}>
-                          {cat.label}
-                          {isAdmin && cat.heatTier ? ` [${cat.leadStatus} • ${cat.heatTier}]` : ''}
-                        </option>
-                      ))}
+                      {items.map(cat => {
+                        const locked = isCategoryLockedForSales(cat)
+                        const needsFirst =
+                          !isAdmin &&
+                          requiresFirstInteractionStatuses.includes(cat.leadStatus) &&
+                          currentCycleInteractions === 0
+                        return (
+                          <option key={cat.key} value={cat.key} disabled={locked}>
+                            {cat.label}
+                            {needsFirst ? ' (Unlocked after 1st interaction)' : ''}
+                            {isAdmin && cat.heatTier ? ` [${cat.leadStatus} • ${cat.heatTier}]` : ''}
+                          </option>
+                        )
+                      })}
                     </optgroup>
                   ))}
                 </select>
+                {!isAdmin && currentCycleInteractions === 0 && (
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                    Log the 1st interaction first to unlock Lost, Converted Business, and Onboarded Business options.
+                  </div>
+                )}
                 {selectedCatObj && (
                   <div style={{ fontSize: 11, color: '#475569', marginTop: 5 }}>
                     {isAdmin ? (

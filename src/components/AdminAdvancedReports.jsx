@@ -13,6 +13,8 @@ import {
   Users,
   Layers,
   History,
+  Trash2,
+  Sparkles,
 } from 'lucide-react'
 import { api } from '../api'
 import { formatINR, getStatusBadgeStyle, getHeatBadgeStyle } from '../constants/leadLifecycle'
@@ -50,10 +52,19 @@ export default function AdminAdvancedReports({
   const [heatLimit, setHeatLimit] = useState(30)
   const [recyclePage, setRecyclePage] = useState(1)
   const [recycleLimit, setRecycleLimit] = useState(30)
+  const [maxLostPage, setMaxLostPage] = useState(1)
+  const [maxLostLimit, setMaxLostLimit] = useState(30)
 
-  // Lost Recycle state
+  // Table 1 (Below Threshold Recyclable Lost) state
   const [selectedRecycleIds, setSelectedRecycleIds] = useState([])
-  const [recycleTargetRepId, setRecycleTargetRepId] = useState('')
+  const [selectAllRecyclable, setSelectAllRecyclable] = useState(false)
+  const [recycleDestination, setRecycleDestination] = useState('round-robin') // 'round-robin' | 'pool' | repId
+
+  // Table 2 (Max-Limit Exceeded Lost) state
+  const [selectedMaxLostIds, setSelectedMaxLostIds] = useState([])
+  const [selectAllMaxLost, setSelectAllMaxLost] = useState(false)
+  const [maxLostRecycleDest, setMaxLostRecycleDest] = useState('round-robin') // 'round-robin' | 'pool' | repId
+
   const [recycling, setRecycling] = useState(false)
 
   const loadReport = async () => {
@@ -69,6 +80,8 @@ export default function AdminAdvancedReports({
         limit: heatLimit,
         recyclePage,
         recycleLimit,
+        maxLostPage,
+        maxLostLimit,
       })
       setReport(res)
     } catch (err) {
@@ -80,21 +93,31 @@ export default function AdminAdvancedReports({
 
   useEffect(() => {
     loadReport()
-  }, [heatFilter, repFilter, fromDate, toDate, search, heatPage, heatLimit, recyclePage, recycleLimit])
+  }, [heatFilter, repFilter, fromDate, toDate, search, heatPage, heatLimit, recyclePage, recycleLimit, maxLostPage, maxLostLimit])
 
-  const handleRecycleSingle = async lead => {
-    const destName =
-      recycleTargetRepId
-        ? salesReps.find(r => String(r.id) === String(recycleTargetRepId))?.name || 'selected counselor'
-        : 'System Pool'
-    if (!window.confirm(`Recycle LOST lead "${lead.fullName}" (Cycle #${(lead.cycleNumber || 1) + 1}) into ${destName}?`)) {
+  const parseRecycleDest = dest => {
+    if (dest === 'round-robin') return { recycleMethod: 'round-robin', label: 'Auto Round-Robin' }
+    if (!dest || dest === 'pool') return { recycleMethod: 'pool', label: 'System Pool (Unassigned)' }
+    const rep = salesReps.find(r => String(r.id) === String(dest))
+    return { recycleMethod: 'specific', targetRepId: dest, label: rep?.name || 'Selected Counselor' }
+  }
+
+  const handleRecycleSingle = async (lead, destValue, force = false) => {
+    const { recycleMethod, targetRepId, label } = parseRecycleDest(destValue)
+    const actionLabel = force ? 'Admin Override Recycle' : 'Recycle'
+    if (
+      !window.confirm(
+        `${actionLabel} LOST lead "${lead.fullName}" (Cycle #${(lead.cycleNumber || 1) + 1}) via ${label}?`
+      )
+    ) {
       return
     }
     setRecycling(true)
     try {
-      const res = await api.recycleLead(lead.id, { targetRepId: recycleTargetRepId || undefined })
+      const res = await api.recycleLead(lead.id, { recycleMethod, targetRepId, force })
       showNotify?.('success', res.message || 'Lead recycled!')
       setSelectedRecycleIds(prev => prev.filter(id => id !== lead.id))
+      setSelectedMaxLostIds(prev => prev.filter(id => id !== lead.id))
       await loadReport()
       onRefreshParent?.()
     } catch (err) {
@@ -104,21 +127,91 @@ export default function AdminAdvancedReports({
     }
   }
 
-  const handleBulkRecycle = async () => {
-    if (selectedRecycleIds.length === 0) return
-    if (!window.confirm(`Recycle ${selectedRecycleIds.length} selected LOST lead(s)?`)) return
+  const handleBulkRecycle = async (scope = 'recyclable') => {
+    const isMaxScope = scope === 'max_lost'
+    const applyAll = isMaxScope ? selectAllMaxLost : selectAllRecyclable
+    const ids = isMaxScope ? selectedMaxLostIds : selectedRecycleIds
+    const destValue = isMaxScope ? maxLostRecycleDest : recycleDestination
+    const totalCount = isMaxScope
+      ? report?.lostCycleReport?.maxLostPagination?.total || 0
+      : report?.lostCycleReport?.pagination?.total || 0
+
+    if (!applyAll && ids.length === 0) return
+    const { recycleMethod, targetRepId, label } = parseRecycleDest(destValue)
+    const countText = applyAll ? `ENTIRE list (${totalCount} leads)` : `${ids.length} selected lead(s)`
+    if (
+      !window.confirm(
+        `${isMaxScope ? 'Admin Override Recycle' : 'Recycle'} ${countText} via ${label}?`
+      )
+    ) {
+      return
+    }
     setRecycling(true)
     try {
       const res = await api.bulkRecycleLeads({
-        leadIds: selectedRecycleIds,
-        targetRepId: recycleTargetRepId || undefined,
+        leadIds: applyAll ? [] : ids,
+        applyToAll: applyAll,
+        scope,
+        force: isMaxScope,
+        recycleMethod,
+        targetRepId,
       })
       showNotify?.('success', res.message || `Recycled ${res.recycledCount} lead(s)`)
-      setSelectedRecycleIds([])
+      if (isMaxScope) {
+        setSelectedMaxLostIds([])
+        setSelectAllMaxLost(false)
+      } else {
+        setSelectedRecycleIds([])
+        setSelectAllRecyclable(false)
+      }
       await loadReport()
       onRefreshParent?.()
     } catch (err) {
       showNotify?.('error', err.message || 'Bulk recycle failed')
+    } finally {
+      setRecycling(false)
+    }
+  }
+
+  const handleRemoveMaxLostSingle = async lead => {
+    if (!window.confirm(`Permanently remove "${lead.fullName}" from the CRM system?`)) return
+    setRecycling(true)
+    try {
+      const res = await api.deleteLead(lead.id)
+      showNotify?.('success', res.message || `Removed "${lead.fullName}" from system`)
+      setSelectedMaxLostIds(prev => prev.filter(id => id !== lead.id))
+      await loadReport()
+      onRefreshParent?.()
+    } catch (err) {
+      showNotify?.('error', err.message || 'Failed to remove lead')
+    } finally {
+      setRecycling(false)
+    }
+  }
+
+  const handleBulkRemoveMaxLost = async () => {
+    const totalCount = report?.lostCycleReport?.maxLostPagination?.total || 0
+    if (!selectAllMaxLost && selectedMaxLostIds.length === 0) return
+    const countText = selectAllMaxLost
+      ? `ENTIRE Max-Limit Lost list (${totalCount} leads)`
+      : `${selectedMaxLostIds.length} selected max-limit lead(s)`
+    if (!window.confirm(`Permanently REMOVE ${countText} from the CRM database? This cannot be undone.`)) {
+      return
+    }
+    setRecycling(true)
+    try {
+      const res = await api.bulkDeleteLeads(
+        selectAllMaxLost
+          ? { applyToAll: true, scope: 'max_lost' }
+          : { leadIds: selectedMaxLostIds }
+      )
+      showNotify?.('success', res.message || `Removed ${res.deletedCount} lead(s) from system`)
+      setSelectedMaxLostIds([])
+      setSelectAllMaxLost(false)
+      await loadReport()
+      onRefreshParent?.()
+    } catch (err) {
+      showNotify?.('error', err.message || 'Failed to remove leads')
     } finally {
       setRecycling(false)
     }
@@ -129,6 +222,7 @@ export default function AdminAdvancedReports({
   const heatRows = report?.heatTableRows || []
   const heatPagination = report?.heatPagination || { page: 1, limit: heatLimit, total: heatRows.length, totalPages: 1 }
   const recyclePagination = report?.lostCycleReport?.pagination || { page: 1, limit: recycleLimit, total: 0, totalPages: 1 }
+  const maxLostPagination = report?.lostCycleReport?.maxLostPagination || { page: 1, limit: maxLostLimit, total: 0, totalPages: 1 }
 
   // Donut chart percentages (SVG stroke-dasharray on radius 54 -> circumference ~339.29)
   const C = 2 * Math.PI * 54
@@ -713,32 +807,93 @@ export default function AdminAdvancedReports({
             </div>
           )}
 
-          {/* Recyclable Leads Queue */}
+          {/* TABLE 1: RECYCLABLE LOST BUSINESS (BELOW THRESHOLD) */}
           <div className="template-card">
             <div className="template-card-header" style={{ flexWrap: 'wrap', gap: 8 }}>
-              <h3>Recyclable Lost Leads Queue</h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div>
+                <h3 style={{ margin: 0 }}>
+                  Table 1: Lost Business — Recyclable (Below Max Limit: &lt; {report.lostCycleReport?.maxLostCycles} Cycles)
+                </h3>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <select
-                  value={recycleTargetRepId}
-                  onChange={e => setRecycleTargetRepId(e.target.value)}
-                  style={{ padding: '5px 8px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  value={recycleDestination}
+                  onChange={e => setRecycleDestination(e.target.value)}
+                  style={{ padding: '5px 8px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 600 }}
                 >
-                  <option value="">Recycle to: System Pool (Unassigned)</option>
+                  <option value="round-robin">Recycle via: ⚡ Auto Round-Robin</option>
+                  <option value="pool">Recycle to: System Pool (Unassigned)</option>
                   {salesReps.map(r => (
-                    <option key={r.id} value={r.id}>Recycle to: {r.name}</option>
+                    <option key={r.id} value={r.id}>Recycle to Counselor: {r.name}</option>
                   ))}
                 </select>
                 <button
                   type="button"
                   className="btn-pulse"
-                  disabled={selectedRecycleIds.length === 0 || recycling}
-                  onClick={handleBulkRecycle}
-                  style={{ fontSize: 12, padding: '5px 12px', opacity: selectedRecycleIds.length === 0 ? 0.5 : 1 }}
+                  disabled={(!selectAllRecyclable && selectedRecycleIds.length === 0) || recycling}
+                  onClick={() => handleBulkRecycle('recyclable')}
+                  style={{
+                    fontSize: 12,
+                    padding: '5px 12px',
+                    opacity: !selectAllRecyclable && selectedRecycleIds.length === 0 ? 0.5 : 1,
+                  }}
                 >
-                  <RotateCcw size={13} /> Recycle Selected ({selectedRecycleIds.length})
+                  <RotateCcw size={13} />{' '}
+                  {selectAllRecyclable
+                    ? `Recycle Entire List (${recyclePagination.total})`
+                    : `Recycle Selected (${selectedRecycleIds.length})`}
                 </button>
               </div>
             </div>
+            {recyclePagination.total > 0 && (
+              <div
+                style={{
+                  padding: '8px 16px',
+                  background: selectAllRecyclable ? '#eff6ff' : '#f8fafc',
+                  borderBottom: '1px solid #e2e8f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: 12,
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}
+              >
+                <span>
+                  {selectAllRecyclable ? (
+                    <strong>All {recyclePagination.total} recyclable Lost leads across all pages are selected.</strong>
+                  ) : (
+                    <span>
+                      Selected <strong>{selectedRecycleIds.length}</strong> on this page (Total in list: {recyclePagination.total})
+                    </span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectAllRecyclable) {
+                      setSelectAllRecyclable(false)
+                      setSelectedRecycleIds([])
+                    } else {
+                      setSelectAllRecyclable(true)
+                      setSelectedRecycleIds((report.lostCycleReport?.recyclableLeads || []).map(l => l.id))
+                    }
+                  }}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#0284c7',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                  }}
+                >
+                  {selectAllRecyclable
+                    ? 'Clear Entire-List Selection'
+                    : `Select Entire List (${recyclePagination.total} Leads)`}
+                </button>
+              </div>
+            )}
             <div className="template-card-body" style={{ padding: 0 }}>
               <div className="leads-table-container">
                 <table className="leads-table">
@@ -748,10 +903,12 @@ export default function AdminAdvancedReports({
                         <input
                           type="checkbox"
                           checked={
-                            (report.lostCycleReport?.recyclableLeads?.length || 0) > 0 &&
-                            report.lostCycleReport.recyclableLeads.every(l => selectedRecycleIds.includes(l.id))
+                            selectAllRecyclable ||
+                            ((report.lostCycleReport?.recyclableLeads?.length || 0) > 0 &&
+                              report.lostCycleReport.recyclableLeads.every(l => selectedRecycleIds.includes(l.id)))
                           }
                           onChange={e => {
+                            setSelectAllRecyclable(false)
                             if (e.target.checked) {
                               setSelectedRecycleIds(report.lostCycleReport.recyclableLeads.map(l => l.id))
                             } else {
@@ -763,7 +920,7 @@ export default function AdminAdvancedReports({
                       <th>Candidate</th>
                       <th>Lost Reason</th>
                       <th>Lost Cycle</th>
-                      <th>Previous Counselor</th>
+                      <th>Last Counselor</th>
                       <th>Steps</th>
                       <th>Action</th>
                     </tr>
@@ -772,7 +929,7 @@ export default function AdminAdvancedReports({
                     {(report.lostCycleReport?.recyclableLeads || []).length === 0 ? (
                       <tr>
                         <td colSpan={7} style={{ textAlign: 'center', padding: 28, color: '#64748b' }}>
-                          No recyclable LOST leads waiting in queue.
+                          No recyclable LOST leads waiting below threshold.
                         </td>
                       </tr>
                     ) : (
@@ -781,12 +938,13 @@ export default function AdminAdvancedReports({
                           <td>
                             <input
                               type="checkbox"
-                              checked={selectedRecycleIds.includes(l.id)}
-                              onChange={() =>
+                              checked={selectAllRecyclable || selectedRecycleIds.includes(l.id)}
+                              onChange={() => {
+                                setSelectAllRecyclable(false)
                                 setSelectedRecycleIds(prev =>
                                   prev.includes(l.id) ? prev.filter(id => id !== l.id) : [...prev, l.id]
                                 )
-                              }
+                              }}
                             />
                           </td>
                           <td>
@@ -797,14 +955,14 @@ export default function AdminAdvancedReports({
                           <td style={{ fontSize: 12, fontWeight: 700 }}>
                             {l.lostCycleCount} / {l.maxLostCycles}
                           </td>
-                          <td style={{ fontSize: 12 }}>{l.assignedTo?.repName || 'Unassigned'}</td>
+                          <td style={{ fontSize: 12 }}>{l.lastLostBy?.repName || l.assignedTo?.repName || 'Unassigned'}</td>
                           <td style={{ fontSize: 12 }}>{l.stepsCount}</td>
                           <td>
                             <button
                               type="button"
                               className="btn-pulse"
                               disabled={recycling}
-                              onClick={() => handleRecycleSingle(l)}
+                              onClick={() => handleRecycleSingle(l, recycleDestination, false)}
                               style={{ fontSize: 11, padding: '4px 10px' }}
                             >
                               <RotateCcw size={12} /> Recycle
@@ -839,6 +997,233 @@ export default function AdminAdvancedReports({
                     className="btn-pagination"
                     disabled={recyclePagination.page >= recyclePagination.totalPages || loading}
                     onClick={() => setRecyclePage(p => Math.min(recyclePagination.totalPages, p + 1))}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* TABLE 2: MAX-LIMIT REACHED LOST BUSINESS (SEPARATE TABLE WITH REMOVE + MANUAL OVERRIDE RECYCLE) */}
+          <div className="template-card" style={{ borderTop: '3px solid #991b1b' }}>
+            <div className="template-card-header" style={{ flexWrap: 'wrap', gap: 8 }}>
+              <h3 style={{ margin: 0, color: '#991b1b' }}>
+                Table 2: Max-Limit Lost Business (&ge; {report.lostCycleReport?.maxLostCycles} Cycles Reached)
+              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <select
+                  value={maxLostRecycleDest}
+                  onChange={e => setMaxLostRecycleDest(e.target.value)}
+                  style={{ padding: '5px 8px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 600 }}
+                >
+                  <option value="round-robin">Override Recycle via: ⚡ Auto Round-Robin</option>
+                  <option value="pool">Override Recycle to: System Pool</option>
+                  {salesReps.map(r => (
+                    <option key={r.id} value={r.id}>Override Recycle to: {r.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="btn-pulse"
+                  disabled={(!selectAllMaxLost && selectedMaxLostIds.length === 0) || recycling}
+                  onClick={() => handleBulkRecycle('max_lost')}
+                  style={{
+                    fontSize: 12,
+                    padding: '5px 12px',
+                    opacity: !selectAllMaxLost && selectedMaxLostIds.length === 0 ? 0.5 : 1,
+                  }}
+                >
+                  <RotateCcw size={13} />{' '}
+                  {selectAllMaxLost
+                    ? `Override Recycle All (${maxLostPagination.total})`
+                    : `Manual Recycle (${selectedMaxLostIds.length})`}
+                </button>
+                <button
+                  type="button"
+                  className="btn-pulse-danger"
+                  disabled={(!selectAllMaxLost && selectedMaxLostIds.length === 0) || recycling}
+                  onClick={handleBulkRemoveMaxLost}
+                  style={{
+                    fontSize: 12,
+                    padding: '5px 12px',
+                    opacity: !selectAllMaxLost && selectedMaxLostIds.length === 0 ? 0.5 : 1,
+                  }}
+                >
+                  <Trash2 size={13} />{' '}
+                  {selectAllMaxLost
+                    ? `Remove Entire List (${maxLostPagination.total})`
+                    : `Remove Selected (${selectedMaxLostIds.length})`}
+                </button>
+              </div>
+            </div>
+            {maxLostPagination.total > 0 && (
+              <div
+                style={{
+                  padding: '8px 16px',
+                  background: selectAllMaxLost ? '#fef2f2' : '#f8fafc',
+                  borderBottom: '1px solid #e2e8f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: 12,
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}
+              >
+                <span>
+                  {selectAllMaxLost ? (
+                    <strong style={{ color: '#991b1b' }}>
+                      All {maxLostPagination.total} max-limit Lost leads across all pages are selected.
+                    </strong>
+                  ) : (
+                    <span>
+                      Selected <strong>{selectedMaxLostIds.length}</strong> on this page (Total at/above limit: {maxLostPagination.total})
+                    </span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectAllMaxLost) {
+                      setSelectAllMaxLost(false)
+                      setSelectedMaxLostIds([])
+                    } else {
+                      setSelectAllMaxLost(true)
+                      setSelectedMaxLostIds((report.lostCycleReport?.maxLostLeads || []).map(l => l.id))
+                    }
+                  }}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#dc2626',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                  }}
+                >
+                  {selectAllMaxLost
+                    ? 'Clear Entire-List Selection'
+                    : `Select Entire List (${maxLostPagination.total} Leads)`}
+                </button>
+              </div>
+            )}
+            <div className="template-card-body" style={{ padding: 0 }}>
+              <div className="leads-table-container">
+                <table className="leads-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 38 }}>
+                        <input
+                          type="checkbox"
+                          checked={
+                            selectAllMaxLost ||
+                            ((report.lostCycleReport?.maxLostLeads?.length || 0) > 0 &&
+                              report.lostCycleReport.maxLostLeads.every(l => selectedMaxLostIds.includes(l.id)))
+                          }
+                          onChange={e => {
+                            setSelectAllMaxLost(false)
+                            if (e.target.checked) {
+                              setSelectedMaxLostIds(report.lostCycleReport.maxLostLeads.map(l => l.id))
+                            } else {
+                              setSelectedMaxLostIds([])
+                            }
+                          }}
+                        />
+                      </th>
+                      <th>Candidate</th>
+                      <th>Lost Reason</th>
+                      <th>Lost Cycles</th>
+                      <th>Last Counselor</th>
+                      <th>Steps</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(report.lostCycleReport?.maxLostLeads || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ textAlign: 'center', padding: 28, color: '#64748b' }}>
+                          No leads have reached the maximum Lost cycle limit yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      report.lostCycleReport.maxLostLeads.map(l => (
+                        <tr key={l.id}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={selectAllMaxLost || selectedMaxLostIds.includes(l.id)}
+                              onChange={() => {
+                                setSelectAllMaxLost(false)
+                                setSelectedMaxLostIds(prev =>
+                                  prev.includes(l.id) ? prev.filter(id => id !== l.id) : [...prev, l.id]
+                                )
+                              }}
+                            />
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 700 }}>{l.fullName}</div>
+                            <div style={{ fontSize: 11, color: '#64748b' }}>{l.phone}</div>
+                          </td>
+                          <td style={{ fontSize: 12, color: '#991b1b', fontWeight: 600 }}>{l.lostReason}</td>
+                          <td style={{ fontSize: 12, fontWeight: 800, color: '#dc2626' }}>
+                            {l.lostCycleCount} / {l.maxLostCycles} (Max)
+                          </td>
+                          <td style={{ fontSize: 12 }}>{l.lastLostBy?.repName || l.assignedTo?.repName || 'Unassigned'}</td>
+                          <td style={{ fontSize: 12 }}>{l.stepsCount}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                className="btn-pulse"
+                                disabled={recycling}
+                                onClick={() => handleRecycleSingle(l, maxLostRecycleDest, true)}
+                                style={{ fontSize: 11, padding: '4px 9px' }}
+                                title="Admin override: manually recycle despite max limit"
+                              >
+                                <RotateCcw size={12} /> Manual Recycle
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-pulse-danger"
+                                disabled={recycling}
+                                onClick={() => handleRemoveMaxLostSingle(l)}
+                                style={{ fontSize: 11, padding: '4px 9px' }}
+                                title="Permanently remove lead from CRM system"
+                              >
+                                <Trash2 size={12} /> Remove
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="pagination-container">
+                <div>
+                  Showing{' '}
+                  <strong>
+                    {maxLostPagination.total === 0 ? 0 : (maxLostPagination.page - 1) * maxLostPagination.limit + 1} -{' '}
+                    {Math.min(maxLostPagination.page * maxLostPagination.limit, maxLostPagination.total)}
+                  </strong>{' '}
+                  of <strong>{maxLostPagination.total}</strong> max-limit leads (Page {maxLostPagination.page} of {maxLostPagination.totalPages})
+                </div>
+                <div className="pagination-controls">
+                  <button
+                    type="button"
+                    className="btn-pagination"
+                    disabled={maxLostPagination.page <= 1 || loading}
+                    onClick={() => setMaxLostPage(p => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-pagination"
+                    disabled={maxLostPagination.page >= maxLostPagination.totalPages || loading}
+                    onClick={() => setMaxLostPage(p => Math.min(maxLostPagination.totalPages, p + 1))}
                   >
                     Next
                   </button>
