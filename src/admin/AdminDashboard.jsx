@@ -1813,7 +1813,7 @@ export default function AdminDashboard({ user, onLogout }) {
                             <th>Preferred Location</th>
                             <th>Mode / Role</th>
                             <th>Campaign / Platform</th>
-                            <th>Direct Assign / Remove</th>
+                            <th style={{ width: 90, textAlign: 'center' }}>Action</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1872,44 +1872,29 @@ export default function AdminDashboard({ user, onLogout }) {
                                     {lead.campaignName}
                                   </div>
                                 </td>
-                                <td>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <select
-                                      onChange={e => {
-                                        if (e.target.value) {
-                                          api.assignLeads([lead.id], e.target.value).then(() => {
-                                            showNotify('success', `Assigned ${lead.fullName}`)
-                                            loadOverviewData()
-                                          })
-                                        }
-                                      }}
-                                      defaultValue=""
-                                      style={{ padding: '5px 8px', fontSize: 12, borderRadius: 4, border: '1px solid #cbd5e1' }}
-                                    >
-                                      <option value="" disabled>Assign to...</option>
-                                      {salesReps.map(r => (
-                                        <option key={r.id} value={r.id}>{r.name}</option>
-                                      ))}
-                                    </select>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteLead(lead)}
-                                      disabled={deletingLeads}
-                                      title="Remove lead from System Pool"
-                                      style={{
-                                        padding: '5px 7px',
-                                        borderRadius: 4,
-                                        border: '1px solid #fecaca',
-                                        background: '#fef2f2',
-                                        color: '#dc2626',
-                                        cursor: deletingLeads ? 'not-allowed' : 'pointer',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                      }}
-                                    >
-                                      <Trash2 size={13} />
-                                    </button>
-                                  </div>
+                                <td style={{ textAlign: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteLead(lead)}
+                                    disabled={deletingLeads}
+                                    title="Remove lead from System Pool"
+                                    style={{
+                                      padding: '5px 9px',
+                                      borderRadius: 4,
+                                      border: '1px solid #fecaca',
+                                      background: '#fef2f2',
+                                      color: '#dc2626',
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      cursor: deletingLeads ? 'not-allowed' : 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                    }}
+                                  >
+                                    <Trash2 size={13} />
+                                    <span>Remove</span>
+                                  </button>
                                 </td>
                               </tr>
                             )
