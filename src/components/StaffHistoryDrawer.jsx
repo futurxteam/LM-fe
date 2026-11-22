@@ -496,23 +496,34 @@ export default function StaffHistoryDrawer({
                                     </div>
                                   ) : notes.length > 0 ? (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                      {notes.map((n, idx) => (
-                                        <div
-                                          key={idx}
-                                          style={{
-                                            background: '#ffffff',
-                                            border: '1px solid #e2e8f0',
-                                            borderRadius: 6,
-                                            padding: '7px 10px',
-                                            fontSize: 12,
-                                          }}
-                                        >
-                                          <div style={{ color: '#0f172a' }}>{n.text}</div>
-                                          <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>
-                                            {n.author || 'System'} • {n.timestamp ? new Date(n.timestamp).toLocaleString() : ''}
+                                      {notes.map((n, idx) => {
+                                        const displayAuthor =
+                                          n.author === 'Meta Real-Time Allocation Engine'
+                                            ? 'Live Lead from Meta'
+                                            : n.author || 'System'
+                                        const displayText = String(n.text || '').replace(
+                                          /^Live Webhook Ingestion:\s*(Automatically assigned to Counselor\s*)?/i,
+                                          (_, matchedAssign) =>
+                                            matchedAssign ? 'Live Lead from Meta — Assigned to ' : 'Live Lead from Meta — '
+                                        )
+                                        return (
+                                          <div
+                                            key={idx}
+                                            style={{
+                                              background: '#ffffff',
+                                              border: '1px solid #e2e8f0',
+                                              borderRadius: 6,
+                                              padding: '7px 10px',
+                                              fontSize: 12,
+                                            }}
+                                          >
+                                            <div style={{ color: '#0f172a' }}>{displayText}</div>
+                                            <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>
+                                              {displayAuthor} • {n.timestamp ? new Date(n.timestamp).toLocaleString() : ''}
+                                            </div>
                                           </div>
-                                        </div>
-                                      ))}
+                                        )
+                                      })}
                                     </div>
                                   ) : (
                                     <div style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic' }}>

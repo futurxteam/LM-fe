@@ -473,20 +473,20 @@ export default function SalesDashboard({ user, onLogout }) {
 
           {/* Action Table Header Bar */}
           <div className="pool-action-bar">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 260 }}>
-              <Search size={16} color="#94a3b8" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, width: '100%' }}>
+              <Search size={16} color="#94a3b8" style={{ flexShrink: 0 }} />
               <input
                 type="text"
-                placeholder="Search leads by name, ID, phone number, or email..."
+                placeholder="Search leads by name, ID, phone or email..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                style={{ border: 'none', outline: 'none', width: '100%', fontSize: 13 }}
+                style={{ border: 'none', outline: 'none', width: '100%', minWidth: 0, fontSize: 13 }}
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'inline-flex' }}
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'inline-flex', flexShrink: 0 }}
                   title="Clear search"
                 >
                   <X size={14} />
@@ -494,7 +494,7 @@ export default function SalesDashboard({ user, onLogout }) {
               )}
             </div>
 
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {['All', 'Not Contacted', 'Contacted'].map(st => (
                 <button
                   key={st}
@@ -534,7 +534,167 @@ export default function SalesDashboard({ user, onLogout }) {
                   <p style={{ fontWeight: 600 }}>No leads matching this filter.</p>
                 </div>
               ) : (
-                <div className="leads-table-container">
+                <>
+                {/* MOBILE-FIRST CARD QUEUE (Zero horizontal scroll, thumb-friendly 1-tap actions) */}
+                <div className="sales-mobile-cards">
+                  {filteredLeads.map(lead => {
+                    const cleanPhone = (lead.phone || '').replace(/\D/g, '')
+                    const waMsg = encodeURIComponent(
+                      `Hello ${lead.fullName}, this is ${user?.name || 'Counselor'} regarding your inquiry for our ${lead.courseProgram || 'Healthcare Management'} program. Are you available for a brief discussion?`
+                    )
+                    const canEditLead = isLeadAssignedToMe(lead)
+                    return (
+                      <div key={lead.id} className="sales-lead-card">
+                        {/* Card Top Row: Name + Status Pill */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div
+                              onClick={() => setActiveStudentModal(lead)}
+                              style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', cursor: 'pointer', wordBreak: 'break-word' }}
+                            >
+                              {lead.fullName}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 3 }}>
+                              <a
+                                href={`tel:${lead.phone}`}
+                                style={{ fontSize: 13, color: '#0369a1', fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                              >
+                                <Phone size={12} />
+                                <span>{lead.phone}</span>
+                              </a>
+                              <span style={{ fontSize: 11, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                <Clock size={11} color="#0284c7" />
+                                {formatArrivalTime(lead.createdTime || lead.createdAt)}
+                              </span>
+                            </div>
+                            {lead.email && (
+                              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, wordBreak: 'break-all' }}>
+                                {lead.email}
+                              </div>
+                            )}
+                          </div>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              padding: '3px 9px',
+                              borderRadius: 12,
+                              background: lead.isCycleEnded ? '#1e293b' : '#f1f5f9',
+                              color: lead.isCycleEnded ? '#ffffff' : '#334155',
+                              border: '1px solid #cbd5e1',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {getSalesDisplayStatus(lead)}
+                          </span>
+                        </div>
+
+                        {/* Course Enquired & Metadata Pills */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 11 }}>
+                          <span
+                            style={{
+                              background: '#e0f2fe',
+                              color: '#0369a1',
+                              fontWeight: 700,
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                          >
+                            <GraduationCap size={12} />
+                            <span>
+                              {lead.courseProgram || lead.businessProgramName || 'Not Specified'}
+                              {(lead.courseVariant || lead.businessProgramVariant)
+                                ? ` • ${lead.courseVariant || lead.businessProgramVariant}`
+                                : ''}
+                            </span>
+                          </span>
+                          {lead.qualification && (
+                            <span style={{ background: '#f1f5f9', color: '#334155', fontWeight: 600, padding: '3px 8px', borderRadius: 6 }}>
+                              {lead.qualification}
+                            </span>
+                          )}
+                          {lead.preferredLocation && lead.preferredLocation !== 'Not Specified' && (
+                            <span style={{ background: '#f1f5f9', color: '#475569', padding: '3px 8px', borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                              <MapPin size={11} />
+                              <span>{lead.preferredLocation}</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Sub-status & Counters */}
+                        <div style={{ fontSize: 12, color: '#475569', background: '#f8fafc', padding: '7px 10px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                          <div style={{ fontWeight: 600, color: '#1e293b' }}>
+                            {lead.selectedCategoryLabel || lead.subStatus || 'Pending First Call'}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+                            <span>Steps: <strong>{lead.steps?.length || 0}</strong> • Calls: <strong>{lead.callAttempts || 0}</strong></span>
+                            {lead.callbackAt && (
+                              <span style={{ color: '#ea580c', fontWeight: 700 }}>
+                                Callback: {new Date(lead.callbackAt).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 1-Tap Thumb-Friendly Action Buttons */}
+                        <div className="sales-lead-card-actions">
+                          <a
+                            href={`tel:${lead.phone}`}
+                            onClick={() => quickMarkStatus(lead, lead.status, 'Call Initiated')}
+                            className="sales-lead-card-btn"
+                            style={{ background: '#0284c7', color: '#ffffff' }}
+                          >
+                            <PhoneCall size={15} />
+                            <span>Call Now</span>
+                          </a>
+                          <a
+                            href={`https://wa.me/${cleanPhone}?text=${waMsg}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="sales-lead-card-btn"
+                            style={{ background: '#25D366', color: '#ffffff' }}
+                          >
+                            <MessageCircle size={15} />
+                            <span>WhatsApp</span>
+                          </a>
+                          {canEditLead ? (
+                            <>
+                              <button
+                                type="button"
+                                className="sales-lead-card-btn"
+                                onClick={() => setActiveStepLead(lead)}
+                                style={{ background: '#1b2b6b', color: '#ffffff' }}
+                              >
+                                <Plus size={15} />
+                                <span>Log Step</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="sales-lead-card-btn"
+                                onClick={() => setActiveStudentModal(lead)}
+                                style={{ background: '#f1f5f9', color: '#1e293b', border: '1px solid #cbd5e1' }}
+                              >
+                                <User size={15} />
+                                <span>Profile</span>
+                              </button>
+                            </>
+                          ) : (
+                            <div style={{ gridColumn: '1 / -1', textAlign: 'center', fontSize: 11, color: '#64748b', padding: '4px 0' }}>
+                              Assigned to {lead.assignedTo?.repName || 'Other'} (Read-Only)
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* DESKTOP TABLE VIEW */}
+                <div className="leads-table-container sales-desktop-table">
                   <table className="leads-table">
                     <thead>
                       <tr>
@@ -711,6 +871,7 @@ export default function SalesDashboard({ user, onLogout }) {
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
               {totalLeadsCount > 0 && (
                 <div className="pagination-container">
@@ -747,6 +908,44 @@ export default function SalesDashboard({ user, onLogout }) {
           )}
         </div>
       </main>
+
+      {/* Mobile Sticky Bottom Navigation for Sales Counselors */}
+      <nav className="sales-mobile-bottom-nav" aria-label="Mobile navigation">
+        <button
+          type="button"
+          className={`sales-bottom-nav-btn ${!isTeamView && !isReportsView ? 'active' : ''}`}
+          onClick={() => navigate('/queue')}
+        >
+          <LayoutDashboard size={18} />
+          <span>My Queue</span>
+        </button>
+        <button
+          type="button"
+          className={`sales-bottom-nav-btn ${isReportsView ? 'active' : ''}`}
+          onClick={() => navigate('/reports')}
+        >
+          <BarChart3 size={18} />
+          <span>Reports</span>
+        </button>
+        {user?.isGroupManager && (
+          <button
+            type="button"
+            className={`sales-bottom-nav-btn ${isTeamView ? 'active' : ''}`}
+            onClick={() => navigate('/team')}
+          >
+            <Users size={18} />
+            <span>Team</span>
+          </button>
+        )}
+        <button
+          type="button"
+          className="sales-bottom-nav-btn"
+          onClick={() => setMobileMenuOpen(true)}
+        >
+          <Menu size={18} />
+          <span>Menu</span>
+        </button>
+      </nav>
 
       {/* ========================================================
           MODAL: LOG CALL & INTERACTION OUTCOME

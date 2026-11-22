@@ -183,8 +183,16 @@ export default function StudentProfileModal({
     }
   }
 
-  // Quick Action: Mark Completed (Transferred as Student - frees pool capacity!)
+  // Quick Action (Admin-Only): Mark Completed (Student Enrolled) with confirmation
+  const isAdmin = currentUser?.role === 'admin'
+
   const handleMarkCompleted = async () => {
+    if (!isAdmin) return
+    const confirmed = window.confirm(
+      `Confirm marking "${lead.fullName}" as Completed (Student Enrolled)?`
+    )
+    if (!confirmed) return
+
     setSaving(true)
     try {
       const res = await api.updateLeadProfile(lead.id, {
@@ -192,7 +200,7 @@ export default function StudentProfileModal({
         isDropped: false,
         status: 'Contacted',
         subStatus: 'Student Enrolled (Completed)',
-        author: currentUser?.name || 'Counselor',
+        author: currentUser?.name || 'Admin',
       })
       showNotify?.('success', `${lead.fullName} marked as Completed & Transferred as Student! Pool space freed.`)
       setIsEditing(false)
@@ -204,10 +212,16 @@ export default function StudentProfileModal({
     }
   }
 
-  // Quick Action: Mark Dropped (Lead Lost / Not interested - frees pool capacity!)
+  // Quick Action (Admin-Only): Mark Dropped (Lead Lost) with confirmation
   const handleMarkDropped = async () => {
+    if (!isAdmin) return
     const reason = prompt('Please enter reason for dropping lead (optional):', 'Not interested / unreachable')
     if (reason === null) return // cancelled
+
+    const confirmed = window.confirm(
+      `Confirm marking "${lead.fullName}" as Dropped (Lead Lost)?${reason.trim() ? `\n\nReason: ${reason.trim()}` : ''}`
+    )
+    if (!confirmed) return
 
     setSaving(true)
     try {
@@ -217,7 +231,7 @@ export default function StudentProfileModal({
         droppedReason: reason || 'Lead Lost / Dropped',
         status: 'Contacted',
         subStatus: 'Dropped (Lead Lost)',
-        author: currentUser?.name || 'Counselor',
+        author: currentUser?.name || 'Admin',
       })
       showNotify?.('success', `${lead.fullName} marked as Dropped. Pool space freed.`)
       setIsEditing(false)
@@ -327,56 +341,58 @@ export default function StudentProfileModal({
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {!lead.isCompleted && (
-              <button
-                type="button"
-                onClick={handleMarkCompleted}
-                disabled={saving}
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: '5px 11px',
-                  borderRadius: 6,
-                  border: '1px solid #86efac',
-                  background: '#dcfce7',
-                  color: '#15803d',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                }}
-                title="Mark this lead as officially transferred and enrolled as a student. This frees up counselor pool space!"
-              >
-                <CheckCircle size={13} />
-                <span>Mark Completed (Student Enrolled)</span>
-              </button>
-            )}
-            {!lead.isDropped && (
-              <button
-                type="button"
-                onClick={handleMarkDropped}
-                disabled={saving}
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: '5px 11px',
-                  borderRadius: 6,
-                  border: '1px solid #fca5a5',
-                  background: '#fee2e2',
-                  color: '#b91c1c',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                }}
-                title="Mark this lead as lost/dropped. This frees up counselor pool space!"
-              >
-                <XCircle size={13} />
-                <span>Mark Dropped (Lead Lost)</span>
-              </button>
-            )}
-          </div>
+          {isAdmin && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {!lead.isCompleted && (
+                <button
+                  type="button"
+                  onClick={handleMarkCompleted}
+                  disabled={saving}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '5px 11px',
+                    borderRadius: 6,
+                    border: '1px solid #86efac',
+                    background: '#dcfce7',
+                    color: '#15803d',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}
+                  title="Mark this lead as officially transferred and enrolled as a student. This frees up counselor pool space!"
+                >
+                  <CheckCircle size={13} />
+                  <span>Mark Completed (Student Enrolled)</span>
+                </button>
+              )}
+              {!lead.isDropped && (
+                <button
+                  type="button"
+                  onClick={handleMarkDropped}
+                  disabled={saving}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '5px 11px',
+                    borderRadius: 6,
+                    border: '1px solid #fca5a5',
+                    background: '#fee2e2',
+                    color: '#b91c1c',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}
+                  title="Mark this lead as lost/dropped. This frees up counselor pool space!"
+                >
+                  <XCircle size={13} />
+                  <span>Mark Dropped (Lead Lost)</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="modal-body" style={{ padding: '18px 20px' }}>
@@ -443,7 +459,7 @@ export default function StudentProfileModal({
                 </div>
 
                 {/* Row 2: Qualification & Age */}
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
+                <div className="responsive-grid-2" style={{ marginBottom: 12 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                       QUALIFICATION
@@ -479,7 +495,7 @@ export default function StudentProfileModal({
                 </div>
 
                 {/* Row 3: State & District */}
-                <div style={{ display: 'grid', gridTemplateColumns: state === 'Other' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                <div className={state === 'Other' ? 'responsive-grid-3' : 'responsive-grid-2'} style={{ marginBottom: 12 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                       STATE
@@ -549,7 +565,7 @@ export default function StudentProfileModal({
                 </div>
 
                 {/* Row 4: Inquired Course Program & Conditional Course Variant */}
-                <div style={{ display: 'grid', gridTemplateColumns: courseProgram === 'Healthcare Management' ? '1fr 1fr' : '1fr', gap: 12, marginBottom: 12 }}>
+                <div className={courseProgram === 'Healthcare Management' ? 'responsive-grid-2' : undefined} style={{ display: 'grid', gap: 12, marginBottom: 12 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                       INQUIRED COURSE PROGRAM
@@ -670,7 +686,7 @@ export default function StudentProfileModal({
           {/* ========================================================
               SECTION 2: SUMMARY VIEW OF STUDENT PROFILE
               ======================================================== */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 16 }}>
+          <div className="responsive-grid-2" style={{ marginBottom: 16 }}>
             <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6, border: '1px solid #e2e8f0' }}>
               <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>CONTACT & PHONE</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{phone || 'N/A'}</div>
@@ -718,15 +734,26 @@ export default function StudentProfileModal({
             </div>
             <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 6, padding: 10, background: '#fff' }}>
               {lead.notes && lead.notes.length > 0 ? (
-                lead.notes.map((note, i) => (
-                  <div key={i} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 8, marginBottom: 8, fontSize: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: 11, marginBottom: 2 }}>
-                      <strong>{note.author}</strong>
-                      <span>{new Date(note.timestamp).toLocaleString()}</span>
+                lead.notes.map((note, i) => {
+                  const displayAuthor =
+                    note.author === 'Meta Real-Time Allocation Engine'
+                      ? 'Live Lead from Meta'
+                      : note.author
+                  const displayText = String(note.text || '').replace(
+                    /^Live Webhook Ingestion:\s*(Automatically assigned to Counselor\s*)?/i,
+                    (_, matchedAssign) =>
+                      matchedAssign ? 'Live Lead from Meta — Assigned to ' : 'Live Lead from Meta — '
+                  )
+                  return (
+                    <div key={i} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 8, marginBottom: 8, fontSize: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: 11, marginBottom: 2 }}>
+                        <strong>{displayAuthor}</strong>
+                        <span>{new Date(note.timestamp).toLocaleString()}</span>
+                      </div>
+                      <div style={{ color: '#1e293b' }}>{displayText}</div>
                     </div>
-                    <div style={{ color: '#1e293b' }}>{note.text}</div>
-                  </div>
-                ))
+                  )
+                })
               ) : (
                 <div style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', padding: 10 }}>No activity recorded yet.</div>
               )}

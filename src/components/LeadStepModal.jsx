@@ -712,7 +712,7 @@ export default function LeadStepModal({
                     </div>
                   )}
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div className="responsive-grid-2" style={{ marginBottom: 10 }}>
                     <div>
                       <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#14532d', marginBottom: 4 }}>
                         COURSE PROGRAM (APPROVED MASTER) *
@@ -776,7 +776,7 @@ export default function LeadStepModal({
                     )}
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="responsive-grid-2">
                     <div>
                       <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#14532d', marginBottom: 4 }}>
                         COURSE FEES (₹ BUSINESS VALUE) *
@@ -881,7 +881,7 @@ export default function LeadStepModal({
                     )}
 
                     {!isFinancialLockedForSales && (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                      <div className="responsive-grid-3">
                         <input
                           type="number"
                           min="0"

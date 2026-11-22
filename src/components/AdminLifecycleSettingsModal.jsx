@@ -250,7 +250,7 @@ export default function AdminLifecycleSettingsModal({
         </div>
 
         {/* Sub-tabs */}
-        <div style={{ display: 'flex', gap: 8, padding: '10px 18px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+        <div className="modal-subtabs-bar">
           {[
             { id: 'policy', label: 'Lost Cycles & Business Rules' },
             { id: 'programs', label: `Course & Fee Structure (${programs.length})` },
@@ -286,7 +286,7 @@ export default function AdminLifecycleSettingsModal({
                 <div style={{ fontWeight: 700, fontSize: 13, color: '#0f172a', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <RotateCcw size={15} color="#0284c7" /> Lost Lead Recycling Configuration
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="responsive-grid-2">
                   <div>
                     <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                       MAX LOST CYCLES BEFORE PERMANENT CLOSE
@@ -369,10 +369,8 @@ export default function AdminLifecycleSettingsModal({
             <div>
               <form
                 onSubmit={handleAddProgram}
+                className="program-add-form"
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1.5fr 0.7fr 1.5fr 0.8fr auto',
-                  gap: 8,
                   marginBottom: 16,
                   padding: 12,
                   background: '#f8fafc',
@@ -410,11 +408,12 @@ export default function AdminLifecycleSettingsModal({
                   onChange={e => setNewProgFee(e.target.value)}
                   style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
                 />
-                <button type="submit" className="btn-pulse" disabled={saving} style={{ fontSize: 12, padding: '6px 12px' }}>
+                <button type="submit" className="btn-pulse" disabled={saving} style={{ fontSize: 12, padding: '7px 12px', whiteSpace: 'nowrap' }}>
                   <Plus size={14} /> Add
                 </button>
               </form>
 
+              <div className="leads-table-container">
               <table className="leads-table" style={{ width: '100%' }}>
                 <thead>
                   <tr>
@@ -635,15 +634,14 @@ export default function AdminLifecycleSettingsModal({
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           ) : (
             <div>
               <form
                 onSubmit={handleAddCategory}
+                className="category-add-form"
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1.8fr 1.2fr 1.2fr auto',
-                  gap: 8,
                   marginBottom: 14,
                   padding: 12,
                   background: '#f8fafc',

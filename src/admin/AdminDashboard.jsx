@@ -5417,10 +5417,10 @@ export default function AdminDashboard({ user, onLogout }) {
                   {editingUser ? <Edit2 size={19} /> : <UserPlus size={19} />}
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#ffffff' }}>
                     {editingUser ? 'Edit Staff Member' : 'Add New Advisor / User'}
                   </h3>
-                  <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+                  <p style={{ margin: 0, fontSize: 12, color: '#cbd5e1' }}>
                     {editingUser
                       ? `Updating details for ${editingUser.name}`
                       : 'Set up login credentials, role, and specialty focus'}
@@ -5495,7 +5495,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 6 }}>
                     Role & Permissions <span style={{ color: '#ef4444' }}>*</span>
                   </label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="responsive-grid-2">
                     <div
                       onClick={() => setUserFormData({ ...userFormData, role: 'sales', title: userFormData.title || 'Admissions Counselor' })}
                       style={{
@@ -5557,7 +5557,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 </div>
 
                 {/* Job Title & Specialty Territory */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="responsive-grid-2">
                   <div>
                     <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 6 }}>
                       Designation / Job Title
