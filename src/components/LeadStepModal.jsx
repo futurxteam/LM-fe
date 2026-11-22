@@ -70,6 +70,7 @@ export default function LeadStepModal({
   const [receiptNote, setReceiptNote] = useState('')
   const [addingReceipt, setAddingReceipt] = useState(false)
   const [adminException, setAdminException] = useState(false)
+  const [showAllForAdmin, setShowAllForAdmin] = useState(false)
   const [note, setNote] = useState('')
   const [callbackAt, setCallbackAt] = useState('')
   const [activeSection, setActiveSection] = useState('step') // 'step' | 'timeline'
@@ -93,13 +94,70 @@ export default function LeadStepModal({
     setReceiptRef('')
     setReceiptNote('')
     setAdminException(false)
+    setShowAllForAdmin(false)
     setNote('')
     setCallbackAt('')
   }, [leadKey])
 
+  // Count prior interactions logged in the current cycle (excludes system/admin recycle entries)
+  const currentCycleInteractions = useMemo(() => {
+    const curCycle = lead.cycleNumber || 1
+    const allSteps = Array.isArray(lead.steps) ? lead.steps : []
+    const cycleSteps = allSteps.filter(
+      s =>
+        (s.cycleNumber || 1) === curCycle &&
+        s.selectedCategory !== 'admin_recycled' &&
+        s.selectedCategory !== 'auto_recycled'
+    )
+    if (cycleSteps.length > 0) return cycleSteps.length
+    if (curCycle === 1 && (lead.callAttempts || 0) > 0) return lead.callAttempts
+    return 0
+  }, [lead])
+
+  const requiresFirstInteractionStatuses = ['LOST', 'CONVERTED BUSINESS', 'ONBOARDED BUSINESS']
+  const irreversibleStatusesForSales = ['LOST', 'NON PROSPECT', 'CONVERTED BUSINESS', 'ONBOARDED BUSINESS']
+  const currentLeadStatus = lead.leadStatus || 'NEW LEAD'
+
+  // Stage-aware Decision Tree: filter dropdown to only relevant next options for the current status
+  const allowedStatusesForStage = useMemo(() => {
+    if (isAdmin && showAllForAdmin) return null
+    switch (currentLeadStatus) {
+      case 'NEW LEAD':
+        return isAdmin
+          ? ['HOT', 'WARM', 'COLD', 'NON-CONNECT', 'NON PROSPECT', 'QUALIFIED BUSINESS', 'CONVERTED BUSINESS', 'ONBOARDED BUSINESS', 'LOST']
+          : ['HOT', 'WARM', 'COLD', 'NON-CONNECT', 'NON PROSPECT', 'QUALIFIED BUSINESS']
+      case 'NON-CONNECT':
+        return isAdmin || currentCycleInteractions > 0
+          ? ['NON-CONNECT', 'HOT', 'WARM', 'COLD', 'NON PROSPECT', 'LOST', 'QUALIFIED BUSINESS']
+          : ['NON-CONNECT', 'HOT', 'WARM', 'COLD', 'NON PROSPECT', 'QUALIFIED BUSINESS']
+      case 'HOT':
+      case 'WARM':
+      case 'COLD':
+        return isAdmin || currentCycleInteractions > 0
+          ? ['HOT', 'WARM', 'COLD', 'NON-CONNECT', 'NON PROSPECT', 'LOST', 'QUALIFIED BUSINESS', 'CONVERTED BUSINESS', 'ONBOARDED BUSINESS']
+          : ['HOT', 'WARM', 'COLD', 'NON-CONNECT', 'NON PROSPECT', 'QUALIFIED BUSINESS']
+      case 'QUALIFIED BUSINESS':
+        return ['QUALIFIED BUSINESS', 'CONVERTED BUSINESS', 'ONBOARDED BUSINESS', 'LOST']
+      case 'CONVERTED BUSINESS':
+        return isAdmin
+          ? ['CONVERTED BUSINESS', 'ONBOARDED BUSINESS', 'LOST']
+          : ['CONVERTED BUSINESS', 'ONBOARDED BUSINESS']
+      case 'ONBOARDED BUSINESS':
+        return isAdmin ? ['ONBOARDED BUSINESS'] : []
+      case 'LOST':
+      case 'NON PROSPECT':
+        return isAdmin ? null : []
+      default:
+        return null
+    }
+  }, [currentLeadStatus, currentCycleInteractions, isAdmin, showAllForAdmin])
+
   const groupedCategories = useMemo(() => {
     const groups = {}
     for (const cat of categories) {
+      if (allowedStatusesForStage && !allowedStatusesForStage.includes(cat.leadStatus)) {
+        continue
+      }
       let g = cat.group || 'General'
       if (!isAdmin) {
         g = g.replace(/\s*\((End of Cycle|Recyclable)\)/gi, '').trim()
@@ -108,7 +166,7 @@ export default function LeadStepModal({
       groups[g].push(cat)
     }
     return groups
-  }, [categories, isAdmin])
+  }, [categories, isAdmin, allowedStatusesForStage])
 
   const selectedCatObj = useMemo(
     () => categories.find(c => c.key === selectedCategoryKey) || null,
@@ -133,30 +191,11 @@ export default function LeadStepModal({
   const isFinancialLockedForSales =
     !isAdmin && hasPreviousFinancial && policy.allowSalesFinancialEdit === false
 
-  // Count prior interactions logged in the current cycle (excludes system/admin recycle entries)
-  const currentCycleInteractions = useMemo(() => {
-    const curCycle = lead.cycleNumber || 1
-    const allSteps = Array.isArray(lead.steps) ? lead.steps : []
-    const cycleSteps = allSteps.filter(
-      s =>
-        (s.cycleNumber || 1) === curCycle &&
-        s.selectedCategory !== 'admin_recycled' &&
-        s.selectedCategory !== 'auto_recycled'
-    )
-    if (cycleSteps.length > 0) return cycleSteps.length
-    if (curCycle === 1 && (lead.callAttempts || 0) > 0) return lead.callAttempts
-    return 0
-  }, [lead])
-
-  const requiresFirstInteractionStatuses = ['LOST', 'CONVERTED BUSINESS', 'ONBOARDED BUSINESS']
-  const irreversibleStatusesForSales = ['LOST', 'NON PROSPECT', 'CONVERTED BUSINESS', 'ONBOARDED BUSINESS']
-  const currentLeadStatus = lead.leadStatus || 'NEW LEAD'
-
   const isCategoryLockedForSales = cat => {
     if (isAdmin) return false
-    // Once Converted Business, only forward progression to Onboarded Business is allowed
+    // Once Converted Business, only staying on Converted (installment/note) or progressing to Onboarded is allowed
     if (currentLeadStatus === 'CONVERTED BUSINESS') {
-      return cat.leadStatus !== 'ONBOARDED BUSINESS'
+      return !['CONVERTED BUSINESS', 'ONBOARDED BUSINESS'].includes(cat.leadStatus)
     }
     // Once Lost, Non Prospect, or Onboarded Business -> fully irreversible by Sales
     if (['LOST', 'NON PROSPECT', 'ONBOARDED BUSINESS'].includes(currentLeadStatus) || lead.isCycleEnded) {
@@ -172,7 +211,7 @@ export default function LeadStepModal({
   const isCycleLockedForSales =
     !isAdmin &&
     (Boolean(lead.isCycleEnded) || irreversibleStatusesForSales.includes(currentLeadStatus)) &&
-    !(currentLeadStatus === 'CONVERTED BUSINESS' && targetStatus === 'ONBOARDED BUSINESS')
+    !(currentLeadStatus === 'CONVERTED BUSINESS' && ['CONVERTED BUSINESS', 'ONBOARDED BUSINESS'].includes(targetStatus))
 
   const handleProgramChange = newId => {
     setBusinessProgramId(newId)
@@ -272,16 +311,6 @@ export default function LeadStepModal({
         showNotify?.('error', 'Please enter applicable Course Fees (> 0).')
         return
       }
-      const effectivePaidCheck =
-        receiptAmount !== '' && Number(receiptAmount) > 0
-          ? (Number(paidAmount) || 0) + Number(receiptAmount)
-          : paidAmount === ''
-          ? null
-          : Number(paidAmount)
-      if (effectivePaidCheck === null || Number.isNaN(effectivePaidCheck) || effectivePaidCheck < 0) {
-        showNotify?.('error', 'Please enter Paid Amount (>= 0) or record a payment receipt.')
-        return
-      }
     }
 
     // Sales Rep explicit confirmation prompts for irreversible actions
@@ -333,8 +362,8 @@ export default function LeadStepModal({
             referenceNo: receiptRef.trim(),
             note: receiptNote.trim(),
           }
-        } else if (paidAmount !== '') {
-          payload.paidAmount = Number(paidAmount)
+        } else {
+          payload.paidAmount = paidAmount !== '' ? Number(paidAmount) : 0
         }
         if (isAdmin && adminException) payload.adminException = true
       }
@@ -560,8 +589,18 @@ export default function LeadStepModal({
                 </select>
                 {!isAdmin && currentCycleInteractions === 0 && (
                   <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-                    Log the 1st interaction first to unlock Lost, Converted Business, and Onboarded Business options.
+                    Showing valid 1st-interaction options. Lost, Converted, and Onboarded unlock after Step #1.
                   </div>
+                )}
+                {isAdmin && allowedStatusesForStage && (
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 11, color: '#475569', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={showAllForAdmin}
+                      onChange={e => setShowAllForAdmin(e.target.checked)}
+                    />
+                    <span>Show all statuses (Admin override for backward transition)</span>
+                  </label>
                 )}
                 {selectedCatObj && (
                   <div style={{ fontSize: 11, color: '#475569', marginTop: 5 }}>
@@ -804,34 +843,32 @@ export default function LeadStepModal({
                     </div>
                     <div>
                       <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#14532d', marginBottom: 4 }}>
-                        TOTAL PAID AMOUNT (₹ ACTUAL RECEIVED) *
+                        TOTAL PAID AMOUNT (AUTO-SUM FROM RECEIPTS)
                       </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={paidAmount}
-                        onChange={e => setPaidAmount(e.target.value)}
-                        disabled={isFinancialLockedForSales || localReceipts.length > 0}
-                        placeholder="e.g. 15000"
+                      <div
                         style={{
                           width: '100%',
                           padding: '8px 10px',
                           borderRadius: 6,
-                          border: '1px solid #86efac',
+                          border: '1px solid #bbf7d0',
                           fontSize: 13,
-                          background: localReceipts.length > 0 ? '#f1f5f9' : '#fff',
+                          fontWeight: 800,
+                          color: '#059669',
+                          background: '#f8fafc',
+                          boxSizing: 'border-box',
                         }}
-                      />
-                      {localReceipts.length > 0 && (
-                        <div style={{ fontSize: 10, color: '#047857', marginTop: 3 }}>
-                          Auto-summed from {localReceipts.length} payment receipt(s) below.
-                        </div>
-                      )}
+                      >
+                        {formatINR(paidNum)}
+                      </div>
+                      <div style={{ fontSize: 10, color: '#047857', marginTop: 3 }}>
+                        {localReceipts.length > 0
+                          ? `Summed from ${localReceipts.length} recorded receipt(s)`
+                          : 'Enter any payment below (leave blank for ₹0)'}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Itemized Payment Receipts (Installments — FRD Section 8 & 9) */}
+                  {/* Single Payment / Installment Receipt Entry (FRD Section 8 & 9) */}
                   <div
                     style={{
                       marginTop: 12,
@@ -842,7 +879,7 @@ export default function LeadStepModal({
                     }}
                   >
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#14532d', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>PAYMENT RECEIPTS / INSTALLMENTS ({localReceipts.length})</span>
+                      <span>RECORD PAYMENT / INSTALLMENT RECEIPT ({localReceipts.length})</span>
                       {feesNum > 0 && paidNum > feesNum && (
                         <span style={{ color: '#b91c1c', background: '#fee2e2', padding: '2px 7px', borderRadius: 10, fontSize: 10 }}>
                           Flagged: Paid exceeds Course Fees
@@ -888,7 +925,7 @@ export default function LeadStepModal({
                         <input
                           type="number"
                           min="0"
-                          placeholder="Installment Amt ₹"
+                          placeholder="Payment Amt ₹ (0 if unpaid)"
                           value={receiptAmount}
                           onChange={e => setReceiptAmount(e.target.value)}
                           style={{ padding: '6px 8px', borderRadius: 5, border: '1px solid #cbd5e1', fontSize: 12 }}
