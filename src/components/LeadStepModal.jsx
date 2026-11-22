@@ -68,7 +68,6 @@ export default function LeadStepModal({
   const [receiptMode, setReceiptMode] = useState('UPI')
   const [receiptRef, setReceiptRef] = useState('')
   const [receiptNote, setReceiptNote] = useState('')
-  const [addingReceipt, setAddingReceipt] = useState(false)
   const [adminException, setAdminException] = useState(false)
   const [showAllForAdmin, setShowAllForAdmin] = useState(false)
   const [note, setNote] = useState('')
@@ -236,42 +235,6 @@ export default function LeadStepModal({
     }
   }
 
-  const handleRecordStandaloneReceipt = async () => {
-    const amt = Number(receiptAmount)
-    if (Number.isNaN(amt) || amt <= 0) {
-      showNotify?.('error', 'Enter a valid receipt amount (> 0).')
-      return
-    }
-    setAddingReceipt(true)
-    try {
-      const res = await api.addLeadPaymentReceipt(lead.id || lead._id, {
-        amount: amt,
-        receiptDate,
-        paymentMode: receiptMode,
-        referenceNo: receiptRef.trim(),
-        note: receiptNote.trim(),
-      })
-      showNotify?.('success', res.message || `Receipt of ₹${amt.toLocaleString('en-IN')} recorded!`)
-      if (res.lead) {
-        setLocalReceipts(Array.isArray(res.lead.paymentReceipts) ? res.lead.paymentReceipts : [])
-        setPaidAmount(
-          res.lead.paidAmount !== null && res.lead.paidAmount !== undefined
-            ? String(res.lead.paidAmount)
-            : ''
-        )
-        onUpdated?.(res.lead)
-      }
-      setReceiptAmount('')
-      setReceiptRef('')
-      setReceiptNote('')
-      onClose?.()
-    } catch (err) {
-      showNotify?.('error', err.message || 'Failed to record payment receipt')
-    } finally {
-      setAddingReceipt(false)
-    }
-  }
-
   const handleSubmit = async e => {
     e.preventDefault()
     if (!selectedCategoryKey) {
@@ -383,7 +346,6 @@ export default function LeadStepModal({
   const steps = Array.isArray(lead.steps) ? [...lead.steps].reverse() : []
   const currentStatusBadge = getStatusBadgeStyle(lead.leadStatus || 'NEW LEAD')
   const currentHeatBadge = isAdmin && lead.heatTier && lead.heatTier !== lead.leadStatus ? getHeatBadgeStyle(lead.heatTier) : null
-  const isAlreadyBusiness = isBusinessStatus(lead.leadStatus)
   const feesNum = Number(courseFees) || 0
   const pendingReceiptNum = Number(receiptAmount) > 0 ? Number(receiptAmount) : 0
   const paidNum = (Number(paidAmount) || 0) + pendingReceiptNum
@@ -955,46 +917,12 @@ export default function LeadStepModal({
                         />
                         <input
                           type="text"
+                          className="receipt-note-span"
                           placeholder="Receipt note (optional)"
                           value={receiptNote}
                           onChange={e => setReceiptNote(e.target.value)}
                           style={{ padding: '6px 8px', borderRadius: 5, border: '1px solid #cbd5e1', fontSize: 12 }}
                         />
-                        {isAlreadyBusiness ? (
-                          <button
-                            type="button"
-                            onClick={handleRecordStandaloneReceipt}
-                            disabled={addingReceipt || !receiptAmount || Number(receiptAmount) <= 0}
-                            style={{
-                              padding: '6px 10px',
-                              borderRadius: 5,
-                              border: 'none',
-                              background: !receiptAmount || Number(receiptAmount) <= 0 ? '#cbd5e1' : '#059669',
-                              color: '#fff',
-                              fontSize: 11,
-                              fontWeight: 700,
-                              cursor: !receiptAmount || Number(receiptAmount) <= 0 ? 'not-allowed' : 'pointer',
-                            }}
-                          >
-                            {addingReceipt ? 'Saving...' : '+ Add Receipt'}
-                          </button>
-                        ) : (
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color: '#0369a1',
-                              background: '#f0f9ff',
-                              border: '1px solid #bae6fd',
-                              borderRadius: 5,
-                              padding: '5px 8px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              fontWeight: 600,
-                            }}
-                          >
-                            Saved with &ldquo;Save Step&rdquo; below
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>

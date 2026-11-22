@@ -1829,6 +1829,10 @@ input:checked + .toggle-slider:before {
   width: 100%;
 }
 
+.receipt-note-span {
+  grid-column: span 2;
+}
+
 .program-add-form {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.7fr) minmax(0, 1.5fr) minmax(0, 0.9fr) auto;
@@ -2060,6 +2064,10 @@ input:checked + .toggle-slider:before {
   .program-add-form,
   .category-add-form {
     grid-template-columns: 1fr !important;
+  }
+
+  .receipt-note-span {
+    grid-column: span 1 !important;
   }
 
   .modal-subtabs-bar {
