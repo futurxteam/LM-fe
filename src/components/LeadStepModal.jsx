@@ -74,7 +74,8 @@ export default function LeadStepModal({
   const [callbackAt, setCallbackAt] = useState('')
   const [activeSection, setActiveSection] = useState('step') // 'step' | 'timeline'
 
-  // Reset form when lead changes
+  // Reset form only when opening a different lead (NOT when receipt update refreshes the same lead)
+  const leadKey = lead?.id || lead?._id
   useEffect(() => {
     if (!lead) return
     setSelectedCategoryKey(lead.selectedCategory || '')
@@ -94,7 +95,7 @@ export default function LeadStepModal({
     setAdminException(false)
     setNote('')
     setCallbackAt('')
-  }, [lead])
+  }, [leadKey])
 
   const groupedCategories = useMemo(() => {
     const groups = {}
@@ -351,9 +352,11 @@ export default function LeadStepModal({
 
   const steps = Array.isArray(lead.steps) ? [...lead.steps].reverse() : []
   const currentStatusBadge = getStatusBadgeStyle(lead.leadStatus || 'NEW LEAD')
-  const currentHeatBadge = isAdmin ? getHeatBadgeStyle(lead.heatTier) : null
+  const currentHeatBadge = isAdmin && lead.heatTier && lead.heatTier !== lead.leadStatus ? getHeatBadgeStyle(lead.heatTier) : null
+  const isAlreadyBusiness = isBusinessStatus(lead.leadStatus)
   const feesNum = Number(courseFees) || 0
-  const paidNum = Number(paidAmount) || 0
+  const pendingReceiptNum = Number(receiptAmount) > 0 ? Number(receiptAmount) : 0
+  const paidNum = (Number(paidAmount) || 0) + pendingReceiptNum
   const pendingNum = Math.max(0, feesNum - paidNum)
 
   return (
@@ -919,23 +922,41 @@ export default function LeadStepModal({
                           onChange={e => setReceiptNote(e.target.value)}
                           style={{ padding: '6px 8px', borderRadius: 5, border: '1px solid #cbd5e1', fontSize: 12 }}
                         />
-                        <button
-                          type="button"
-                          onClick={handleRecordStandaloneReceipt}
-                          disabled={addingReceipt || !receiptAmount || Number(receiptAmount) <= 0}
-                          style={{
-                            padding: '6px 10px',
-                            borderRadius: 5,
-                            border: 'none',
-                            background: !receiptAmount || Number(receiptAmount) <= 0 ? '#cbd5e1' : '#059669',
-                            color: '#fff',
-                            fontSize: 11,
-                            fontWeight: 700,
-                            cursor: !receiptAmount || Number(receiptAmount) <= 0 ? 'not-allowed' : 'pointer',
-                          }}
-                        >
-                          {addingReceipt ? 'Saving...' : '+ Add Receipt'}
-                        </button>
+                        {isAlreadyBusiness ? (
+                          <button
+                            type="button"
+                            onClick={handleRecordStandaloneReceipt}
+                            disabled={addingReceipt || !receiptAmount || Number(receiptAmount) <= 0}
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: 5,
+                              border: 'none',
+                              background: !receiptAmount || Number(receiptAmount) <= 0 ? '#cbd5e1' : '#059669',
+                              color: '#fff',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: !receiptAmount || Number(receiptAmount) <= 0 ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {addingReceipt ? 'Saving...' : '+ Add Receipt'}
+                          </button>
+                        ) : (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: '#0369a1',
+                              background: '#f0f9ff',
+                              border: '1px solid #bae6fd',
+                              borderRadius: 5,
+                              padding: '5px 8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              fontWeight: 600,
+                            }}
+                          >
+                            Saved with &ldquo;Save Step&rdquo; below
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1047,7 +1068,10 @@ export default function LeadStepModal({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {steps.map((st, idx) => {
                     const stBadge = getStatusBadgeStyle(st.newStatus)
-                    const hBadge = isAdmin && st.heatTier ? getHeatBadgeStyle(st.heatTier) : null
+                    const hBadge =
+                      isAdmin && st.heatTier && st.heatTier !== st.newStatus
+                        ? getHeatBadgeStyle(st.heatTier)
+                        : null
                     return (
                       <div
                         key={idx}
