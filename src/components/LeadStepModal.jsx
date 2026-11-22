@@ -295,7 +295,7 @@ export default function LeadStepModal({
       const payload = {
         categoryKey: selectedCategoryKey,
         note: note.trim(),
-        callbackAt: callbackAt || null,
+        callbackAt: callbackAt ? new Date(callbackAt).toISOString() : null,
         incrementCallAttempt: true,
         author: currentUser?.name || 'Staff',
       }

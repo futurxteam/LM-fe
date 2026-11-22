@@ -64,6 +64,18 @@ export const api = {
     })
   },
 
+  getFollowupSchedule: async (params = {}) => {
+    const query = new URLSearchParams()
+    if (params.date) query.append('date', params.date)
+    query.append('tzOffset', String(new Date().getTimezoneOffset()))
+    if (params.repId && params.repId !== 'All') query.append('repId', params.repId)
+    if (params.search && params.search.trim()) query.append('search', params.search.trim())
+    const qs = query.toString()
+    return await request(`/leads/schedule${qs ? `?${qs}` : ''}`, {
+      method: 'GET',
+    })
+  },
+
   createLead: async leadData => {
     return await request('/leads', {
       method: 'POST',

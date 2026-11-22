@@ -29,6 +29,7 @@ import {
   IndianRupee,
   TrendingUp,
   ArrowRight,
+  Calendar,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -36,18 +37,21 @@ import { formatArrivalTime } from '../utils/alertUtils'
 import StudentProfileModal from '../components/StudentProfileModal'
 import LeadStepModal from '../components/LeadStepModal'
 import FrdReportsView from '../components/FrdReportsView'
+import FollowupScheduleView from '../components/FollowupScheduleView'
 import { getSalesDisplayStatus } from '../constants/leadLifecycle'
 
 export default function SalesDashboard({ user, onLogout }) {
   const location = useLocation()
   const navigate = useNavigate()
 
-  // Track active route: personal queue, manager team view, or sales reports
+  // Track active route: personal queue, follow-up schedule, manager team view, or sales reports
   const isTeamView = location.pathname.includes('/team')
+  const isScheduleView = location.pathname.startsWith('/schedule')
   const isReportsView = location.pathname.startsWith('/reports')
   const salesReportSlug = location.pathname.startsWith('/reports/')
     ? location.pathname.replace('/reports/', '').split('/')[0]
     : ''
+  const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [leads, setLeads] = useState([])
   const [stats, setStats] = useState(null)
@@ -240,7 +244,7 @@ export default function SalesDashboard({ user, onLogout }) {
         {/* Nav Items */}
         <nav className="sidebar-nav">
           <div
-            className={`nav-item ${!isTeamView && !isReportsView ? 'active' : ''}`}
+            className={`nav-item ${!isTeamView && !isReportsView && !isScheduleView ? 'active' : ''}`}
             onClick={() => {
               setMobileMenuOpen(false)
               navigate('/queue')
@@ -249,8 +253,19 @@ export default function SalesDashboard({ user, onLogout }) {
             <span className="nav-item-icon"><LayoutDashboard size={16} /></span>
             <span>My Outreach Queue</span>
             <span style={{ marginLeft: 'auto', background: '#0284c7', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 10 }}>
-              {!isTeamView && !isReportsView ? leads.length : ''}
+              {!isTeamView && !isReportsView && !isScheduleView ? leads.length : ''}
             </span>
+          </div>
+
+          <div
+            className={`nav-item ${isScheduleView ? 'active' : ''}`}
+            onClick={() => {
+              setMobileMenuOpen(false)
+              navigate('/schedule')
+            }}
+          >
+            <span className="nav-item-icon"><Calendar size={16} /></span>
+            <span>Contact Schedule</span>
           </div>
 
           <div
@@ -306,16 +321,29 @@ export default function SalesDashboard({ user, onLogout }) {
                 <Menu size={18} />
               </button>
               <div>
-                <h1 className="page-title">Admissions Outreach Queue</h1>
+                <h1 className="page-title">
+                  {isScheduleView
+                    ? 'Next Contact & Follow-Up Schedule'
+                    : isReportsView
+                      ? 'My Performance Reports'
+                      : isTeamView
+                        ? 'My Team Leads'
+                        : 'Admissions Outreach Queue'}
+                </h1>
                 <p className="page-subtitle">
-                  Futureace Academy CRM • Instant Dialing & WhatsApp Inquiries
+                  {isScheduleView
+                    ? 'Daily, Next Day & Custom Date Callback Schedule'
+                    : 'Futureace Academy CRM • Instant Dialing & WhatsApp Inquiries'}
                 </p>
               </div>
             </div>
             <button
               className="btn-refresh-icon"
-              onClick={loadData}
-              title="Refresh Queue"
+              onClick={() => {
+                loadData()
+                setScheduleRefreshKey(k => k + 1)
+              }}
+              title="Refresh Queue & Schedule"
             >
               <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
             </button>
@@ -341,8 +369,18 @@ export default function SalesDashboard({ user, onLogout }) {
               <span>{notification.message}</span>
             </div>
           )}
-          {/* Sales Reports Hub / Dedicated Report Pages (No HOT/WARM/COLD exposed) */}
-          {isReportsView ? (
+          {/* Dedicated Contact Schedule View */}
+          {isScheduleView ? (
+            <FollowupScheduleView
+              isAdmin={false}
+              currentUser={user}
+              refreshKey={scheduleRefreshKey}
+              onOpenStep={setActiveStepLead}
+              onOpenProfile={setActiveStudentModal}
+              onQuickDial={lead => quickMarkStatus(lead, lead.status, 'Call Initiated')}
+              showNotify={showNotify}
+            />
+          ) : isReportsView ? (
             salesReportSlug === 'business' || salesReportSlug === 'conversion' ? (
               <FrdReportsView
                 reportType={salesReportSlug}
@@ -470,6 +508,22 @@ export default function SalesDashboard({ user, onLogout }) {
               </div>
             </div>
           </div>
+
+          {/* Next Contact Schedule (Day + Next Day + Date Selector right inside Queue) */}
+          {!isTeamView && (
+            <div style={{ marginBottom: 20 }}>
+              <FollowupScheduleView
+                isAdmin={false}
+                currentUser={user}
+                refreshKey={scheduleRefreshKey}
+                collapsible={true}
+                onOpenStep={setActiveStepLead}
+                onOpenProfile={setActiveStudentModal}
+                onQuickDial={lead => quickMarkStatus(lead, lead.status, 'Call Initiated')}
+                showNotify={showNotify}
+              />
+            </div>
+          )}
 
           {/* Action Table Header Bar */}
           <div className="pool-action-bar">
@@ -913,11 +967,19 @@ export default function SalesDashboard({ user, onLogout }) {
       <nav className="sales-mobile-bottom-nav" aria-label="Mobile navigation">
         <button
           type="button"
-          className={`sales-bottom-nav-btn ${!isTeamView && !isReportsView ? 'active' : ''}`}
+          className={`sales-bottom-nav-btn ${!isTeamView && !isReportsView && !isScheduleView ? 'active' : ''}`}
           onClick={() => navigate('/queue')}
         >
           <LayoutDashboard size={18} />
-          <span>My Queue</span>
+          <span>Queue</span>
+        </button>
+        <button
+          type="button"
+          className={`sales-bottom-nav-btn ${isScheduleView ? 'active' : ''}`}
+          onClick={() => navigate('/schedule')}
+        >
+          <Calendar size={18} />
+          <span>Schedule</span>
         </button>
         <button
           type="button"
@@ -1127,6 +1189,7 @@ export default function SalesDashboard({ user, onLogout }) {
           onUpdated={() => {
             setActiveStepLead(null)
             loadData()
+            setScheduleRefreshKey(k => k + 1)
           }}
           showNotify={showNotify}
         />
@@ -1141,6 +1204,7 @@ export default function SalesDashboard({ user, onLogout }) {
           onUpdated={updatedLead => {
             setActiveStudentModal(updatedLead)
             loadData()
+            setScheduleRefreshKey(k => k + 1)
           }}
           showNotify={showNotify}
         />

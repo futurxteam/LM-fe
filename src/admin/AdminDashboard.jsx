@@ -71,6 +71,7 @@ import AdminAdvancedReports from '../components/AdminAdvancedReports'
 import AdminLifecycleSettingsModal from '../components/AdminLifecycleSettingsModal'
 import StaffHistoryDrawer from '../components/StaffHistoryDrawer'
 import FrdReportsView from '../components/FrdReportsView'
+import FollowupScheduleView from '../components/FollowupScheduleView'
 import { getStatusBadgeStyle, getHeatBadgeStyle, LEAD_STATUSES, formatINR } from '../constants/leadLifecycle'
 
 export default function AdminDashboard({ user, onLogout }) {
@@ -139,6 +140,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const [activeReportSubTab, setActiveReportSubTab] = useState('advanced')
   const [crmMeta, setCrmMeta] = useState(null)
   const [activeStepLead, setActiveStepLead] = useState(null)
+  const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0)
   const [showLifecycleSettingsModal, setShowLifecycleSettingsModal] = useState(false)
   const [lifecycleSettingsInitialTab, setLifecycleSettingsInitialTab] = useState('policy')
 
@@ -2799,6 +2801,15 @@ export default function AdminDashboard({ user, onLogout }) {
                       Icon: BarChart3,
                     },
                     {
+                      slug: 'schedule',
+                      title: 'Follow-Up & Next Contact Schedule',
+                      desc: 'See all sales counselors\' daily, next-day, custom-date, and overdue follow-up schedules — track who needs to contact whom with CSV export.',
+                      color: '#0284c7',
+                      bg: '#f0f9ff',
+                      badge: 'Daily Schedule',
+                      Icon: Calendar,
+                    },
+                    {
                       slug: 'heat',
                       title: 'Hot / Warm / Cold Classification',
                       desc: 'Visual Donut chart, category breakdown, and backend-paginated searchable leads table classified by Heat Tier.',
@@ -2944,6 +2955,17 @@ export default function AdminDashboard({ user, onLogout }) {
                   })}
                 </div>
               </div>
+            ) : reportSlug === 'schedule' ? (
+              <FollowupScheduleView
+                isAdmin={true}
+                salesReps={salesReps}
+                currentUser={user}
+                refreshKey={scheduleRefreshKey}
+                onBack={() => navigate('/reports')}
+                onOpenStep={lead => setActiveStepLead(lead)}
+                onOpenProfile={lead => setActiveLeadModal(lead)}
+                showNotify={showNotify}
+              />
             ) : ['business', 'conversion', 'status'].includes(reportSlug) ? (
               <FrdReportsView
                 reportType={reportSlug}
@@ -4081,6 +4103,7 @@ export default function AdminDashboard({ user, onLogout }) {
           onUpdated={updatedLead => {
             setActiveLeadModal(updatedLead)
             loadOverviewData()
+            setScheduleRefreshKey(k => k + 1)
             if (activeTab === 'all-leads') loadMasterLeads(page, pageSize)
           }}
           showNotify={showNotify}
@@ -4133,6 +4156,7 @@ export default function AdminDashboard({ user, onLogout }) {
           onUpdated={updatedLead => {
             setActiveStepLead(null)
             loadOverviewData()
+            setScheduleRefreshKey(k => k + 1)
             if (activeTab === 'all-leads') loadMasterLeads(page, pageSize)
           }}
           showNotify={showNotify}

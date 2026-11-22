@@ -80,6 +80,7 @@ export default function App() {
       <Route path="/" element={<Navigate to="/queue" replace />} />
       <Route path="/login" element={<Navigate to="/queue" replace />} />
       <Route path="/queue" element={<SalesDashboard user={user} onLogout={handleLogout} />} />
+      <Route path="/schedule" element={<SalesDashboard user={user} onLogout={handleLogout} />} />
       <Route path="/team" element={<SalesDashboard user={user} onLogout={handleLogout} />} />
       <Route path="/reports" element={<SalesDashboard user={user} onLogout={handleLogout} />} />
       <Route path="/reports/:reportSlug" element={<SalesDashboard user={user} onLogout={handleLogout} />} />
