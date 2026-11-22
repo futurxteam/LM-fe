@@ -264,6 +264,7 @@ export default function LeadStepModal({
       setReceiptAmount('')
       setReceiptRef('')
       setReceiptNote('')
+      onClose?.()
     } catch (err) {
       showNotify?.('error', err.message || 'Failed to record payment receipt')
     } finally {
@@ -1217,7 +1218,15 @@ export default function LeadStepModal({
               style={{ opacity: saving || isCycleLockedForSales ? 0.5 : 1 }}
             >
               <CheckCircle2 size={14} />
-              <span>{saving ? 'Saving Step...' : 'Save Step & Update Lead'}</span>
+              <span>
+                {saving
+                  ? showBusinessFields && Number(receiptAmount) > 0
+                    ? 'Saving Step & Receipt...'
+                    : 'Saving Step...'
+                  : showBusinessFields && Number(receiptAmount) > 0
+                  ? 'Save Step & Add Receipt'
+                  : 'Save Step & Update Lead'}
+              </span>
             </button>
           )}
         </div>
