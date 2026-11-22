@@ -1405,7 +1405,6 @@ export default function AdminDashboard({ user, onLogout }) {
       <aside className={`sidebar ${mobileMenuOpen ? 'sidebar-mobile-open' : ''}`}>
         <div className="sidebar-brand">
           <div className="sidebar-drawer-top">
-            <span className="sidebar-drawer-badge">Admin Navigation</span>
             <button
               className="sidebar-close-btn"
               onClick={() => setMobileMenuOpen(false)}
@@ -1419,7 +1418,7 @@ export default function AdminDashboard({ user, onLogout }) {
             <img src="/logo-brand-white.png" alt="Futureace Academy Logo" className="brand-logo-img" />
           </div>
           <div className="sidebar-brand-text">
-            <h2>Futureace Academy CRM</h2>
+            <h2>CRM</h2>
             <span>Admin Portal</span>
           </div>
         </div>

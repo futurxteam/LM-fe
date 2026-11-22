@@ -661,22 +661,26 @@ body {
    ======================================================== */
 .login-screen {
   min-height: 100vh;
+  min-height: 100dvh;
+  height: 100%;
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 50% 20%, #1e3582 0%, #0d173d 85%);
+  background: #ffffff;
   padding: 20px;
+  overflow-y: auto;
 }
 
 .login-card {
   width: 100%;
   max-width: 440px;
-  background: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  background: #f1f5f9;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid #e2e8f0;
+  margin: auto;
 }
 
 .login-card-header {
@@ -699,28 +703,34 @@ body {
 
 .login-card-body {
   padding: 28px 24px;
+  background: #f1f5f9;
 }
 
 /* Role Selector Tabs */
 .role-tabs {
   display: flex;
-  background: #f1f5f9;
+  background: #e2e8f0;
   border-radius: 6px;
   padding: 4px;
   margin-bottom: 24px;
+  gap: 4px;
 }
 
 .role-tab {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
   text-align: center;
-  padding: 8px 12px;
+  padding: 8px 10px;
   font-size: 13px;
   font-weight: 600;
   border-radius: 4px;
   cursor: pointer;
   border: none;
   background: transparent;
-  color: #64748b;
+  color: #475569;
   transition: all 0.2s ease;
 }
 
@@ -745,6 +755,7 @@ body {
 .form-group input {
   width: 100%;
   padding: 10px 12px;
+  background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 4px;
   font-size: 14px;
@@ -776,7 +787,7 @@ body {
 .demo-credentials-box {
   margin-top: 22px;
   padding: 14px;
-  background: #f8fafc;
+  background: #ffffff;
   border: 1px dashed #cbd5e1;
   border-radius: 6px;
 }

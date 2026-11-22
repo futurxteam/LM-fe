@@ -212,7 +212,6 @@ export default function SalesDashboard({ user, onLogout }) {
       <aside className={`sidebar ${mobileMenuOpen ? 'sidebar-mobile-open' : ''}`}>
         <div className="sidebar-brand">
           <div className="sidebar-drawer-top">
-            <span className="sidebar-drawer-badge">Counselor Portal</span>
             <button
               className="sidebar-close-btn"
               onClick={() => setMobileMenuOpen(false)}
@@ -469,496 +468,496 @@ export default function SalesDashboard({ user, onLogout }) {
               </div>
             )
           ) : (
-          <>
-          {/* Top Dials */}
-          <div className="template-card" style={{ marginBottom: 20 }}>
-            <div className="template-card-header">
-              <h3>My Calling & Conversion Pipeline</h3>
-              <span className="header-badge">{contactRate}% Contact Rate</span>
-            </div>
-            <div className="template-card-body">
-              <div className="dial-grid">
-                {salesGauges.map((gauge, idx) => {
-                  const radius = 38
-                  const circumference = 2 * Math.PI * radius
-                  const offset = circumference - (gauge.percent / 100) * circumference
-                  return (
-                    <div key={idx} className="dial-item">
-                      <div className="dial-circle-wrapper">
-                        <svg className="dial-circle-svg" viewBox="0 0 96 96">
-                          <circle className="dial-circle-bg" cx="48" cy="48" r={radius} />
-                          <circle
-                            className="dial-circle-fill"
-                            cx="48"
-                            cy="48"
-                            r={radius}
-                            stroke={gauge.color}
-                            strokeWidth="8"
-                            strokeDasharray={circumference}
-                            strokeDashoffset={offset}
-                          />
-                        </svg>
-                        <div className="dial-circle-text">{gauge.percent}%</div>
-                      </div>
-                      <div className="dial-label">{gauge.label}</div>
-                      <div className="dial-subtext">{gauge.subtext}</div>
-                    </div>
-                  )
-                })}
+            <>
+              {/* Top Dials */}
+              <div className="template-card" style={{ marginBottom: 20 }}>
+                <div className="template-card-header">
+                  <h3>My Calling & Conversion Pipeline</h3>
+                  <span className="header-badge">{contactRate}% Contact Rate</span>
+                </div>
+                <div className="template-card-body">
+                  <div className="dial-grid">
+                    {salesGauges.map((gauge, idx) => {
+                      const radius = 38
+                      const circumference = 2 * Math.PI * radius
+                      const offset = circumference - (gauge.percent / 100) * circumference
+                      return (
+                        <div key={idx} className="dial-item">
+                          <div className="dial-circle-wrapper">
+                            <svg className="dial-circle-svg" viewBox="0 0 96 96">
+                              <circle className="dial-circle-bg" cx="48" cy="48" r={radius} />
+                              <circle
+                                className="dial-circle-fill"
+                                cx="48"
+                                cy="48"
+                                r={radius}
+                                stroke={gauge.color}
+                                strokeWidth="8"
+                                strokeDasharray={circumference}
+                                strokeDashoffset={offset}
+                              />
+                            </svg>
+                            <div className="dial-circle-text">{gauge.percent}%</div>
+                          </div>
+                          <div className="dial-label">{gauge.label}</div>
+                          <div className="dial-subtext">{gauge.subtext}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Next Contact Schedule (Day + Next Day + Date Selector right inside Queue) */}
-          {!isTeamView && (
-            <div style={{ marginBottom: 20 }}>
-              <FollowupScheduleView
-                isAdmin={false}
-                currentUser={user}
-                refreshKey={scheduleRefreshKey}
-                collapsible={true}
-                onOpenStep={setActiveStepLead}
-                onOpenProfile={setActiveStudentModal}
-                onQuickDial={lead => quickMarkStatus(lead, lead.status, 'Call Initiated')}
-                showNotify={showNotify}
-              />
-            </div>
-          )}
-
-          {/* Action Table Header Bar */}
-          <div className="pool-action-bar">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, width: '100%' }}>
-              <Search size={16} color="#94a3b8" style={{ flexShrink: 0 }} />
-              <input
-                type="text"
-                placeholder="Search leads by name, ID, phone or email..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{ border: 'none', outline: 'none', width: '100%', minWidth: 0, fontSize: 13 }}
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'inline-flex', flexShrink: 0 }}
-                  title="Clear search"
-                >
-                  <X size={14} />
-                </button>
+              {/* Next Contact Schedule (Day + Next Day + Date Selector right inside Queue) */}
+              {!isTeamView && (
+                <div style={{ marginBottom: 20 }}>
+                  <FollowupScheduleView
+                    isAdmin={false}
+                    currentUser={user}
+                    refreshKey={scheduleRefreshKey}
+                    collapsible={true}
+                    onOpenStep={setActiveStepLead}
+                    onOpenProfile={setActiveStudentModal}
+                    onQuickDial={lead => quickMarkStatus(lead, lead.status, 'Call Initiated')}
+                    showNotify={showNotify}
+                  />
+                </div>
               )}
-            </div>
 
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {['All', 'Not Contacted', 'Contacted'].map(st => (
-                <button
-                  key={st}
-                  onClick={() => setStatusFilter(st)}
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: 20,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    border: 'none',
-                    cursor: 'pointer',
-                    background: statusFilter === st ? '#1b2b6b' : '#f1f5f9',
-                    color: statusFilter === st ? '#ffffff' : '#475569',
-                  }}
-                >
-                  {st}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Sales Assigned Leads Action Table */}
-          <div className="template-card">
-            <div className="template-card-header">
-              <h3>My Assigned Leads ({filteredLeads.length})</h3>
-              <span className="header-badge">Direct Contact Queue</span>
-            </div>
-            <div className="template-card-body" style={{ padding: 0 }}>
-              {loading ? (
-                <div className="data-loader-container">
-                  <div className="data-loader-spinner" />
-                  <div className="data-loader-text">Loading assigned leads queue...</div>
-                  <div className="data-loader-sub">Fetching counselor pipeline from database</div>
-                </div>
-              ) : filteredLeads.length === 0 ? (
-                <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748b' }}>
-                  <p style={{ fontWeight: 600 }}>No leads matching this filter.</p>
-                </div>
-              ) : (
-                <>
-                {/* MOBILE-FIRST CARD QUEUE (Zero horizontal scroll, thumb-friendly 1-tap actions) */}
-                <div className="sales-mobile-cards">
-                  {filteredLeads.map(lead => {
-                    const cleanPhone = (lead.phone || '').replace(/\D/g, '')
-                    const waMsg = encodeURIComponent(
-                      `Hello ${lead.fullName}, this is ${user?.name || 'Counselor'} regarding your inquiry for our ${lead.courseProgram || 'Healthcare Management'} program. Are you available for a brief discussion?`
-                    )
-                    const canEditLead = isLeadAssignedToMe(lead)
-                    return (
-                      <div key={lead.id} className="sales-lead-card">
-                        {/* Card Top Row: Name + Status Pill */}
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                          <div style={{ minWidth: 0 }}>
-                            <div
-                              onClick={() => setActiveStudentModal(lead)}
-                              style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', cursor: 'pointer', wordBreak: 'break-word' }}
-                            >
-                              {lead.fullName}
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 3 }}>
-                              <a
-                                href={`tel:${lead.phone}`}
-                                style={{ fontSize: 13, color: '#0369a1', fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                              >
-                                <Phone size={12} />
-                                <span>{lead.phone}</span>
-                              </a>
-                              <span style={{ fontSize: 11, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                                <Clock size={11} color="#0284c7" />
-                                {formatArrivalTime(lead.createdTime || lead.createdAt)}
-                              </span>
-                            </div>
-                            {lead.email && (
-                              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, wordBreak: 'break-all' }}>
-                                {lead.email}
-                              </div>
-                            )}
-                          </div>
-                          <span
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              padding: '3px 9px',
-                              borderRadius: 12,
-                              background: lead.isCycleEnded ? '#1e293b' : '#f1f5f9',
-                              color: lead.isCycleEnded ? '#ffffff' : '#334155',
-                              border: '1px solid #cbd5e1',
-                              whiteSpace: 'nowrap',
-                              flexShrink: 0,
-                            }}
-                          >
-                            {getSalesDisplayStatus(lead)}
-                          </span>
-                        </div>
-
-                        {/* Course Enquired & Metadata Pills */}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 11 }}>
-                          <span
-                            style={{
-                              background: '#e0f2fe',
-                              color: '#0369a1',
-                              fontWeight: 700,
-                              padding: '3px 8px',
-                              borderRadius: 6,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 4,
-                            }}
-                          >
-                            <GraduationCap size={12} />
-                            <span>
-                              {lead.courseProgram || lead.businessProgramName || 'Not Specified'}
-                              {(lead.courseVariant || lead.businessProgramVariant)
-                                ? ` • ${lead.courseVariant || lead.businessProgramVariant}`
-                                : ''}
-                            </span>
-                          </span>
-                          {lead.qualification && (
-                            <span style={{ background: '#f1f5f9', color: '#334155', fontWeight: 600, padding: '3px 8px', borderRadius: 6 }}>
-                              {lead.qualification}
-                            </span>
-                          )}
-                          {lead.preferredLocation && lead.preferredLocation !== 'Not Specified' && (
-                            <span style={{ background: '#f1f5f9', color: '#475569', padding: '3px 8px', borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                              <MapPin size={11} />
-                              <span>{lead.preferredLocation}</span>
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Sub-status & Counters */}
-                        <div style={{ fontSize: 12, color: '#475569', background: '#f8fafc', padding: '7px 10px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                          <div style={{ fontWeight: 600, color: '#1e293b' }}>
-                            {lead.selectedCategoryLabel || lead.subStatus || 'Pending First Call'}
-                          </div>
-                          <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
-                            <span>Steps: <strong>{lead.steps?.length || 0}</strong> • Calls: <strong>{lead.callAttempts || 0}</strong></span>
-                            {lead.callbackAt && (
-                              <span style={{ color: '#ea580c', fontWeight: 700 }}>
-                                Callback: {new Date(lead.callbackAt).toLocaleDateString()}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* 1-Tap Thumb-Friendly Action Buttons */}
-                        <div className="sales-lead-card-actions">
-                          <a
-                            href={`tel:${lead.phone}`}
-                            onClick={() => quickMarkStatus(lead, lead.status, 'Call Initiated')}
-                            className="sales-lead-card-btn"
-                            style={{ background: '#0284c7', color: '#ffffff' }}
-                          >
-                            <PhoneCall size={15} />
-                            <span>Call Now</span>
-                          </a>
-                          <a
-                            href={`https://wa.me/${cleanPhone}?text=${waMsg}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="sales-lead-card-btn"
-                            style={{ background: '#25D366', color: '#ffffff' }}
-                          >
-                            <MessageCircle size={15} />
-                            <span>WhatsApp</span>
-                          </a>
-                          {canEditLead ? (
-                            <>
-                              <button
-                                type="button"
-                                className="sales-lead-card-btn"
-                                onClick={() => setActiveStepLead(lead)}
-                                style={{ background: '#1b2b6b', color: '#ffffff' }}
-                              >
-                                <Plus size={15} />
-                                <span>Log Step</span>
-                              </button>
-                              <button
-                                type="button"
-                                className="sales-lead-card-btn"
-                                onClick={() => setActiveStudentModal(lead)}
-                                style={{ background: '#f1f5f9', color: '#1e293b', border: '1px solid #cbd5e1' }}
-                              >
-                                <User size={15} />
-                                <span>Profile</span>
-                              </button>
-                            </>
-                          ) : (
-                            <div style={{ gridColumn: '1 / -1', textAlign: 'center', fontSize: 11, color: '#64748b', padding: '4px 0' }}>
-                              Assigned to {lead.assignedTo?.repName || 'Other'} (Read-Only)
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
+              {/* Action Table Header Bar */}
+              <div className="pool-action-bar">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, width: '100%' }}>
+                  <Search size={16} color="#94a3b8" style={{ flexShrink: 0 }} />
+                  <input
+                    type="text"
+                    placeholder="Search leads by name, ID, phone or email..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    style={{ border: 'none', outline: 'none', width: '100%', minWidth: 0, fontSize: 13 }}
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'inline-flex', flexShrink: 0 }}
+                      title="Clear search"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
                 </div>
 
-                {/* DESKTOP TABLE VIEW */}
-                <div className="leads-table-container sales-desktop-table">
-                  <table className="leads-table">
-                    <thead>
-                      <tr>
-                        <th>Candidate / Phone</th>
-                        <th>Course Enquired</th>
-                        <th>Qualification & Destination</th>
-                        <th>Status</th>
-                        <th>Attempts & Sub-status</th>
-                        <th>Direct Connect</th>
-                        <th>Log Interaction</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredLeads.map(lead => {
-                        const cleanPhone = (lead.phone || '').replace(/\D/g, '')
-                        const waMsg = encodeURIComponent(
-                          `Hello ${lead.fullName}, this is ${user?.name || 'Counselor'} regarding your inquiry for our Healthcare Management program. Are you available for a brief discussion?`
-                        )
-                        return (
-                          <tr key={lead.id}>
-                            <td>
-                              <div
-                                style={{ fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}
-                                onClick={() => setActiveStudentModal(lead)}
-                                title="Click to view & edit student profile"
-                              >
-                                {lead.fullName}
-                              </div>
-                              <div style={{ fontSize: 12, color: '#0369a1', fontWeight: 600 }}>
-                                <a href={`tel:${lead.phone}`} style={{ color: 'inherit', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                  <Phone size={12} />
-                                  <span>{lead.phone}</span>
-                                </a>
-                              </div>
-                              <div style={{ fontSize: 11, color: '#94a3b8' }}>{lead.email}</div>
-                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#64748b', marginTop: 3 }}>
-                                <Clock size={11} color="#0284c7" />
-                                <span>{formatArrivalTime(lead.createdTime || lead.createdAt)}</span>
-                              </div>
-                            </td>
-                            <td>
-                              <div style={{ fontSize: 12, fontWeight: 600, color: '#0369a1' }}>
-                                {lead.courseProgram || lead.businessProgramName || 'Not Specified'}
-                              </div>
-                              {(lead.courseVariant || lead.businessProgramVariant) && (
-                                <div style={{ fontSize: 11, color: '#64748b' }}>
-                                  {lead.courseVariant || lead.businessProgramVariant}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {['All', 'Not Contacted', 'Contacted'].map(st => (
+                    <button
+                      key={st}
+                      onClick={() => setStatusFilter(st)}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: 20,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: statusFilter === st ? '#1b2b6b' : '#f1f5f9',
+                        color: statusFilter === st ? '#ffffff' : '#475569',
+                      }}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sales Assigned Leads Action Table */}
+              <div className="template-card">
+                <div className="template-card-header">
+                  <h3>My Assigned Leads ({filteredLeads.length})</h3>
+                  <span className="header-badge">Direct Contact Queue</span>
+                </div>
+                <div className="template-card-body" style={{ padding: 0 }}>
+                  {loading ? (
+                    <div className="data-loader-container">
+                      <div className="data-loader-spinner" />
+                      <div className="data-loader-text">Loading assigned leads queue...</div>
+                      <div className="data-loader-sub">Fetching counselor pipeline from database</div>
+                    </div>
+                  ) : filteredLeads.length === 0 ? (
+                    <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748b' }}>
+                      <p style={{ fontWeight: 600 }}>No leads matching this filter.</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* MOBILE-FIRST CARD QUEUE (Zero horizontal scroll, thumb-friendly 1-tap actions) */}
+                      <div className="sales-mobile-cards">
+                        {filteredLeads.map(lead => {
+                          const cleanPhone = (lead.phone || '').replace(/\D/g, '')
+                          const waMsg = encodeURIComponent(
+                            `Hello ${lead.fullName}, this is ${user?.name || 'Counselor'} regarding your inquiry for our ${lead.courseProgram || 'Healthcare Management'} program. Are you available for a brief discussion?`
+                          )
+                          const canEditLead = isLeadAssignedToMe(lead)
+                          return (
+                            <div key={lead.id} className="sales-lead-card">
+                              {/* Card Top Row: Name + Status Pill */}
+                              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                                <div style={{ minWidth: 0 }}>
+                                  <div
+                                    onClick={() => setActiveStudentModal(lead)}
+                                    style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', cursor: 'pointer', wordBreak: 'break-word' }}
+                                  >
+                                    {lead.fullName}
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 3 }}>
+                                    <a
+                                      href={`tel:${lead.phone}`}
+                                      style={{ fontSize: 13, color: '#0369a1', fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                    >
+                                      <Phone size={12} />
+                                      <span>{lead.phone}</span>
+                                    </a>
+                                    <span style={{ fontSize: 11, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                      <Clock size={11} color="#0284c7" />
+                                      {formatArrivalTime(lead.createdTime || lead.createdAt)}
+                                    </span>
+                                  </div>
+                                  {lead.email && (
+                                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, wordBreak: 'break-all' }}>
+                                      {lead.email}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </td>
-                            <td>
-                              <div style={{ fontSize: 12, fontWeight: 500 }}>{lead.qualification}</div>
-                              <div style={{ fontSize: 11, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                <MapPin size={11} color="#64748b" />
-                                <span>{lead.preferredLocation}</span>
-                              </div>
-                              <div style={{ fontSize: 11, color: '#94a3b8' }}>{lead.learningMode}</div>
-                            </td>
-                            <td>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
                                 <span
                                   style={{
                                     fontSize: 11,
                                     fontWeight: 700,
-                                    padding: '2px 8px',
+                                    padding: '3px 9px',
                                     borderRadius: 12,
                                     background: lead.isCycleEnded ? '#1e293b' : '#f1f5f9',
                                     color: lead.isCycleEnded ? '#ffffff' : '#334155',
                                     border: '1px solid #cbd5e1',
                                     whiteSpace: 'nowrap',
+                                    flexShrink: 0,
                                   }}
                                 >
                                   {getSalesDisplayStatus(lead)}
                                 </span>
-                                {lead.isCycleEnded && (
-                                  <span style={{ fontSize: 10, color: '#475569', fontWeight: 700 }}>
-                                    Closed
+                              </div>
+
+                              {/* Course Enquired & Metadata Pills */}
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 11 }}>
+                                <span
+                                  style={{
+                                    background: '#e0f2fe',
+                                    color: '#0369a1',
+                                    fontWeight: 700,
+                                    padding: '3px 8px',
+                                    borderRadius: 6,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                  }}
+                                >
+                                  <GraduationCap size={12} />
+                                  <span>
+                                    {lead.courseProgram || lead.businessProgramName || 'Not Specified'}
+                                    {(lead.courseVariant || lead.businessProgramVariant)
+                                      ? ` • ${lead.courseVariant || lead.businessProgramVariant}`
+                                      : ''}
+                                  </span>
+                                </span>
+                                {lead.qualification && (
+                                  <span style={{ background: '#f1f5f9', color: '#334155', fontWeight: 600, padding: '3px 8px', borderRadius: 6 }}>
+                                    {lead.qualification}
+                                  </span>
+                                )}
+                                {lead.preferredLocation && lead.preferredLocation !== 'Not Specified' && (
+                                  <span style={{ background: '#f1f5f9', color: '#475569', padding: '3px 8px', borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                    <MapPin size={11} />
+                                    <span>{lead.preferredLocation}</span>
                                   </span>
                                 )}
                               </div>
-                            </td>
-                            <td>
-                              <div style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>
-                                {lead.selectedCategoryLabel || lead.subStatus}
+
+                              {/* Sub-status & Counters */}
+                              <div style={{ fontSize: 12, color: '#475569', background: '#f8fafc', padding: '7px 10px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                                <div style={{ fontWeight: 600, color: '#1e293b' }}>
+                                  {lead.selectedCategoryLabel || lead.subStatus || 'Pending First Call'}
+                                </div>
+                                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+                                  <span>Steps: <strong>{lead.steps?.length || 0}</strong> • Calls: <strong>{lead.callAttempts || 0}</strong></span>
+                                  {lead.callbackAt && (
+                                    <span style={{ color: '#ea580c', fontWeight: 700 }}>
+                                      Callback: {new Date(lead.callbackAt).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                              <div style={{ fontSize: 11, color: '#64748b' }}>
-                                Steps: {lead.steps?.length || 0} • Calls: {lead.callAttempts || 0}
-                                {lead.callbackAt && (
-                                  <span style={{ color: '#ea580c', fontWeight: 600, display: 'block' }}>
-                                    Callback: {new Date(lead.callbackAt).toLocaleDateString()}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                {/* WhatsApp */}
+
+                              {/* 1-Tap Thumb-Friendly Action Buttons */}
+                              <div className="sales-lead-card-actions">
+                                <a
+                                  href={`tel:${lead.phone}`}
+                                  onClick={() => quickMarkStatus(lead, lead.status, 'Call Initiated')}
+                                  className="sales-lead-card-btn"
+                                  style={{ background: '#0284c7', color: '#ffffff' }}
+                                >
+                                  <PhoneCall size={15} />
+                                  <span>Call Now</span>
+                                </a>
                                 <a
                                   href={`https://wa.me/${cleanPhone}?text=${waMsg}`}
                                   target="_blank"
                                   rel="noreferrer"
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 4,
-                                    padding: '5px 8px',
-                                    background: '#25D366',
-                                    color: '#fff',
-                                    borderRadius: 4,
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    textDecoration: 'none',
-                                  }}
-                                  title="Send WhatsApp message"
+                                  className="sales-lead-card-btn"
+                                  style={{ background: '#25D366', color: '#ffffff' }}
                                 >
-                                  <MessageCircle size={13} />
+                                  <MessageCircle size={15} />
                                   <span>WhatsApp</span>
                                 </a>
-
-                                {/* Direct Call */}
-                                <a
-                                  href={`tel:${lead.phone}`}
-                                  onClick={() => quickMarkStatus(lead, lead.status, 'Call Initiated')}
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 4,
-                                    padding: '5px 8px',
-                                    background: '#0284c7',
-                                    color: '#fff',
-                                    borderRadius: 4,
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    textDecoration: 'none',
-                                  }}
-                                  title="Dial Phone"
-                                >
-                                  <PhoneCall size={13} />
-                                  <span>Dial</span>
-                                </a>
+                                {canEditLead ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="sales-lead-card-btn"
+                                      onClick={() => setActiveStepLead(lead)}
+                                      style={{ background: '#1b2b6b', color: '#ffffff' }}
+                                    >
+                                      <Plus size={15} />
+                                      <span>Log Step</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="sales-lead-card-btn"
+                                      onClick={() => setActiveStudentModal(lead)}
+                                      style={{ background: '#f1f5f9', color: '#1e293b', border: '1px solid #cbd5e1' }}
+                                    >
+                                      <User size={15} />
+                                      <span>Profile</span>
+                                    </button>
+                                  </>
+                                ) : (
+                                  <div style={{ gridColumn: '1 / -1', textAlign: 'center', fontSize: 11, color: '#64748b', padding: '4px 0' }}>
+                                    Assigned to {lead.assignedTo?.repName || 'Other'} (Read-Only)
+                                  </div>
+                                )}
                               </div>
-                            </td>
-                            <td>
-                              {isLeadAssignedToMe(lead) ? (
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                  <button
-                                    type="button"
-                                    className="btn-pulse-secondary"
-                                    style={{ fontSize: 11, padding: '5px 8px' }}
-                                    onClick={() => setActiveStudentModal(lead)}
-                                    title="View & Edit Student Profile"
-                                  >
-                                    Profile
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="btn-pulse"
-                                    style={{ fontSize: 11, padding: '5px 10px' }}
-                                    onClick={() => setActiveStepLead(lead)}
-                                    title="Add step, update category/status, or view timeline"
-                                  >
-                                    + Step
-                                  </button>
-                                </div>
-                              ) : (
-                                <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>
-                                  Assigned to {lead.assignedTo?.repName || 'Other'} (Read-Only)
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {/* DESKTOP TABLE VIEW */}
+                      <div className="leads-table-container sales-desktop-table">
+                        <table className="leads-table">
+                          <thead>
+                            <tr>
+                              <th>Candidate / Phone</th>
+                              <th>Course Enquired</th>
+                              <th>Qualification & Destination</th>
+                              <th>Status</th>
+                              <th>Attempts & Sub-status</th>
+                              <th>Direct Connect</th>
+                              <th>Log Interaction</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredLeads.map(lead => {
+                              const cleanPhone = (lead.phone || '').replace(/\D/g, '')
+                              const waMsg = encodeURIComponent(
+                                `Hello ${lead.fullName}, this is ${user?.name || 'Counselor'} regarding your inquiry for our Healthcare Management program. Are you available for a brief discussion?`
+                              )
+                              return (
+                                <tr key={lead.id}>
+                                  <td>
+                                    <div
+                                      style={{ fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}
+                                      onClick={() => setActiveStudentModal(lead)}
+                                      title="Click to view & edit student profile"
+                                    >
+                                      {lead.fullName}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: '#0369a1', fontWeight: 600 }}>
+                                      <a href={`tel:${lead.phone}`} style={{ color: 'inherit', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                        <Phone size={12} />
+                                        <span>{lead.phone}</span>
+                                      </a>
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#94a3b8' }}>{lead.email}</div>
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#64748b', marginTop: 3 }}>
+                                      <Clock size={11} color="#0284c7" />
+                                      <span>{formatArrivalTime(lead.createdTime || lead.createdAt)}</span>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div style={{ fontSize: 12, fontWeight: 600, color: '#0369a1' }}>
+                                      {lead.courseProgram || lead.businessProgramName || 'Not Specified'}
+                                    </div>
+                                    {(lead.courseVariant || lead.businessProgramVariant) && (
+                                      <div style={{ fontSize: 11, color: '#64748b' }}>
+                                        {lead.courseVariant || lead.businessProgramVariant}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <div style={{ fontSize: 12, fontWeight: 500 }}>{lead.qualification}</div>
+                                    <div style={{ fontSize: 11, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                      <MapPin size={11} color="#64748b" />
+                                      <span>{lead.preferredLocation}</span>
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#94a3b8' }}>{lead.learningMode}</div>
+                                  </td>
+                                  <td>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                                      <span
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: 700,
+                                          padding: '2px 8px',
+                                          borderRadius: 12,
+                                          background: lead.isCycleEnded ? '#1e293b' : '#f1f5f9',
+                                          color: lead.isCycleEnded ? '#ffffff' : '#334155',
+                                          border: '1px solid #cbd5e1',
+                                          whiteSpace: 'nowrap',
+                                        }}
+                                      >
+                                        {getSalesDisplayStatus(lead)}
+                                      </span>
+                                      {lead.isCycleEnded && (
+                                        <span style={{ fontSize: 10, color: '#475569', fontWeight: 700 }}>
+                                          Closed
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>
+                                      {lead.selectedCategoryLabel || lead.subStatus}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                                      Steps: {lead.steps?.length || 0} • Calls: {lead.callAttempts || 0}
+                                      {lead.callbackAt && (
+                                        <span style={{ color: '#ea580c', fontWeight: 600, display: 'block' }}>
+                                          Callback: {new Date(lead.callbackAt).toLocaleDateString()}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div style={{ display: 'flex', gap: 6 }}>
+                                      {/* WhatsApp */}
+                                      <a
+                                        href={`https://wa.me/${cleanPhone}?text=${waMsg}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                          padding: '5px 8px',
+                                          background: '#25D366',
+                                          color: '#fff',
+                                          borderRadius: 4,
+                                          fontSize: 11,
+                                          fontWeight: 600,
+                                          textDecoration: 'none',
+                                        }}
+                                        title="Send WhatsApp message"
+                                      >
+                                        <MessageCircle size={13} />
+                                        <span>WhatsApp</span>
+                                      </a>
+
+                                      {/* Direct Call */}
+                                      <a
+                                        href={`tel:${lead.phone}`}
+                                        onClick={() => quickMarkStatus(lead, lead.status, 'Call Initiated')}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                          padding: '5px 8px',
+                                          background: '#0284c7',
+                                          color: '#fff',
+                                          borderRadius: 4,
+                                          fontSize: 11,
+                                          fontWeight: 600,
+                                          textDecoration: 'none',
+                                        }}
+                                        title="Dial Phone"
+                                      >
+                                        <PhoneCall size={13} />
+                                        <span>Dial</span>
+                                      </a>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    {isLeadAssignedToMe(lead) ? (
+                                      <div style={{ display: 'flex', gap: 6 }}>
+                                        <button
+                                          type="button"
+                                          className="btn-pulse-secondary"
+                                          style={{ fontSize: 11, padding: '5px 8px' }}
+                                          onClick={() => setActiveStudentModal(lead)}
+                                          title="View & Edit Student Profile"
+                                        >
+                                          Profile
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn-pulse"
+                                          style={{ fontSize: 11, padding: '5px 10px' }}
+                                          onClick={() => setActiveStepLead(lead)}
+                                          title="Add step, update category/status, or view timeline"
+                                        >
+                                          + Step
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>
+                                        Assigned to {lead.assignedTo?.repName || 'Other'} (Read-Only)
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+                  {totalLeadsCount > 0 && (
+                    <div className="pagination-container">
+                      <div>
+                        Showing{' '}
+                        <strong>
+                          {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, totalLeadsCount)}
+                        </strong>{' '}
+                        of <strong>{totalLeadsCount}</strong> leads (Page {page} of {totalPages})
+                      </div>
+                      <div className="pagination-controls">
+                        <button
+                          type="button"
+                          className="btn-pagination"
+                          disabled={page <= 1 || loading}
+                          onClick={() => setPage(p => Math.max(1, p - 1))}
+                        >
+                          Previous
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-pagination"
+                          disabled={page >= totalPages || loading}
+                          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                </>
-              )}
-              {totalLeadsCount > 0 && (
-                <div className="pagination-container">
-                  <div>
-                    Showing{' '}
-                    <strong>
-                      {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, totalLeadsCount)}
-                    </strong>{' '}
-                    of <strong>{totalLeadsCount}</strong> leads (Page {page} of {totalPages})
-                  </div>
-                  <div className="pagination-controls">
-                    <button
-                      type="button"
-                      className="btn-pagination"
-                      disabled={page <= 1 || loading}
-                      onClick={() => setPage(p => Math.max(1, p - 1))}
-                    >
-                      Previous
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-pagination"
-                      disabled={page >= totalPages || loading}
-                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          </>
+              </div>
+            </>
           )}
         </div>
       </main>
