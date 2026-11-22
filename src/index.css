@@ -1922,7 +1922,47 @@ input:checked + .toggle-slider:before {
   padding: 8px 10px;
 }
 
+.pool-manual-assign-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pool-manual-assign-row select {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
 @media (max-width: 768px) {
+  .pool-action-bar {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .pool-manual-assign-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .pool-manual-assign-row select {
+    grid-column: 1 / -1;
+    width: 100%;
+    padding: 8px 10px !important;
+  }
+
+  .pool-manual-assign-row button {
+    width: 100%;
+    justify-content: center;
+    padding: 8px 10px !important;
+    white-space: nowrap;
+  }
+
   .sales-desktop-table {
     display: none;
   }

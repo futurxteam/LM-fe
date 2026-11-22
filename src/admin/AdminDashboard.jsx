@@ -1901,7 +1901,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   )}
 
                   {/* Manual Assign Select */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div className="pool-manual-assign-row">
                     <select
                       value={selectedRepId}
                       onChange={e => setSelectedRepId(e.target.value)}
