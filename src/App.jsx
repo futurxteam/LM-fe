@@ -66,6 +66,7 @@ export default function App() {
         <Route path="/leads" element={<AdminDashboard user={user} onLogout={handleLogout} />} />
         <Route path="/all-leads" element={<Navigate to="/leads" replace />} />
         <Route path="/reports" element={<AdminDashboard user={user} onLogout={handleLogout} />} />
+        <Route path="/reports/:reportSlug" element={<AdminDashboard user={user} onLogout={handleLogout} />} />
         <Route path="/users" element={<AdminDashboard user={user} onLogout={handleLogout} />} />
         <Route path="/team" element={<Navigate to="/users" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -80,6 +81,8 @@ export default function App() {
       <Route path="/login" element={<Navigate to="/queue" replace />} />
       <Route path="/queue" element={<SalesDashboard user={user} onLogout={handleLogout} />} />
       <Route path="/team" element={<SalesDashboard user={user} onLogout={handleLogout} />} />
+      <Route path="/reports" element={<SalesDashboard user={user} onLogout={handleLogout} />} />
+      <Route path="/reports/:reportSlug" element={<SalesDashboard user={user} onLogout={handleLogout} />} />
       <Route path="*" element={<Navigate to="/queue" replace />} />
     </Routes>
   )

@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react'
-import { X, Settings, Plus, Trash2, Save, RotateCcw, GraduationCap, Shield } from 'lucide-react'
+import { X, Settings, Plus, Trash2, Save, RotateCcw, GraduationCap, Shield, Edit2, IndianRupee } from 'lucide-react'
 import { api } from '../api'
 
-export default function AdminLifecycleSettingsModal({ isOpen, onClose, onSaved, showNotify }) {
+export default function AdminLifecycleSettingsModal({
+  isOpen,
+  initialTab = 'policy',
+  onClose,
+  onSaved,
+  showNotify,
+}) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [tab, setTab] = useState('policy') // 'policy' | 'programs' | 'categories'
+  const [tab, setTab] = useState(initialTab) // 'policy' | 'programs' | 'categories'
 
   // Policy fields
   const [maxLostCycles, setMaxLostCycles] = useState(3)
@@ -16,12 +22,20 @@ export default function AdminLifecycleSettingsModal({ isOpen, onClose, onSaved, 
   const [lostReasonsText, setLostReasonsText] = useState('')
   const [outcomeCategories, setOutcomeCategories] = useState([])
 
-  // Program Master
+  // Program & Fee Structure Master
   const [programs, setPrograms] = useState([])
   const [newProgName, setNewProgName] = useState('')
   const [newProgCode, setNewProgCode] = useState('')
   const [newProgVariants, setNewProgVariants] = useState('')
   const [newProgFee, setNewProgFee] = useState('')
+  const [editingProgId, setEditingProgId] = useState(null)
+  const [editProgForm, setEditProgForm] = useState({
+    name: '',
+    code: '',
+    variantsText: '',
+    defaultFee: '',
+    variantFees: {},
+  })
 
   // New Category
   const [newCatLabel, setNewCatLabel] = useState('')
@@ -29,8 +43,12 @@ export default function AdminLifecycleSettingsModal({ isOpen, onClose, onSaved, 
   const [newCatGroup, setNewCatGroup] = useState('Positive Interest')
 
   useEffect(() => {
-    if (isOpen) loadSettings()
-  }, [isOpen])
+    if (isOpen) {
+      setTab(initialTab || 'policy')
+      setEditingProgId(null)
+      loadSettings()
+    }
+  }, [isOpen, initialTab])
 
   const loadSettings = async () => {
     setLoading(true)
@@ -124,6 +142,53 @@ export default function AdminLifecycleSettingsModal({ isOpen, onClose, onSaved, 
     }
   }
 
+  const startEditProgram = prog => {
+    setEditingProgId(prog._id)
+    setEditProgForm({
+      name: prog.name || '',
+      code: prog.code || '',
+      variantsText: (prog.variants || []).join(', '),
+      defaultFee: prog.defaultFee !== undefined && prog.defaultFee !== null ? String(prog.defaultFee) : '',
+      variantFees: { ...(prog.variantFees || {}) },
+    })
+  }
+
+  const handleSaveEditProgram = async progId => {
+    if (!editProgForm.name.trim()) {
+      showNotify?.('error', 'Program name is required')
+      return
+    }
+    setSaving(true)
+    try {
+      const parsedVariants = editProgForm.variantsText
+        .split(',')
+        .map(v => v.trim())
+        .filter(Boolean)
+      const cleanedVariantFees = {}
+      parsedVariants.forEach(v => {
+        const raw = editProgForm.variantFees?.[v]
+        if (raw !== '' && raw !== undefined && raw !== null && Number(raw) >= 0) {
+          cleanedVariantFees[v] = Number(raw)
+        }
+      })
+      await api.updateCourseProgram(progId, {
+        name: editProgForm.name.trim(),
+        code: editProgForm.code.trim(),
+        variants: parsedVariants,
+        defaultFee: Number(editProgForm.defaultFee) >= 0 ? Number(editProgForm.defaultFee) : 0,
+        variantFees: cleanedVariantFees,
+      })
+      showNotify?.('success', 'Course & Fee structure updated!')
+      setEditingProgId(null)
+      await loadSettings()
+      onSaved?.()
+    } catch (err) {
+      showNotify?.('error', err.message || 'Failed to update course & fee structure')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleAddCategory = e => {
     e.preventDefault()
     if (!newCatLabel.trim()) return
@@ -188,7 +253,7 @@ export default function AdminLifecycleSettingsModal({ isOpen, onClose, onSaved, 
         <div style={{ display: 'flex', gap: 8, padding: '10px 18px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
           {[
             { id: 'policy', label: 'Lost Cycles & Business Rules' },
-            { id: 'programs', label: `Program Master (${programs.length})` },
+            { id: 'programs', label: `Course & Fee Structure (${programs.length})` },
             { id: 'categories', label: `Outcome Categories (${outcomeCategories.length})` },
           ].map(t => (
             <button
@@ -355,57 +420,219 @@ export default function AdminLifecycleSettingsModal({ isOpen, onClose, onSaved, 
                   <tr>
                     <th>Program</th>
                     <th>Code</th>
-                    <th>Variants</th>
-                    <th>Default Fee</th>
+                    <th>Variants &amp; Variant Fees</th>
+                    <th>Default Fee (₹)</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {programs.map(p => (
-                    <tr key={p._id}>
-                      <td style={{ fontWeight: 700 }}>{p.name}</td>
-                      <td>{p.code || '—'}</td>
-                      <td style={{ fontSize: 11, color: '#475569' }}>
-                        {p.variants?.length ? p.variants.join(', ') : '—'}
-                      </td>
-                      <td>{p.defaultFee ? `₹${Number(p.defaultFee).toLocaleString('en-IN')}` : '—'}</td>
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleProgramActive(p)}
-                          style={{
-                            padding: '2px 8px',
-                            borderRadius: 12,
-                            fontSize: 11,
-                            fontWeight: 700,
-                            border: 'none',
-                            cursor: 'pointer',
-                            background: p.active ? '#dcfce7' : '#f1f5f9',
-                            color: p.active ? '#15803d' : '#64748b',
-                          }}
-                        >
-                          {p.active ? 'Active' : 'Inactive'}
-                        </button>
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteProgram(p)}
-                          style={{
-                            padding: '4px 7px',
-                            borderRadius: 4,
-                            border: '1px solid #fecaca',
-                            background: '#fef2f2',
-                            color: '#dc2626',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {programs.map(p => {
+                    const isEditingRow = editingProgId === p._id
+                    const editVariantsList = isEditingRow
+                      ? editProgForm.variantsText.split(',').map(v => v.trim()).filter(Boolean)
+                      : []
+                    return (
+                      <React.Fragment key={p._id}>
+                        <tr>
+                          <td style={{ fontWeight: 700 }}>
+                            {isEditingRow ? (
+                              <input
+                                type="text"
+                                value={editProgForm.name}
+                                onChange={e => setEditProgForm({ ...editProgForm, name: e.target.value })}
+                                style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid #94a3b8', fontSize: 12 }}
+                              />
+                            ) : (
+                              p.name
+                            )}
+                          </td>
+                          <td>
+                            {isEditingRow ? (
+                              <input
+                                type="text"
+                                value={editProgForm.code}
+                                onChange={e => setEditProgForm({ ...editProgForm, code: e.target.value })}
+                                style={{ width: 68, padding: '5px 6px', borderRadius: 5, border: '1px solid #94a3b8', fontSize: 12 }}
+                              />
+                            ) : (
+                              p.code || '—'
+                            )}
+                          </td>
+                          <td style={{ fontSize: 11, color: '#475569' }}>
+                            {isEditingRow ? (
+                              <input
+                                type="text"
+                                value={editProgForm.variantsText}
+                                onChange={e => setEditProgForm({ ...editProgForm, variantsText: e.target.value })}
+                                placeholder="Comma separated variants"
+                                style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid #94a3b8', fontSize: 12 }}
+                              />
+                            ) : p.variants?.length ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                {p.variants.map(v => {
+                                  const vFee = p.variantFees?.[v]
+                                  return (
+                                    <div key={v}>
+                                      <span>{v}</span>
+                                      {vFee !== undefined && vFee !== null && Number(vFee) > 0 && (
+                                        <strong style={{ marginLeft: 6, color: '#047857' }}>
+                                          (₹{Number(vFee).toLocaleString('en-IN')})
+                                        </strong>
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td>
+                            {isEditingRow ? (
+                              <input
+                                type="number"
+                                min="0"
+                                value={editProgForm.defaultFee}
+                                onChange={e => setEditProgForm({ ...editProgForm, defaultFee: e.target.value })}
+                                style={{ width: 92, padding: '5px 8px', borderRadius: 5, border: '1px solid #94a3b8', fontSize: 12 }}
+                              />
+                            ) : p.defaultFee ? (
+                              <strong>₹{Number(p.defaultFee).toLocaleString('en-IN')}</strong>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleProgramActive(p)}
+                              style={{
+                                padding: '2px 8px',
+                                borderRadius: 12,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                border: 'none',
+                                cursor: 'pointer',
+                                background: p.active ? '#dcfce7' : '#f1f5f9',
+                                color: p.active ? '#15803d' : '#64748b',
+                              }}
+                            >
+                              {p.active ? 'Active' : 'Inactive'}
+                            </button>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              {isEditingRow ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveEditProgram(p._id)}
+                                    disabled={saving}
+                                    style={{
+                                      padding: '4px 8px',
+                                      borderRadius: 4,
+                                      border: 'none',
+                                      background: '#059669',
+                                      color: '#fff',
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 3,
+                                    }}
+                                  >
+                                    <Save size={11} /> Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingProgId(null)}
+                                    style={{
+                                      padding: '4px 7px',
+                                      borderRadius: 4,
+                                      border: '1px solid #cbd5e1',
+                                      background: '#fff',
+                                      color: '#475569',
+                                      fontSize: 11,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditProgram(p)}
+                                    title="Edit Course & Fee Structure"
+                                    style={{
+                                      padding: '4px 7px',
+                                      borderRadius: 4,
+                                      border: '1px solid #bae6fd',
+                                      background: '#f0f9ff',
+                                      color: '#0369a1',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <Edit2 size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteProgram(p)}
+                                    title="Delete Program"
+                                    style={{
+                                      padding: '4px 7px',
+                                      borderRadius: 4,
+                                      border: '1px solid #fecaca',
+                                      background: '#fef2f2',
+                                      color: '#dc2626',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                        {isEditingRow && editVariantsList.length > 0 && (
+                          <tr>
+                            <td colSpan={6} style={{ background: '#f0f9ff', padding: '10px 14px' }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#0369a1', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <IndianRupee size={12} /> Variant-Specific Fee Structure (optional — overrides default fee when variant is selected):
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
+                                {editVariantsList.map(v => (
+                                  <div key={v} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#fff', padding: '6px 10px', borderRadius: 6, border: '1px solid #bae6fd' }}>
+                                    <span style={{ fontSize: 11, fontWeight: 600, color: '#1e293b' }}>{v}</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      placeholder="Fee ₹"
+                                      value={editProgForm.variantFees?.[v] ?? ''}
+                                      onChange={e =>
+                                        setEditProgForm({
+                                          ...editProgForm,
+                                          variantFees: {
+                                            ...(editProgForm.variantFees || {}),
+                                            [v]: e.target.value,
+                                          },
+                                        })
+                                      }
+                                      style={{ width: 90, padding: '4px 7px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12 }}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

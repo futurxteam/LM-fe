@@ -17,6 +17,37 @@ export const BUSINESS_STATUSES = [
   'ONBOARDED BUSINESS',
 ]
 
+export const INQUIRY_INTENT_STATUSES = [
+  'Just Exploring & Searching',
+  'Comparing Program & Price',
+  'Parent/Guardian Discussion',
+  'Confused / Discussion Pending',
+  'Counselling Requested',
+  'Counselling Completed',
+  'Ready to Enroll',
+]
+
+export const FRD_LOST_REASONS = [
+  'Fee / Financial Constraint',
+  'Joined Another Institution',
+  'Selected Another Course',
+  'Not Interested in Healthcare',
+  'Parent/Guardian Not Interested',
+  'Employment Commitment',
+  'Not for Now, Will Do Later',
+  'Trust / Credibility Concern',
+]
+
+export const PAYMENT_MODES = [
+  'UPI',
+  'Bank Transfer / NEFT',
+  'Cash',
+  'Card',
+  'Cheque',
+  'Online Gateway',
+  'Other',
+]
+
 export const isBusinessStatus = status => BUSINESS_STATUSES.includes(status)
 
 export const formatINR = amount => {

@@ -286,9 +286,16 @@ export const api = {
     })
   },
 
-  // Lead Lifecycle Steps & Recyclable Lost Handlers
+  // Lead Lifecycle Steps, Receipts & Recyclable Lost Handlers
   addLeadStep: async (leadId, payload) => {
     return await request(`/leads/${leadId}/steps`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  addLeadPaymentReceipt: async (leadId, payload) => {
+    return await request(`/leads/${leadId}/receipts`, {
       method: 'POST',
       body: JSON.stringify(payload),
     })
@@ -358,6 +365,18 @@ export const api = {
     })
     const qs = query.toString()
     return await request(`/stats/advanced${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+
+  // FRD Section 7 Reports (Business Report 7.1, Lead Conversion 7.2, Admin-Only Lead Status 7.3)
+  getFrdReports: async (params = {}) => {
+    const query = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '' && v !== 'All') {
+        query.append(k, v)
+      }
+    })
+    const qs = query.toString()
+    return await request(`/stats/frd-reports${qs ? `?${qs}` : ''}`, { method: 'GET' })
   },
 }
 

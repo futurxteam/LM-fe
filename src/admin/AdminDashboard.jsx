@@ -54,6 +54,11 @@ import {
   MapPin,
   AlertTriangle,
   History,
+  IndianRupee,
+  TrendingUp,
+  Flame,
+  Building2,
+  ArrowLeft,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -65,7 +70,8 @@ import LeadStepModal from '../components/LeadStepModal'
 import AdminAdvancedReports from '../components/AdminAdvancedReports'
 import AdminLifecycleSettingsModal from '../components/AdminLifecycleSettingsModal'
 import StaffHistoryDrawer from '../components/StaffHistoryDrawer'
-import { getStatusBadgeStyle, getHeatBadgeStyle, LEAD_STATUSES } from '../constants/leadLifecycle'
+import FrdReportsView from '../components/FrdReportsView'
+import { getStatusBadgeStyle, getHeatBadgeStyle, LEAD_STATUSES, formatINR } from '../constants/leadLifecycle'
 
 export default function AdminDashboard({ user, onLogout }) {
   const location = useLocation()
@@ -81,6 +87,9 @@ export default function AdminDashboard({ user, onLogout }) {
   }
 
   const activeTab = getTabFromPath(location.pathname)
+  const reportSlug = location.pathname.startsWith('/reports/')
+    ? location.pathname.replace('/reports/', '').split('/')[0]
+    : ''
 
   // Navigate to separate pages so browser URL updates and refresh does not reset to root!
   const setActiveTab = tab => {
@@ -131,6 +140,12 @@ export default function AdminDashboard({ user, onLogout }) {
   const [crmMeta, setCrmMeta] = useState(null)
   const [activeStepLead, setActiveStepLead] = useState(null)
   const [showLifecycleSettingsModal, setShowLifecycleSettingsModal] = useState(false)
+  const [lifecycleSettingsInitialTab, setLifecycleSettingsInitialTab] = useState('policy')
+
+  const openSettingsModal = (initialTab = 'policy') => {
+    setLifecycleSettingsInitialTab(initialTab)
+    setShowLifecycleSettingsModal(true)
+  }
 
   // Selection for bulk assignment/deletion in Pool & Master Leads
   const [selectedLeadIds, setSelectedLeadIds] = useState([])
@@ -1651,10 +1666,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <div
                     className="stage-stat-card"
                     style={{ borderLeft: '4px solid #0284c7', cursor: 'pointer' }}
-                    onClick={() => {
-                      setActiveTab('reports')
-                      setActiveReportSubTab('stage')
-                    }}
+                    onClick={() => navigate('/reports/stage')}
                   >
                     <div className="stage-stat-title">Active Outreach Stage</div>
                     <div className="stage-stat-value" style={{ color: '#0284c7' }}>
@@ -1668,15 +1680,14 @@ export default function AdminDashboard({ user, onLogout }) {
                   <div
                     className="stage-stat-card"
                     style={{ borderLeft: '4px solid #059669', cursor: 'pointer' }}
-                    onClick={() => {
-                      setActiveTab('reports')
-                      setActiveReportSubTab('stage')
-                    }}
+                    onClick={() => navigate('/reports/business')}
                   >
-                    <div className="stage-stat-title">Confirmed Enrolled</div>
-                    <div className="stage-stat-value" style={{ color: '#059669' }}>{enrolledCount}</div>
+                    <div className="stage-stat-title">Qual / Conv / Onboarded</div>
+                    <div className="stage-stat-value" style={{ color: '#059669', fontSize: 22 }}>
+                      {stats?.qualifiedCount || 0} / {stats?.convertedCount || 0} / {stats?.onboardedCount || 0}
+                    </div>
                     <div className="stage-stat-sub">
-                      {stats?.conversionRate || 0}% student conversion rate
+                      Turnover: <strong>{formatINR(stats?.businessTurnover || 0)}</strong> • Collected: <strong style={{ color: '#059669' }}>{formatINR(stats?.salesRevenue || 0)}</strong>
                     </div>
                   </div>
                 </div>
@@ -1688,10 +1699,7 @@ export default function AdminDashboard({ user, onLogout }) {
                     <button
                       className="header-badge"
                       style={{ cursor: 'pointer', border: 'none' }}
-                      onClick={() => {
-                        setActiveTab('reports')
-                        setActiveReportSubTab('reps')
-                      }}
+                      onClick={() => navigate('/reports/counselors')}
                     >
                       View Detailed Leaderboard →
                     </button>
@@ -1781,16 +1789,38 @@ export default function AdminDashboard({ user, onLogout }) {
                     )}
                   </button>
 
-                  {/* Lifecycle & Program Settings */}
+                  {/* Course & Fee Structure Master Button */}
+                  <button
+                    type="button"
+                    className="btn-pulse"
+                    onClick={() => openSettingsModal('programs')}
+                    style={{
+                      background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '7px 12px',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                    title="Configure Course Programs, Variants & Fee Structure"
+                  >
+                    <IndianRupee size={14} />
+                    <span>Course &amp; Fee Structure</span>
+                  </button>
+
+                  {/* Lifecycle & Policy Settings */}
                   <button
                     type="button"
                     className="btn-pulse-secondary"
-                    onClick={() => setShowLifecycleSettingsModal(true)}
-                    style={{ padding: '5px 10px', fontSize: 12, fontWeight: 600 }}
-                    title="Configure Max Lost Cycles, Recycle Mode & Program Master"
+                    onClick={() => openSettingsModal('policy')}
+                    style={{ padding: '6px 10px', fontSize: 12, fontWeight: 600 }}
+                    title="Configure Max Lost Cycles, Recycle Mode & Business Rules"
                   >
                     <Settings size={13} />
-                    <span>Policy &amp; Programs</span>
+                    <span>Policy &amp; Rules</span>
                   </button>
 
                   {/* Manual Student Lead Addition */}
@@ -2322,16 +2352,38 @@ export default function AdminDashboard({ user, onLogout }) {
                     </button>
                   )}
 
-                  {/* Lifecycle & Program Settings */}
+                  {/* Course & Fee Structure Master Button */}
+                  <button
+                    type="button"
+                    className="btn-pulse"
+                    onClick={() => openSettingsModal('programs')}
+                    style={{
+                      background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '7px 12px',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                    title="Configure Course Programs, Variants & Fee Structure"
+                  >
+                    <IndianRupee size={14} />
+                    <span>Course &amp; Fee Structure</span>
+                  </button>
+
+                  {/* Lifecycle & Policy Settings */}
                   <button
                     type="button"
                     className="btn-pulse-secondary"
-                    onClick={() => setShowLifecycleSettingsModal(true)}
-                    style={{ padding: '5px 10px', fontSize: 12, fontWeight: 600 }}
-                    title="Configure Max Lost Cycles, Recycle Mode & Program Master"
+                    onClick={() => openSettingsModal('policy')}
+                    style={{ padding: '6px 10px', fontSize: 12, fontWeight: 600 }}
+                    title="Configure Max Lost Cycles, Recycle Mode & Business Rules"
                   >
                     <Settings size={13} />
-                    <span>Policy &amp; Programs</span>
+                    <span>Policy &amp; Rules</span>
                   </button>
 
                   {/* Manual Student Lead Addition */}
@@ -2682,348 +2734,412 @@ export default function AdminDashboard({ user, onLogout }) {
           )}
 
           {/* ========================================================
-              TAB 4: REPORTS & ANALYTICS
-              Contains the brand new "Current Success Status & Current Stage"
-              NO live ingestion pipeline card here!
+              TAB 4: REPORTS HUB (CARDS -> DEDICATED PAGE FOR EACH REPORT)
               ======================================================== */}
           {activeTab === 'reports' && (
-            loading ? (
-              <div className="template-card">
-                <div className="data-loader-container">
-                  <div className="data-loader-spinner" />
-                  <div className="data-loader-text">Compiling Executive Reports & Analytics...</div>
-                  <div className="data-loader-sub">Calculating conversion rates, demographic splits & counselor metrics</div>
+            !reportSlug ? (
+              <div>
+                <div
+                  className="pool-action-bar"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 18 }}
+                >
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                      Management Reports &amp; Analytics Hub
+                    </h3>
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                      Select any report card below to open its dedicated full-page view with filters &amp; CSV export.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-pulse"
+                    onClick={() => openSettingsModal('programs')}
+                    style={{ fontSize: 12, padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <IndianRupee size={14} />
+                    <span>Course &amp; Fee Structure</span>
+                  </button>
+                </div>
+
+                {/* Report Cards Grid */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
+                    gap: 16,
+                  }}
+                >
+                  {[
+                    {
+                      slug: 'business',
+                      title: 'Business Report (FRD 7.1)',
+                      desc: 'Per-user Leads Allocated, Unique Aggregate Business Count, Turnover (Course Fees), Sales Revenue (Paid), and Qualified / Converted / Onboarded splits.',
+                      color: '#059669',
+                      bg: '#ecfdf5',
+                      badge: 'Turnover & Revenue',
+                      Icon: IndianRupee,
+                    },
+                    {
+                      slug: 'conversion',
+                      title: 'Lead Conversion Report (FRD 7.2)',
+                      desc: 'Compare assigned lead cohorts with Aggregate, Qualified, Converted, and Onboarded counts & conversion percentages across Current Month or Till Date.',
+                      color: '#0284c7',
+                      bg: '#f0f9ff',
+                      badge: 'Cohort Ratios',
+                      Icon: TrendingUp,
+                    },
+                    {
+                      slug: 'status',
+                      title: 'Lead Status Report (FRD 7.3)',
+                      desc: 'Distribution of assigned leads across HOT, WARM, COLD, LOST, NON-CONNECT, NON PROSPECT & Other statuses with 100% reconciled percentages.',
+                      color: '#dc2626',
+                      bg: '#fef2f2',
+                      badge: 'Admin Only',
+                      Icon: BarChart3,
+                    },
+                    {
+                      slug: 'heat',
+                      title: 'Hot / Warm / Cold Classification',
+                      desc: 'Visual Donut chart, category breakdown, and backend-paginated searchable leads table classified by Heat Tier.',
+                      color: '#ea580c',
+                      bg: '#fff7ed',
+                      badge: 'Admin Only',
+                      Icon: Flame,
+                    },
+                    {
+                      slug: 'groups',
+                      title: 'Group-Wise Performance Report',
+                      desc: 'Compare Counselor Groups & Teams by lead volume, Hot/Warm/Cold split, milestone conversions, course fees, and collections.',
+                      color: '#4f46e5',
+                      bg: '#eef2ff',
+                      badge: 'Team Analytics',
+                      Icon: Building2,
+                    },
+                    {
+                      slug: 'lifecycle',
+                      title: '10-Status Lifecycle Funnel',
+                      desc: 'End-to-end visual funnel across all 10 canonical lead lifecycle statuses with active vs end-of-cycle counts.',
+                      color: '#0e7490',
+                      bg: '#ecfeff',
+                      badge: 'Funnel View',
+                      Icon: Activity,
+                    },
+                    {
+                      slug: 'recycle',
+                      title: 'Lost Business & Recycle Queue',
+                      desc: 'Lost reason breakdown plus separate Recyclable Lost & Max-Limit Lost tables with single, selected, or entire-list Recycle & Remove.',
+                      color: '#991b1b',
+                      bg: '#fef2f2',
+                      badge: 'Recycle Ops',
+                      Icon: RotateCcw,
+                    },
+                    {
+                      slug: 'finance',
+                      title: 'Program & Milestone Financials',
+                      desc: 'Total Course Fees (Business Value) vs Actual Collected vs Pending Balance broken down by Business Milestone and Course Program.',
+                      color: '#15803d',
+                      bg: '#f0fdf4',
+                      badge: 'Finance',
+                      Icon: PieChart,
+                    },
+                    {
+                      slug: 'counselors',
+                      title: 'Counselor Performance Matrix',
+                      desc: 'Complete advisor-by-advisor performance table including disabled/archived counselors, steps logged, and revenue collection.',
+                      color: '#1b2b6b',
+                      bg: '#eff6ff',
+                      badge: 'Staff Matrix',
+                      Icon: Users,
+                    },
+                    {
+                      slug: 'stage',
+                      title: 'Pipeline Stage & Sub-Status Report',
+                      desc: 'Success status summary cards and granular stage/sub-status distribution with average call attempts.',
+                      color: '#7c3aed',
+                      bg: '#f5f3ff',
+                      badge: 'Pipeline',
+                      Icon: Layers,
+                    },
+                    {
+                      slug: 'demographics',
+                      title: 'Campaigns, Channels & Demographics',
+                      desc: 'Meta campaign attribution, Instagram vs Facebook split, Preferred Work City / Kerala districts, and Qualification demographics.',
+                      color: '#0369a1',
+                      bg: '#f0f9ff',
+                      badge: 'Audience & ROI',
+                      Icon: Globe,
+                    },
+                  ].map(card => {
+                    const CardIcon = card.Icon
+                    return (
+                      <div
+                        key={card.slug}
+                        className="template-card"
+                        onClick={() => navigate(`/reports/${card.slug}`)}
+                        style={{
+                          padding: 18,
+                          cursor: 'pointer',
+                          borderTop: `3px solid ${card.color}`,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          gap: 12,
+                          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+                            <div
+                              style={{
+                                width: 38,
+                                height: 38,
+                                borderRadius: 10,
+                                background: card.bg,
+                                color: card.color,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <CardIcon size={19} />
+                            </div>
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                padding: '3px 8px',
+                                borderRadius: 12,
+                                background: card.bg,
+                                color: card.color,
+                              }}
+                            >
+                              {card.badge}
+                            </span>
+                          </div>
+                          <h4 style={{ margin: '0 0 6px 0', fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
+                            {card.title}
+                          </h4>
+                          <p style={{ margin: 0, fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
+                            {card.desc}
+                          </p>
+                        </div>
+                        <div
+                          style={{
+                            paddingTop: 10,
+                            borderTop: '1px solid #f1f5f9',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: card.color,
+                          }}
+                        >
+                          <span>Open Report Page</span>
+                          <ArrowRight size={14} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : ['business', 'conversion', 'status'].includes(reportSlug) ? (
+              <FrdReportsView
+                reportType={reportSlug}
+                isAdmin={true}
+                onBack={() => navigate('/reports')}
+                showNotify={showNotify}
+              />
+            ) : ['heat', 'groups', 'lifecycle', 'recycle', 'finance', 'counselors'].includes(reportSlug) ? (
+              <AdminAdvancedReports
+                salesReps={salesReps}
+                forcedSubTab={reportSlug}
+                onBack={() => navigate('/reports')}
+                onOpenSettings={() => openSettingsModal('policy')}
+                onInspectLeadById={openStepModalById}
+                onRefreshParent={() => {
+                  loadOverviewData()
+                  if (activeTab === 'all-leads') loadMasterLeads(page, pageSize)
+                }}
+                showNotify={showNotify}
+              />
+            ) : reportSlug === 'stage' ? (
+              <div>
+                <div className="pool-action-bar" style={{ marginBottom: 16 }}>
+                  <button
+                    type="button"
+                    className="btn-pulse-secondary"
+                    onClick={() => navigate('/reports')}
+                    style={{ fontSize: 12, padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                  >
+                    <ArrowLeft size={14} />
+                    <span>All Reports</span>
+                  </button>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
+                    Current Success Status &amp; Pipeline Stage Report
+                  </h3>
+                </div>
+                <div className="stage-report-grid">
+                  {stats?.successStatusReport?.map((st, i) => (
+                    <div key={i} className="stage-stat-card" style={{ borderLeft: `4px solid ${st.color}` }}>
+                      <div className="stage-stat-title">{st.status}</div>
+                      <div className="stage-stat-value" style={{ color: st.color }}>{st.count}</div>
+                      <div className="stage-stat-sub">{st.percentage}% of all assigned leads</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="template-card">
+                  <div className="template-card-header">
+                    <h3>Current Lead Pipeline Stage &amp; Sub-Status Breakdown</h3>
+                    <span className="header-badge">{stats?.stageReport?.length || 0} Active Stages</span>
+                  </div>
+                  <div className="template-card-body" style={{ padding: 0 }}>
+                    <table className="reps-table">
+                      <thead>
+                        <tr>
+                          <th>Current Stage / Sub-Status</th>
+                          <th>Category</th>
+                          <th>Lead Volume</th>
+                          <th>Pipeline Share (%)</th>
+                          <th>Average Attempts</th>
+                          <th>Progress Distribution</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats?.stageReport && stats.stageReport.length > 0 ? (
+                          stats.stageReport.map((stage, idx) => (
+                            <tr key={idx}>
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: stage.color, flexShrink: 0 }} />
+                                  <strong style={{ color: '#1e293b' }}>{stage.stage}</strong>
+                                </div>
+                              </td>
+                              <td>
+                                <span style={{ fontSize: 11, background: '#f1f5f9', padding: '3px 8px', borderRadius: 4, color: '#475569', fontWeight: 600 }}>
+                                  {stage.category}
+                                </span>
+                              </td>
+                              <td style={{ fontWeight: 700, fontSize: 14 }}>{stage.count}</td>
+                              <td><strong style={{ color: stage.color }}>{stage.percentage}%</strong></td>
+                              <td style={{ color: '#64748b' }}>{stage.avgAttempts} calls</td>
+                              <td style={{ width: 160 }}>
+                                <div style={{ width: '100%', height: 7, background: '#e2e8f0', borderRadius: 4 }}>
+                                  <div style={{ width: `${Math.min(stage.percentage * 2, 100)}%`, height: '100%', background: stage.color, borderRadius: 4 }} />
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan="6" style={{ textAlign: 'center', padding: 24, color: '#94a3b8' }}>No stages recorded yet.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             ) : (
-              <div>
-                {/* Report Sub-tabs Header */}
-                <div className="admin-tab-nav">
+              /* Campaigns, Channels & Demographics Dedicated Page */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div className="pool-action-bar">
                   <button
-                    className={`admin-tab-btn ${activeReportSubTab === 'advanced' ? 'active' : ''}`}
-                    onClick={() => setActiveReportSubTab('advanced')}
+                    type="button"
+                    className="btn-pulse-secondary"
+                    onClick={() => navigate('/reports')}
+                    style={{ fontSize: 12, padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
                   >
-                    <Sparkles size={15} />
-                    <span>Advanced Reports (Hot/Warm/Cold, Cycles &amp; Revenue)</span>
+                    <ArrowLeft size={14} />
+                    <span>All Reports</span>
                   </button>
-                  <button
-                    className={`admin-tab-btn ${activeReportSubTab === 'stage' ? 'active' : ''}`}
-                    onClick={() => setActiveReportSubTab('stage')}
-                  >
-                    <Activity size={15} />
-                    <span>Current Success Status &amp; Current Stage</span>
-                  </button>
-                  <button
-                    className={`admin-tab-btn ${activeReportSubTab === 'reps' ? 'active' : ''}`}
-                    onClick={() => setActiveReportSubTab('reps')}
-                  >
-                    <Users size={15} />
-                    <span>Sales Rep Leaderboard</span>
-                  </button>
-                  <button
-                    className={`admin-tab-btn ${activeReportSubTab === 'campaigns' ? 'active' : ''}`}
-                    onClick={() => setActiveReportSubTab('campaigns')}
-                  >
-                    <BarChart3 size={15} />
-                    <span>Campaign &amp; Channel ROI</span>
-                  </button>
-                  <button
-                    className={`admin-tab-btn ${activeReportSubTab === 'demographics' ? 'active' : ''}`}
-                    onClick={() => setActiveReportSubTab('demographics')}
-                  >
-                    <Globe size={15} />
-                    <span>Demographics &amp; Geography</span>
-                  </button>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
+                    Campaigns, Channels &amp; Demographics Report
+                  </h3>
                 </div>
-
-                {/* ----------------------------------------------------
-                  SUB-TAB 0: ADMIN-ONLY ADVANCED REPORTS (HOT/WARM/COLD, LIFECYCLE, RECYCLE, REVENUE)
-                  ---------------------------------------------------- */}
-                {activeReportSubTab === 'advanced' && (
-                  <AdminAdvancedReports
-                    salesReps={salesReps}
-                    onOpenSettings={() => setShowLifecycleSettingsModal(true)}
-                    onInspectLeadById={openStepModalById}
-                    onRefreshParent={() => {
-                      loadOverviewData()
-                      if (activeTab === 'all-leads') loadMasterLeads(page, pageSize)
-                    }}
-                    showNotify={showNotify}
-                  />
-                )}
-
-                {/* ----------------------------------------------------
-                  SUB-TAB 1: CURRENT SUCCESS STATUS & CURRENT STAGE
-                  ---------------------------------------------------- */}
-                {activeReportSubTab === 'stage' && (
-                  <div>
-                    {/* High-level Success Status Overview Cards */}
-                    <div className="stage-report-grid">
-                      {stats?.successStatusReport?.map((st, i) => (
-                        <div key={i} className="stage-stat-card" style={{ borderLeft: `4px solid ${st.color}` }}>
-                          <div className="stage-stat-title">{st.status}</div>
-                          <div className="stage-stat-value" style={{ color: st.color }}>
-                            {st.count}
+                <div className="grid-2-col">
+                  <div className="template-card">
+                    <div className="template-card-header">
+                      <h3>Meta Campaign Performance</h3>
+                      <span className="header-badge">Lead Attribution</span>
+                    </div>
+                    <div className="template-card-body">
+                      <div className="progress-list">
+                        {stats?.campaignReport?.map((c, i) => (
+                          <div key={i} className="progress-item-row" style={{ alignItems: 'flex-start' }}>
+                            <div style={{ width: '45%' }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }} title={c.name}>{c.name.slice(0, 32)}</div>
+                              <div style={{ fontSize: 11, color: '#64748b' }}>{c.total} Total Leads</div>
+                            </div>
+                            <div className="progress-bar-track" style={{ marginTop: 6 }}>
+                              <div className="progress-bar-fill" style={{ width: `${Math.min(c.contactRate, 100)}%` }} />
+                            </div>
+                            <span className="progress-percentage">{c.contactRate}% Contacted</span>
                           </div>
-                          <div className="stage-stat-sub">
-                            {st.percentage}% of all leads in database
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="template-card">
+                    <div className="template-card-header">
+                      <h3>Platform Split (Instagram vs Facebook)</h3>
+                      <span className="header-badge">Source Platform</span>
+                    </div>
+                    <div className="template-card-body">
+                      {stats?.platformReport?.map((p, i) => (
+                        <div key={i} className="progress-item-row">
+                          <span className="progress-country-name">{p.name}</span>
+                          <div className="progress-bar-track">
+                            <div className="progress-bar-fill" style={{ width: `${p.percentage}%`, background: p.name === 'Instagram' ? '#e1306c' : '#1877f2' }} />
                           </div>
+                          <span className="progress-percentage">{p.count} leads ({p.percentage}%)</span>
                         </div>
                       ))}
                     </div>
-
-                    {/* Detailed Current Stage Breakdown Table & Visual Bars */}
-                    <div className="template-card">
-                      <div className="template-card-header">
-                        <h3>Current Lead Pipeline Stage & Sub-Status Breakdown</h3>
-                        <span className="header-badge">{stats?.stageReport?.length || 0} Active Stages</span>
-                      </div>
-                      <div className="template-card-body" style={{ padding: 0 }}>
-                        <table className="reps-table">
-                          <thead>
-                            <tr>
-                              <th>Current Stage / Sub-Status</th>
-                              <th>Category</th>
-                              <th>Lead Volume</th>
-                              <th>Pipeline Share (%)</th>
-                              <th>Average Attempts</th>
-                              <th>Progress Distribution</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {stats?.stageReport && stats.stageReport.length > 0 ? (
-                              stats.stageReport.map((stage, idx) => (
-                                <tr key={idx}>
-                                  <td>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                      <span
-                                        style={{
-                                          width: 10,
-                                          height: 10,
-                                          borderRadius: '50%',
-                                          background: stage.color,
-                                          flexShrink: 0,
-                                        }}
-                                      />
-                                      <strong style={{ color: '#1e293b' }}>{stage.stage}</strong>
-                                    </div>
-                                  </td>
-                                  <td>
-                                    <span style={{ fontSize: 11, background: '#f1f5f9', padding: '3px 8px', borderRadius: 4, color: '#475569', fontWeight: 600 }}>
-                                      {stage.category}
-                                    </span>
-                                  </td>
-                                  <td style={{ fontWeight: 700, fontSize: 14 }}>{stage.count}</td>
-                                  <td>
-                                    <strong style={{ color: stage.color }}>{stage.percentage}%</strong>
-                                  </td>
-                                  <td style={{ color: '#64748b' }}>{stage.avgAttempts} calls</td>
-                                  <td style={{ width: 160 }}>
-                                    <div style={{ width: '100%', height: 7, background: '#e2e8f0', borderRadius: 4 }}>
-                                      <div
-                                        style={{
-                                          width: `${Math.min(stage.percentage * 2, 100)}%`,
-                                          height: '100%',
-                                          background: stage.color,
-                                          borderRadius: 4,
-                                        }}
-                                      />
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))
-                            ) : (
-                              <tr>
-                                <td colSpan="6" style={{ textAlign: 'center', padding: 24, color: '#94a3b8' }}>
-                                  No stages recorded yet.
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
                   </div>
-                )}
-
-                {/* ----------------------------------------------------
-                  SUB-TAB 2: SALES REP LEADERBOARD
-                  ---------------------------------------------------- */}
-                {activeReportSubTab === 'reps' && (
+                </div>
+                <div className="grid-2-col">
                   <div className="template-card">
                     <div className="template-card-header">
-                      <h3>Counselor Productivity & Contact Leaderboard</h3>
-                      <span className="header-badge">Live Team Performance</span>
+                      <h3>Preferred Work City / Placement</h3>
+                      <span className="header-badge">Kerala vs Abroad</span>
                     </div>
-                    <div className="template-card-body" style={{ padding: 0 }}>
-                      <table className="reps-table">
-                        <thead>
-                          <tr>
-                            <th>Sales Counselor</th>
-                            <th>Specialty Territory</th>
-                            <th>Total Assigned</th>
-                            <th>Contacted</th>
-                            <th>Pending</th>
-                            <th>Contact Rate %</th>
-                            <th>Avg Attempts</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {stats?.repsReport?.map(rep => (
-                            <tr key={rep.id}>
-                              <td>
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
-                                  <span className="rep-avatar">{rep.avatar}</span>
-                                  <div>
-                                    <div style={{ fontWeight: 600 }}>{rep.name}</div>
-                                    <div style={{ fontSize: 11, color: '#64748b' }}>{rep.role}</div>
-                                  </div>
-                                </div>
-                              </td>
-                              <td style={{ fontSize: 12, color: '#475569' }}>{rep.specialty}</td>
-                              <td style={{ fontWeight: 600 }}>{rep.assignedCount}</td>
-                              <td style={{ color: '#166534', fontWeight: 600 }}>{rep.contactedCount}</td>
-                              <td style={{ color: '#c2410c', fontWeight: 600 }}>{rep.notContactedCount}</td>
-                              <td>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <div style={{ flex: 1, height: 6, background: '#e2e8f0', borderRadius: 3, maxWidth: 80 }}>
-                                    <div
-                                      style={{
-                                        width: `${rep.contactRate}%`,
-                                        height: '100%',
-                                        background: '#10b981',
-                                        borderRadius: 3,
-                                      }}
-                                    />
-                                  </div>
-                                  <span style={{ fontWeight: 700, fontSize: 12 }}>{rep.contactRate}%</span>
-                                </div>
-                              </td>
-                              <td>{rep.avgCallAttempts}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* ----------------------------------------------------
-                  SUB-TAB 3: CAMPAIGNS & CHANNELS
-                  ---------------------------------------------------- */}
-                {activeReportSubTab === 'campaigns' && (
-                  <div className="grid-2-col">
-                    {/* Campaign Breakdown */}
-                    <div className="template-card">
-                      <div className="template-card-header">
-                        <h3>Meta Campaign Performance</h3>
-                        <span className="header-badge">Lead Attribution</span>
-                      </div>
-                      <div className="template-card-body">
-                        <div className="progress-list">
-                          {stats?.campaignReport?.map((c, i) => (
-                            <div key={i} className="progress-item-row" style={{ alignItems: 'flex-start' }}>
-                              <div style={{ width: '45%' }}>
-                                <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }} title={c.name}>
-                                  {c.name.slice(0, 32)}...
-                                </div>
-                                <div style={{ fontSize: 11, color: '#64748b' }}>{c.total} Total Leads</div>
-                              </div>
-                              <div className="progress-bar-track" style={{ marginTop: 6 }}>
-                                <div
-                                  className="progress-bar-fill"
-                                  style={{ width: `${Math.min(c.contactRate, 100)}%` }}
-                                />
-                              </div>
-                              <span className="progress-percentage">{c.contactRate}% Contacted</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Platform Split */}
-                    <div className="template-card">
-                      <div className="template-card-header">
-                        <h3>Platform Split (Instagram vs Facebook)</h3>
-                        <span className="header-badge">Source Platform</span>
-                      </div>
-                      <div className="template-card-body">
-                        {stats?.platformReport?.map((p, i) => (
+                    <div className="template-card-body">
+                      <div className="progress-list">
+                        {stats?.locationReport?.map((loc, i) => (
                           <div key={i} className="progress-item-row">
-                            <span className="progress-country-name">{p.name}</span>
+                            <span className="progress-country-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                              <MapPin size={12} color="#0284c7" />
+                              <span>{loc.name}</span>
+                            </span>
                             <div className="progress-bar-track">
-                              <div
-                                className="progress-bar-fill"
-                                style={{
-                                  width: `${p.percentage}%`,
-                                  background: p.name === 'Instagram' ? '#e1306c' : '#1877f2',
-                                }}
-                              />
+                              <div className="progress-bar-fill" style={{ width: `${loc.percentage}%`, background: '#0284c7' }} />
                             </div>
-                            <span className="progress-percentage">{p.count} leads ({p.percentage}%)</span>
+                            <span className="progress-percentage">{loc.count} ({loc.percentage}%)</span>
                           </div>
                         ))}
                       </div>
                     </div>
                   </div>
-                )}
-
-                {/* ----------------------------------------------------
-                  SUB-TAB 4: DEMOGRAPHICS & GEOGRAPHY
-                  ---------------------------------------------------- */}
-                {activeReportSubTab === 'demographics' && (
-                  <div className="grid-2-col">
-                    {/* Preferred Location */}
-                    <div className="template-card">
-                      <div className="template-card-header">
-                        <h3>Preferred Work City / Placement</h3>
-                        <span className="header-badge">Kerala vs Abroad</span>
-                      </div>
-                      <div className="template-card-body">
-                        <div className="progress-list">
-                          {stats?.locationReport?.map((loc, i) => (
-                            <div key={i} className="progress-item-row">
-                              <span className="progress-country-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                                <MapPin size={12} color="#0284c7" />
-                                <span>{loc.name}</span>
-                              </span>
-                              <div className="progress-bar-track">
-                                <div
-                                  className="progress-bar-fill"
-                                  style={{ width: `${loc.percentage}%`, background: '#0284c7' }}
-                                />
-                              </div>
-                              <span className="progress-percentage">{loc.count} ({loc.percentage}%)</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                  <div className="template-card">
+                    <div className="template-card-header">
+                      <h3>Qualification Demographics</h3>
+                      <span className="header-badge">Highest Education</span>
                     </div>
-
-                    {/* Qualification */}
-                    <div className="template-card">
-                      <div className="template-card-header">
-                        <h3>Qualification Demographics</h3>
-                        <span className="header-badge">Highest Education</span>
-                      </div>
-                      <div className="template-card-body">
-                        {stats?.qualificationReport?.map((q, i) => (
-                          <div key={i} className="progress-item-row">
-                            <span className="progress-country-name">{q.name}</span>
-                            <div className="progress-bar-track">
-                              <div
-                                className="progress-bar-fill"
-                                style={{ width: `${q.percentage}%`, background: '#8b5cf6' }}
-                              />
-                            </div>
-                            <span className="progress-percentage">{q.count} leads ({q.percentage}%)</span>
+                    <div className="template-card-body">
+                      {stats?.qualificationReport?.map((q, i) => (
+                        <div key={i} className="progress-item-row">
+                          <span className="progress-country-name">{q.name}</span>
+                          <div className="progress-bar-track">
+                            <div className="progress-bar-fill" style={{ width: `${q.percentage}%`, background: '#8b5cf6' }} />
                           </div>
-                        ))}
-                      </div>
+                          <span className="progress-percentage">{q.count} leads ({q.percentage}%)</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                )}
+                </div>
               </div>
             )
           )}
@@ -4028,6 +4144,7 @@ export default function AdminDashboard({ user, onLogout }) {
           ======================================================== */}
       <AdminLifecycleSettingsModal
         isOpen={showLifecycleSettingsModal}
+        initialTab={lifecycleSettingsInitialTab}
         onClose={() => setShowLifecycleSettingsModal(false)}
         onSaved={() => {
           loadCrmMeta()

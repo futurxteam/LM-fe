@@ -36,12 +36,20 @@ function downloadCsv(filename, headers, rows) {
 
 export default function AdminAdvancedReports({
   salesReps = [],
+  forcedSubTab = null,
+  onBack,
   onOpenSettings,
   onInspectLeadById,
   onRefreshParent,
   showNotify,
 }) {
-  const [subTab, setSubTab] = useState('heat') // 'heat' | 'lifecycle' | 'recycle' | 'finance' | 'counselors'
+  const [subTab, setSubTab] = useState(forcedSubTab || 'heat') // 'heat' | 'groups' | 'lifecycle' | 'recycle' | 'finance' | 'counselors'
+
+  useEffect(() => {
+    if (forcedSubTab) {
+      setSubTab(forcedSubTab)
+    }
+  }, [forcedSubTab])
   const [loading, setLoading] = useState(true)
   const [report, setReport] = useState(null)
 
@@ -243,6 +251,33 @@ export default function AdminAdvancedReports({
         className="pool-action-bar"
         style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 16 }}
       >
+        {forcedSubTab ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {onBack && (
+              <button
+                type="button"
+                className="btn-pulse-secondary"
+                onClick={onBack}
+                style={{ fontSize: 12, padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+              >
+                <span>&larr; All Reports</span>
+              </button>
+            )}
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
+              {forcedSubTab === 'heat'
+                ? 'Hot / Warm / Cold Classification (Admin Only)'
+                : forcedSubTab === 'groups'
+                ? 'Group-Wise Performance Report'
+                : forcedSubTab === 'lifecycle'
+                ? '10-Status Lifecycle Funnel'
+                : forcedSubTab === 'recycle'
+                ? 'Lost Business & Recycle Queue'
+                : forcedSubTab === 'finance'
+                ? 'Business Value vs Collected (Program & Milestone)'
+                : 'Counselor Performance Matrix'}
+            </span>
+          </div>
+        ) : (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[
             { id: 'heat', label: 'Hot / Warm / Cold (Admin Only)', Icon: Flame },
@@ -275,6 +310,7 @@ export default function AdminAdvancedReports({
             </button>
           ))}
         </div>
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <select

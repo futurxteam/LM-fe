@@ -18,6 +18,9 @@ import {
   getStatusBadgeStyle,
   getHeatBadgeStyle,
   getSalesDisplayStatus,
+  INQUIRY_INTENT_STATUSES,
+  FRD_LOST_REASONS,
+  PAYMENT_MODES,
 } from '../constants/leadLifecycle'
 
 export default function LeadStepModal({
@@ -33,15 +36,10 @@ export default function LeadStepModal({
   const isAdmin = currentUser?.role === 'admin'
   const categories = crmMeta?.outcomeCategories || []
   const programs = crmMeta?.programs || []
-  const lostReasons = crmMeta?.lostReasons || [
-    'Fee / Budget Issue',
-    'Joined Another Institute',
-    'Location / Relocation Constraint',
-    'Postponed Plans Indefinitely',
-    'No Longer Interested',
-    'Family / Personal Reason',
-    'Other',
-  ]
+  const lostReasons = crmMeta?.lostReasons?.length ? crmMeta.lostReasons : FRD_LOST_REASONS
+  const inquiryIntentOptions = crmMeta?.inquiryIntentStatuses?.length
+    ? crmMeta.inquiryIntentStatuses
+    : INQUIRY_INTENT_STATUSES
   const policy = crmMeta?.policy || {
     maxLostCycles: 3,
     lostRecycleMode: 'manual',
@@ -52,6 +50,7 @@ export default function LeadStepModal({
 
   const [saving, setSaving] = useState(false)
   const [selectedCategoryKey, setSelectedCategoryKey] = useState(lead.selectedCategory || '')
+  const [inquiryIntent, setInquiryIntent] = useState(lead.inquiryIntent || '')
   const [lostReason, setLostReason] = useState(lead.lostReason || '')
   const [customLostNote, setCustomLostNote] = useState('')
   const [businessProgramId, setBusinessProgramId] = useState(lead.businessProgramId || '')
@@ -62,6 +61,14 @@ export default function LeadStepModal({
   const [paidAmount, setPaidAmount] = useState(
     lead.paidAmount !== null && lead.paidAmount !== undefined ? String(lead.paidAmount) : ''
   )
+  // Itemized Payment Receipt (Installments) state
+  const [localReceipts, setLocalReceipts] = useState(Array.isArray(lead.paymentReceipts) ? lead.paymentReceipts : [])
+  const [receiptAmount, setReceiptAmount] = useState('')
+  const [receiptDate, setReceiptDate] = useState(new Date().toISOString().slice(0, 10))
+  const [receiptMode, setReceiptMode] = useState('UPI')
+  const [receiptRef, setReceiptRef] = useState('')
+  const [receiptNote, setReceiptNote] = useState('')
+  const [addingReceipt, setAddingReceipt] = useState(false)
   const [adminException, setAdminException] = useState(false)
   const [note, setNote] = useState('')
   const [callbackAt, setCallbackAt] = useState('')
@@ -71,12 +78,19 @@ export default function LeadStepModal({
   useEffect(() => {
     if (!lead) return
     setSelectedCategoryKey(lead.selectedCategory || '')
+    setInquiryIntent(lead.inquiryIntent || '')
     setLostReason(lead.lostReason || '')
     setCustomLostNote('')
     setBusinessProgramId(lead.businessProgramId || '')
     setBusinessProgramVariant(lead.businessProgramVariant || '')
     setCourseFees(lead.courseFees !== null && lead.courseFees !== undefined ? String(lead.courseFees) : '')
     setPaidAmount(lead.paidAmount !== null && lead.paidAmount !== undefined ? String(lead.paidAmount) : '')
+    setLocalReceipts(Array.isArray(lead.paymentReceipts) ? lead.paymentReceipts : [])
+    setReceiptAmount('')
+    setReceiptDate(new Date().toISOString().slice(0, 10))
+    setReceiptMode('UPI')
+    setReceiptRef('')
+    setReceiptNote('')
     setAdminException(false)
     setNote('')
     setCallbackAt('')
@@ -101,6 +115,7 @@ export default function LeadStepModal({
   )
 
   const targetStatus = selectedCatObj?.leadStatus || lead.leadStatus || 'NEW LEAD'
+  const showInquiryIntentField = ['HOT', 'WARM', 'COLD'].includes(targetStatus)
   const showLostFields = targetStatus === 'LOST'
   const showBusinessFields = isBusinessStatus(targetStatus)
 
@@ -164,8 +179,55 @@ export default function LeadStepModal({
     if (!prog || !Array.isArray(prog.variants) || !prog.variants.includes(businessProgramVariant)) {
       setBusinessProgramVariant('')
     }
-    if (prog && prog.defaultFee > 0 && !courseFees) {
+    if (prog && prog.defaultFee > 0) {
       setCourseFees(String(prog.defaultFee))
+    }
+  }
+
+  const handleVariantChange = newVariant => {
+    setBusinessProgramVariant(newVariant)
+    if (selectedProgramObj) {
+      const vFee = selectedProgramObj.variantFees?.[newVariant]
+      if (vFee !== undefined && vFee !== null && Number(vFee) > 0) {
+        setCourseFees(String(vFee))
+      } else if (selectedProgramObj.defaultFee > 0) {
+        setCourseFees(String(selectedProgramObj.defaultFee))
+      }
+    }
+  }
+
+  const handleRecordStandaloneReceipt = async () => {
+    const amt = Number(receiptAmount)
+    if (Number.isNaN(amt) || amt <= 0) {
+      showNotify?.('error', 'Enter a valid receipt amount (> 0).')
+      return
+    }
+    setAddingReceipt(true)
+    try {
+      const res = await api.addLeadPaymentReceipt(lead.id || lead._id, {
+        amount: amt,
+        receiptDate,
+        paymentMode: receiptMode,
+        referenceNo: receiptRef.trim(),
+        note: receiptNote.trim(),
+      })
+      showNotify?.('success', res.message || `Receipt of ₹${amt.toLocaleString('en-IN')} recorded!`)
+      if (res.lead) {
+        setLocalReceipts(Array.isArray(res.lead.paymentReceipts) ? res.lead.paymentReceipts : [])
+        setPaidAmount(
+          res.lead.paidAmount !== null && res.lead.paidAmount !== undefined
+            ? String(res.lead.paidAmount)
+            : ''
+        )
+        onUpdated?.(res.lead)
+      }
+      setReceiptAmount('')
+      setReceiptRef('')
+      setReceiptNote('')
+    } catch (err) {
+      showNotify?.('error', err.message || 'Failed to record payment receipt')
+    } finally {
+      setAddingReceipt(false)
     }
   }
 
@@ -186,6 +248,20 @@ export default function LeadStepModal({
       showNotify?.('error', 'Lost Reason is mandatory when marking a lead as LOST.')
       return
     }
+    if (showBusinessFields) {
+      if (courseFees !== '' && Number(courseFees) < 0) {
+        showNotify?.('error', 'Course Fees cannot be negative.')
+        return
+      }
+      if (paidAmount !== '' && Number(paidAmount) < 0) {
+        showNotify?.('error', 'Paid Amount cannot be negative.')
+        return
+      }
+      if (receiptAmount !== '' && Number(receiptAmount) < 0) {
+        showNotify?.('error', 'Receipt amount cannot be negative.')
+        return
+      }
+    }
     if (showBusinessFields && policy.requireBusinessFields && !(isAdmin && adminException)) {
       if (!businessProgramId) {
         showNotify?.('error', 'Please select an approved Course Program.')
@@ -195,8 +271,14 @@ export default function LeadStepModal({
         showNotify?.('error', 'Please enter applicable Course Fees (> 0).')
         return
       }
-      if (paidAmount === '' || Number(paidAmount) < 0) {
-        showNotify?.('error', 'Please enter Paid Amount (>= 0).')
+      const effectivePaidCheck =
+        receiptAmount !== '' && Number(receiptAmount) > 0
+          ? (Number(paidAmount) || 0) + Number(receiptAmount)
+          : paidAmount === ''
+          ? null
+          : Number(paidAmount)
+      if (effectivePaidCheck === null || Number.isNaN(effectivePaidCheck) || effectivePaidCheck < 0) {
+        showNotify?.('error', 'Please enter Paid Amount (>= 0) or record a payment receipt.')
         return
       }
     }
@@ -224,6 +306,10 @@ export default function LeadStepModal({
         author: currentUser?.name || 'Staff',
       }
 
+      if (showInquiryIntentField) {
+        payload.inquiryIntent = inquiryIntent
+      }
+
       if (showLostFields) {
         payload.lostReason =
           lostReason === 'Other' && customLostNote.trim()
@@ -238,7 +324,17 @@ export default function LeadStepModal({
         }
         payload.businessProgramVariant = businessProgramVariant
         if (courseFees !== '') payload.courseFees = Number(courseFees)
-        if (paidAmount !== '') payload.paidAmount = Number(paidAmount)
+        if (receiptAmount !== '' && Number(receiptAmount) > 0) {
+          payload.newReceipt = {
+            amount: Number(receiptAmount),
+            receiptDate,
+            paymentMode: receiptMode,
+            referenceNo: receiptRef.trim(),
+            note: receiptNote.trim(),
+          }
+        } else if (paidAmount !== '') {
+          payload.paidAmount = Number(paidAmount)
+        }
         if (isAdmin && adminException) payload.adminException = true
       }
 
@@ -480,6 +576,59 @@ export default function LeadStepModal({
                 )}
               </div>
 
+              {/* FRD Section 4: Conditional Inquiry Intent Status (Active ONLY for HOT / WARM / COLD) */}
+              {showInquiryIntentField ? (
+                <div
+                  style={{
+                    background: '#f0f9ff',
+                    border: '1px solid #bae6fd',
+                    borderRadius: 8,
+                    padding: 12,
+                    marginBottom: 14,
+                  }}
+                >
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#0369a1', marginBottom: 6 }}>
+                    INQUIRY INTENT STATUS (DECISION STAGE)
+                  </label>
+                  <select
+                    value={inquiryIntent}
+                    onChange={e => setInquiryIntent(e.target.value)}
+                    disabled={isCycleLockedForSales}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #7dd3fc',
+                      fontSize: 13,
+                      background: '#fff',
+                    }}
+                  >
+                    <option value="">-- Select Inquiry Intent Status --</option>
+                    {inquiryIntentOptions.map(opt => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                lead.lastInquiryIntent && (
+                  <div
+                    style={{
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 6,
+                      padding: '7px 11px',
+                      marginBottom: 14,
+                      fontSize: 11,
+                      color: '#475569',
+                    }}
+                  >
+                    Last Recorded Inquiry Intent (archived in history): <strong>{lead.lastInquiryIntent}</strong>
+                  </div>
+                )
+              )}
+
               {/* Conditional LOST Reason */}
               {showLostFields && (
                 <div
@@ -598,7 +747,7 @@ export default function LeadStepModal({
                         </label>
                         <select
                           value={businessProgramVariant}
-                          onChange={e => setBusinessProgramVariant(e.target.value)}
+                          onChange={e => handleVariantChange(e.target.value)}
                           disabled={isFinancialLockedForSales}
                           style={{
                             width: '100%',
@@ -610,11 +759,14 @@ export default function LeadStepModal({
                           }}
                         >
                           <option value="">-- Select Variant --</option>
-                          {selectedProgramObj.variants.map(v => (
-                            <option key={v} value={v}>
-                              {v}
-                            </option>
-                          ))}
+                          {selectedProgramObj.variants.map(v => {
+                            const vFee = selectedProgramObj.variantFees?.[v]
+                            return (
+                              <option key={v} value={v}>
+                                {v}{vFee > 0 ? ` (₹${Number(vFee).toLocaleString('en-IN')})` : ''}
+                              </option>
+                            )
+                          })}
                         </select>
                       </div>
                     ) : (
@@ -649,7 +801,7 @@ export default function LeadStepModal({
                     </div>
                     <div>
                       <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#14532d', marginBottom: 4 }}>
-                        PAID AMOUNT (₹ ACTUAL RECEIVED) *
+                        TOTAL PAID AMOUNT (₹ ACTUAL RECEIVED) *
                       </label>
                       <input
                         type="number"
@@ -657,7 +809,7 @@ export default function LeadStepModal({
                         step="1"
                         value={paidAmount}
                         onChange={e => setPaidAmount(e.target.value)}
-                        disabled={isFinancialLockedForSales}
+                        disabled={isFinancialLockedForSales || localReceipts.length > 0}
                         placeholder="e.g. 15000"
                         style={{
                           width: '100%',
@@ -665,10 +817,127 @@ export default function LeadStepModal({
                           borderRadius: 6,
                           border: '1px solid #86efac',
                           fontSize: 13,
-                          background: '#fff',
+                          background: localReceipts.length > 0 ? '#f1f5f9' : '#fff',
                         }}
                       />
+                      {localReceipts.length > 0 && (
+                        <div style={{ fontSize: 10, color: '#047857', marginTop: 3 }}>
+                          Auto-summed from {localReceipts.length} payment receipt(s) below.
+                        </div>
+                      )}
                     </div>
+                  </div>
+
+                  {/* Itemized Payment Receipts (Installments — FRD Section 8 & 9) */}
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: 10,
+                      background: '#ffffff',
+                      borderRadius: 6,
+                      border: '1px solid #bbf7d0',
+                    }}
+                  >
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#14532d', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>PAYMENT RECEIPTS / INSTALLMENTS ({localReceipts.length})</span>
+                      {feesNum > 0 && paidNum > feesNum && (
+                        <span style={{ color: '#b91c1c', background: '#fee2e2', padding: '2px 7px', borderRadius: 10, fontSize: 10 }}>
+                          Flagged: Paid exceeds Course Fees
+                        </span>
+                      )}
+                    </div>
+
+                    {localReceipts.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 10, maxHeight: 130, overflowY: 'auto' }}>
+                        {localReceipts.map((rec, idx) => (
+                          <div
+                            key={rec._id || idx}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              fontSize: 11,
+                              padding: '5px 8px',
+                              background: '#f8fafc',
+                              borderRadius: 5,
+                              border: '1px solid #e2e8f0',
+                              gap: 8,
+                            }}
+                          >
+                            <div>
+                              <strong style={{ color: '#059669' }}>{formatINR(rec.amount)}</strong>
+                              <span style={{ color: '#475569', marginLeft: 6 }}>{rec.paymentMode}</span>
+                              {rec.referenceNo && (
+                                <span style={{ color: '#64748b', marginLeft: 6, fontFamily: 'monospace' }}>Ref: {rec.referenceNo}</span>
+                              )}
+                              {rec.note && <span style={{ color: '#64748b', marginLeft: 6 }}>— {rec.note}</span>}
+                            </div>
+                            <div style={{ color: '#64748b', fontSize: 10, whiteSpace: 'nowrap' }}>
+                              {rec.receiptDate ? new Date(rec.receiptDate).toLocaleDateString() : ''}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {!isFinancialLockedForSales && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Installment Amt ₹"
+                          value={receiptAmount}
+                          onChange={e => setReceiptAmount(e.target.value)}
+                          style={{ padding: '6px 8px', borderRadius: 5, border: '1px solid #cbd5e1', fontSize: 12 }}
+                        />
+                        <input
+                          type="date"
+                          value={receiptDate}
+                          onChange={e => setReceiptDate(e.target.value)}
+                          style={{ padding: '6px 8px', borderRadius: 5, border: '1px solid #cbd5e1', fontSize: 12 }}
+                        />
+                        <select
+                          value={receiptMode}
+                          onChange={e => setReceiptMode(e.target.value)}
+                          style={{ padding: '6px 8px', borderRadius: 5, border: '1px solid #cbd5e1', fontSize: 12, background: '#fff' }}
+                        >
+                          {PAYMENT_MODES.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="text"
+                          placeholder="UTR / Reference No."
+                          value={receiptRef}
+                          onChange={e => setReceiptRef(e.target.value)}
+                          style={{ padding: '6px 8px', borderRadius: 5, border: '1px solid #cbd5e1', fontSize: 12 }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Receipt note (optional)"
+                          value={receiptNote}
+                          onChange={e => setReceiptNote(e.target.value)}
+                          style={{ padding: '6px 8px', borderRadius: 5, border: '1px solid #cbd5e1', fontSize: 12 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleRecordStandaloneReceipt}
+                          disabled={addingReceipt || !receiptAmount || Number(receiptAmount) <= 0}
+                          style={{
+                            padding: '6px 10px',
+                            borderRadius: 5,
+                            border: 'none',
+                            background: !receiptAmount || Number(receiptAmount) <= 0 ? '#cbd5e1' : '#059669',
+                            color: '#fff',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: !receiptAmount || Number(receiptAmount) <= 0 ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {addingReceipt ? 'Saving...' : '+ Add Receipt'}
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {(feesNum > 0 || paidNum > 0) && (
@@ -676,12 +945,14 @@ export default function LeadStepModal({
                       style={{
                         marginTop: 10,
                         padding: '8px 10px',
-                        background: '#ffffff',
+                        background: feesNum > 0 && paidNum > feesNum ? '#fef2f2' : '#ffffff',
                         borderRadius: 6,
-                        border: '1px solid #bbf7d0',
+                        border: feesNum > 0 && paidNum > feesNum ? '1px solid #fca5a5' : '1px solid #bbf7d0',
                         display: 'flex',
                         justifyContent: 'space-between',
                         fontSize: 12,
+                        flexWrap: 'wrap',
+                        gap: 8,
                       }}
                     >
                       <span>Business Value: <strong>{formatINR(feesNum)}</strong></span>

@@ -25,20 +25,29 @@ import {
   MapPin,
   Phone,
   XCircle,
+  BarChart3,
+  IndianRupee,
+  TrendingUp,
+  ArrowRight,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { formatArrivalTime } from '../utils/alertUtils'
 import StudentProfileModal from '../components/StudentProfileModal'
 import LeadStepModal from '../components/LeadStepModal'
+import FrdReportsView from '../components/FrdReportsView'
 import { getSalesDisplayStatus } from '../constants/leadLifecycle'
 
 export default function SalesDashboard({ user, onLogout }) {
   const location = useLocation()
   const navigate = useNavigate()
 
-  // Track if current page is Team view or personal queue
+  // Track active route: personal queue, manager team view, or sales reports
   const isTeamView = location.pathname.includes('/team')
+  const isReportsView = location.pathname.startsWith('/reports')
+  const salesReportSlug = location.pathname.startsWith('/reports/')
+    ? location.pathname.replace('/reports/', '').split('/')[0]
+    : ''
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [leads, setLeads] = useState([])
   const [stats, setStats] = useState(null)
@@ -231,7 +240,7 @@ export default function SalesDashboard({ user, onLogout }) {
         {/* Nav Items */}
         <nav className="sidebar-nav">
           <div
-            className={`nav-item ${!isTeamView ? 'active' : ''}`}
+            className={`nav-item ${!isTeamView && !isReportsView ? 'active' : ''}`}
             onClick={() => {
               setMobileMenuOpen(false)
               navigate('/queue')
@@ -240,8 +249,19 @@ export default function SalesDashboard({ user, onLogout }) {
             <span className="nav-item-icon"><LayoutDashboard size={16} /></span>
             <span>My Outreach Queue</span>
             <span style={{ marginLeft: 'auto', background: '#0284c7', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 10 }}>
-              {!isTeamView ? leads.length : ''}
+              {!isTeamView && !isReportsView ? leads.length : ''}
             </span>
+          </div>
+
+          <div
+            className={`nav-item ${isReportsView ? 'active' : ''}`}
+            onClick={() => {
+              setMobileMenuOpen(false)
+              navigate('/reports')
+            }}
+          >
+            <span className="nav-item-icon"><BarChart3 size={16} /></span>
+            <span>My Reports</span>
           </div>
 
           {/* Group Manager Team View */}
@@ -321,6 +341,97 @@ export default function SalesDashboard({ user, onLogout }) {
               <span>{notification.message}</span>
             </div>
           )}
+          {/* Sales Reports Hub / Dedicated Report Pages (No HOT/WARM/COLD exposed) */}
+          {isReportsView ? (
+            salesReportSlug === 'business' || salesReportSlug === 'conversion' ? (
+              <FrdReportsView
+                reportType={salesReportSlug}
+                isAdmin={false}
+                onBack={() => navigate('/reports')}
+                showNotify={showNotify}
+              />
+            ) : (
+              <div>
+                <div className="pool-action-bar" style={{ marginBottom: 18 }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                      My Performance Reports
+                    </h3>
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                      Select a report card to open your dedicated Business Turnover or Conversion report.
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+                  {[
+                    {
+                      slug: 'business',
+                      title: 'My Business Report',
+                      desc: 'Track your Leads Allocated, Unique Aggregate Business Count, Course Fees (Turnover), Actual Paid Revenue, and Qualified / Converted / Onboarded splits.',
+                      color: '#059669',
+                      bg: '#ecfdf5',
+                      Icon: IndianRupee,
+                    },
+                    {
+                      slug: 'conversion',
+                      title: 'My Lead Conversion Report',
+                      desc: 'View your monthly and till-date conversion ratios across Aggregate, Qualified, Converted, and Onboarded Business milestones.',
+                      color: '#0284c7',
+                      bg: '#f0f9ff',
+                      Icon: TrendingUp,
+                    },
+                  ].map(card => {
+                    const CardIcon = card.Icon
+                    return (
+                      <div
+                        key={card.slug}
+                        className="template-card"
+                        onClick={() => navigate(`/reports/${card.slug}`)}
+                        style={{
+                          padding: 18,
+                          cursor: 'pointer',
+                          borderTop: `3px solid ${card.color}`,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          gap: 12,
+                        }}
+                      >
+                        <div>
+                          <div
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 10,
+                              background: card.bg,
+                              color: card.color,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              marginBottom: 10,
+                            }}
+                          >
+                            <CardIcon size={20} />
+                          </div>
+                          <h4 style={{ margin: '0 0 6px 0', fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
+                            {card.title}
+                          </h4>
+                          <p style={{ margin: 0, fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+                            {card.desc}
+                          </p>
+                        </div>
+                        <div style={{ paddingTop: 10, borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, color: card.color }}>
+                          <span>Open Report Page</span>
+                          <ArrowRight size={14} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          ) : (
+          <>
           {/* Top Dials */}
           <div className="template-card" style={{ marginBottom: 20 }}>
             <div className="template-card-header">
@@ -632,6 +743,8 @@ export default function SalesDashboard({ user, onLogout }) {
               )}
             </div>
           </div>
+          </>
+          )}
         </div>
       </main>
 

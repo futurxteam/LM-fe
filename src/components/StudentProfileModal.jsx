@@ -40,13 +40,10 @@ export const KERALA_DISTRICTS = [
 export const QUALIFICATIONS = [
   'SSLC',
   'Plus Two',
-  'Higher Secondary (+2)',
+  'Degree',
+  'Masters',
   'Diploma',
   'ITI',
-  'Degree',
-  'Graduation / Degree',
-  'Masters',
-  'Post Graduation',
 ]
 
 export const COURSE_PROGRAMS = [
