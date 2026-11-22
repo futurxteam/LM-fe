@@ -290,6 +290,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  flex-shrink: 0;
 }
 
 /* Distinctive Dark Blue Banner Card */
@@ -1470,11 +1471,26 @@ body {
 }
 
 @media (max-width: 768px) {
-  /* Generous bottom padding to prevent mobile browser navigation / gesture bar cutoff */
+  /* Ensure main scroll container never collapses bottom clearance behind fixed bottom nav */
+  .main-content,
+  .main-wrapper {
+    display: block;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Generous bottom padding to prevent mobile bottom nav / gesture bar cutoff */
   .content-area {
-    padding: 14px 12px calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+    padding: 14px 12px 24px !important;
     gap: 16px;
-    min-height: 100%;
+    height: auto;
+    min-height: 0;
+  }
+
+  .content-area::after {
+    content: '';
+    display: block;
+    height: 20px;
+    flex-shrink: 0;
   }
 
   .page-header-row {
