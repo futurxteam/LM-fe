@@ -32,12 +32,14 @@ import {
   Calendar,
   Share2,
   ArrowLeft,
+  UserPlus,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { formatArrivalTime } from '../utils/alertUtils'
 import StudentProfileModal from '../components/StudentProfileModal'
 import LeadStepModal from '../components/LeadStepModal'
+import ManualLeadModal from '../components/ManualLeadModal'
 import FrdReportsView from '../components/FrdReportsView'
 import FollowupScheduleView from '../components/FollowupScheduleView'
 import ReferralDashboard from '../components/ReferralDashboard'
@@ -70,6 +72,20 @@ export default function SalesDashboard({ user, onLogout }) {
   const [activeStudentModal, setActiveStudentModal] = useState(null)
   const [activeStepLead, setActiveStepLead] = useState(null)
   const [crmMeta, setCrmMeta] = useState(null)
+
+  // Manual Lead Creation Modal State
+  const [showManualLeadModal, setShowManualLeadModal] = useState(false)
+  const [teamCounselors, setTeamCounselors] = useState([])
+
+  useEffect(() => {
+    // If manager or has team members, load counselors list
+    if (user?.isGroupManager || user?.role === 'manager') {
+      api.getSalesReps().then(res => {
+        const reps = res?.salesReps || res?.reps || res || []
+        if (Array.isArray(reps)) setTeamCounselors(reps)
+      }).catch(() => {})
+    }
+  }, [user])
 
   // Log Call & Notes Modal (legacy kept for fallback)
   const [callModalLead, setCallModalLead] = useState(null)
@@ -339,16 +355,42 @@ export default function SalesDashboard({ user, onLogout }) {
                 </p>
               </div>
             </div>
-            <button
-              className="btn-refresh-icon"
-              onClick={() => {
-                loadData()
-                setScheduleRefreshKey(k => k + 1)
-              }}
-              title="Refresh Queue & Schedule"
-            >
-              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                type="button"
+                className="btn-pulse"
+                onClick={() => setShowManualLeadModal(true)}
+                style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 14px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)',
+                }}
+                title="Add New Lead Manually"
+              >
+                <UserPlus size={15} />
+                <span>+ Add Lead</span>
+              </button>
+
+              <button
+                className="btn-refresh-icon"
+                onClick={() => {
+                  loadData()
+                  setScheduleRefreshKey(k => k + 1)
+                }}
+                title="Refresh Queue & Schedule"
+              >
+                <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+              </button>
+            </div>
           </div>
 
           {/* Global Notification Banner */}
@@ -1252,6 +1294,21 @@ export default function SalesDashboard({ user, onLogout }) {
             setScheduleRefreshKey(k => k + 1)
           }}
           showNotify={showNotify}
+        />
+      )}
+
+      {/* Manual Lead Creation Modal (Sales Reps & Managers) */}
+      {showManualLeadModal && (
+        <ManualLeadModal
+          isOpen={showManualLeadModal}
+          onClose={() => setShowManualLeadModal(false)}
+          counselors={teamCounselors}
+          currentUser={user}
+          showNotify={showNotify}
+          onSuccess={() => {
+            loadData()
+            setScheduleRefreshKey(k => k + 1)
+          }}
         />
       )}
     </div>

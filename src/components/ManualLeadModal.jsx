@@ -20,6 +20,10 @@ export default function ManualLeadModal({
 }) {
   if (!isOpen) return null
 
+  const isAdmin = currentUser?.role === 'admin'
+  const isManager = currentUser?.role === 'manager' || Boolean(currentUser?.isGroupManager)
+  const isRegularSales = !isAdmin && !isManager
+
   const [saving, setSaving] = useState(false)
 
   // Reference Table Form Fields
@@ -36,10 +40,30 @@ export default function ManualLeadModal({
   const [customerCategory, setCustomerCategory] = useState('Ongoing Student')
 
   // Assignment options:
-  // 'auto' = Capacity-Aware Round Robin directly to Counselor Queue (default as requested!)
-  // 'pool' = Manual placement in System Pool (Unassigned)
-  // 'repId' = Direct 100% assignment to specific counselor
-  const [assignDestination, setAssignDestination] = useState('auto')
+  // - Sales rep: strictly self-assigned
+  // - Manager: self or team member
+  // - Admin: 'auto' (round-robin), 'pool', or specific counselor
+  const defaultDestination = isRegularSales || isManager
+    ? (currentUser?.id || currentUser?._id || '')
+    : 'auto'
+  const [assignDestination, setAssignDestination] = useState(defaultDestination)
+
+  const teamCounselors = React.useMemo(() => {
+    if (!isManager) return counselors
+    if (currentUser?.groupId) {
+      const filtered = counselors.filter(c => String(c.groupId || '') === String(currentUser.groupId))
+      if (filtered.length > 0) return filtered
+    }
+    return counselors
+  }, [counselors, currentUser, isManager])
+
+  useEffect(() => {
+    if (isRegularSales || isManager) {
+      setAssignDestination(currentUser?.id || currentUser?._id || '')
+    } else {
+      setAssignDestination('auto')
+    }
+  }, [currentUser, isRegularSales, isManager])
 
   // Referral Attachment State
   const [hasReferral, setHasReferral] = useState(false)
@@ -170,7 +194,40 @@ export default function ManualLeadModal({
         }
       }
 
-      if (assignDestination === 'pool') {
+      if (isRegularSales) {
+        // Sales reps strictly create their own leads
+        payload.assignMode = 'direct'
+        payload.assignedTo = {
+          repId: currentUser?.id || currentUser?._id,
+          repName: currentUser?.name || 'Admissions Counselor',
+          repRole: currentUser?.title || 'Admissions Counselor',
+        }
+      } else if (isManager) {
+        // Manager can assign to themselves or a member of their team
+        payload.assignMode = 'direct'
+        if (assignDestination && assignDestination !== (currentUser?.id || currentUser?._id)) {
+          const counselor = teamCounselors.find(c => String(c.id || c._id) === String(assignDestination))
+          if (counselor) {
+            payload.assignedTo = {
+              repId: counselor.id || counselor._id,
+              repName: counselor.name,
+              repRole: counselor.title || 'Admissions Counselor',
+            }
+          } else {
+            payload.assignedTo = {
+              repId: currentUser?.id || currentUser?._id,
+              repName: currentUser?.name,
+              repRole: currentUser?.title || 'Team Manager',
+            }
+          }
+        } else {
+          payload.assignedTo = {
+            repId: currentUser?.id || currentUser?._id,
+            repName: currentUser?.name,
+            repRole: currentUser?.title || 'Team Manager',
+          }
+        }
+      } else if (assignDestination === 'pool') {
         payload.assignMode = 'pool'
       } else if (assignDestination === 'auto') {
         payload.assignMode = 'auto' // Triggers capacity-aware round robin!
@@ -819,33 +876,76 @@ export default function ManualLeadModal({
             </div>
 
             {/* Field: Lead Routing / Destination */}
-            <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #cbd5e1' }}>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
-                LEAD ALLOCATION DESTINATION
-              </label>
-              <select
-                value={assignDestination}
-                onChange={e => setAssignDestination(e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
-              >
-                <option value="auto">
-                  (Recommended) Auto Round-Robin to Counselor Queue (Capacity-Aware)
-                </option>
-                <optgroup label="Direct Counselor Queue (100% Routing)">
-                  {counselors.map(c => (
-                    <option key={c.id || c._id} value={c.id || c._id}>
-                      {c.name} ({c.title || 'Admissions Counselor'})
-                    </option>
-                  ))}
-                </optgroup>
-                <option value="pool">
-                  System Pool (Unassigned) - Requires manual allocation later
-                </option>
-              </select>
-              <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-                Default: Assigns directly to the admissions counselor with the lowest active backlog.
+            {isRegularSales ? (
+              <div style={{ background: '#f0fdf4', padding: '12px 14px', borderRadius: 8, border: '1px solid #86efac', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <UserCheck size={18} color="#16a34a" style={{ flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#166534' }}>
+                    Assigned To: You ({currentUser?.name || 'Sales Advisor'})
+                  </div>
+                  <div style={{ fontSize: 11, color: '#15803d', marginTop: 2 }}>
+                    This lead will be directly added to your personal admissions outreach queue.
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : isManager ? (
+              <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #cbd5e1' }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
+                  TEAM LEAD ALLOCATION (MANAGER)
+                </label>
+                <select
+                  value={assignDestination}
+                  onChange={e => setAssignDestination(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
+                >
+                  <option value={currentUser?.id || currentUser?._id || ''}>
+                    Assign to Me ({currentUser?.name || 'Manager'})
+                  </option>
+                  {teamCounselors.filter(c => String(c.id || c._id) !== String(currentUser?.id || currentUser?._id)).length > 0 && (
+                    <optgroup label="Assign to Team Member">
+                      {teamCounselors
+                        .filter(c => String(c.id || c._id) !== String(currentUser?.id || currentUser?._id))
+                        .map(c => (
+                          <option key={c.id || c._id} value={c.id || c._id}>
+                            {c.name} ({c.title || 'Admissions Counselor'})
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
+                </select>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                  As Manager, you can assign this lead to yourself or any counselor in your team.
+                </div>
+              </div>
+            ) : (
+              <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #cbd5e1' }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
+                  LEAD ALLOCATION DESTINATION
+                </label>
+                <select
+                  value={assignDestination}
+                  onChange={e => setAssignDestination(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
+                >
+                  <option value="auto">
+                    (Recommended) Auto Round-Robin to Counselor Queue (Capacity-Aware)
+                  </option>
+                  <optgroup label="Direct Counselor Queue (100% Routing)">
+                    {counselors.map(c => (
+                      <option key={c.id || c._id} value={c.id || c._id}>
+                        {c.name} ({c.title || 'Admissions Counselor'})
+                      </option>
+                    ))}
+                  </optgroup>
+                  <option value="pool">
+                    System Pool (Unassigned) - Requires manual allocation later
+                  </option>
+                </select>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                  Default: Assigns directly to the admissions counselor with the lowest active backlog.
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Footer */}
