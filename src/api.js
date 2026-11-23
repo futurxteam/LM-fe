@@ -58,6 +58,10 @@ export const api = {
     })
   },
 
+  getLeadById: async id => {
+    return await request(`/leads/${id}`, { method: 'GET' })
+  },
+
   getSalesReps: async () => {
     return await request('/leads/reps', {
       method: 'GET',
@@ -389,6 +393,63 @@ export const api = {
     })
     const qs = query.toString()
     return await request(`/stats/frd-reports${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+
+  // Counselor Pause / Resume
+  pauseUser: async (id, payload) => {
+    return await request(`/users/${id}/pause`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  // Student & LMS Integration API Handlers
+  searchLmsStudents: async (params = {}) => {
+    const query = new URLSearchParams()
+    if (params.query) query.append('query', params.query)
+    if (params.type) query.append('type', params.type)
+    if (params.limit) query.append('limit', params.limit)
+    const qs = query.toString()
+    return await request(`/students/lms-search${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+
+  getStudents: async (params = {}) => {
+    const query = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') query.append(k, v)
+    })
+    const qs = query.toString()
+    return await request(`/students${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+
+  createStudent: async payload => {
+    return await request('/students', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  // Referral System API Handlers
+  getReferrals: async (params = {}) => {
+    const query = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '' && v !== 'All') {
+        query.append(k, v)
+      }
+    })
+    const qs = query.toString()
+    return await request(`/referrals${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+
+  getReferralStats: async (params = {}) => {
+    const query = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '' && v !== 'All') {
+        query.append(k, v)
+      }
+    })
+    const qs = query.toString()
+    return await request(`/referrals/stats${qs ? `?${qs}` : ''}`, { method: 'GET' })
   },
 }
 

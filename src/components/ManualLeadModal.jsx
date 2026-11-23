@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { X, UserPlus, Sparkles, UserCheck, Layers } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { X, UserPlus, Sparkles, UserCheck, Layers, Share2, Search, CheckCircle2, GraduationCap, Award, User, AlertCircle } from 'lucide-react'
 import { api } from '../api'
 import {
   KERALA_DISTRICTS,
@@ -41,6 +41,79 @@ export default function ManualLeadModal({
   // 'repId' = Direct 100% assignment to specific counselor
   const [assignDestination, setAssignDestination] = useState('auto')
 
+  // Referral Attachment State
+  const [hasReferral, setHasReferral] = useState(false)
+  const [referrerType, setReferrerType] = useState('student') // 'lead' | 'student' | 'alumni'
+  const [referrerSearch, setReferrerSearch] = useState('')
+  const [referrerResults, setReferrerResults] = useState([])
+  const [isSearchingReferrer, setIsSearchingReferrer] = useState(false)
+  const [selectedReferrer, setSelectedReferrer] = useState(null)
+  const searchTimeoutRef = useRef(null)
+
+  useEffect(() => {
+    if (!hasReferral || selectedReferrer) {
+      setReferrerResults([])
+      return
+    }
+
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
+
+    const query = referrerSearch.trim()
+    if (!query) {
+      setReferrerResults([])
+      return
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      setIsSearchingReferrer(true)
+      try {
+        if (referrerType === 'lead') {
+          const res = await api.getLeads({ search: query, limit: 10 })
+          const leads = res.leads || []
+          setReferrerResults(
+            leads.map(l => ({
+              leadId: l.id || l._id,
+              name: l.fullName || l.name,
+              phone: l.phone,
+              course: l.courseProgram || '',
+              batch: '',
+              isAlumni: false,
+              isVerifiedLms: false,
+              type: 'lead',
+              status: l.leadStatus || l.status,
+            }))
+          )
+        } else {
+          // 'student' or 'alumni' -> Queries fa-backend LMS HTTP API directly
+          const res = await api.searchLmsStudents({ query, type: referrerType, limit: 10 })
+          const students = res.data || []
+          setReferrerResults(
+            students.map(s => ({
+              id: s.id,
+              lmsUserId: s.lmsUserId,
+              name: s.name,
+              phone: s.phone,
+              course: s.course || s.courseName || '',
+              batch: s.batch || s.batchName || '',
+              rollNo: s.rollNo || '',
+              isAlumni: s.isAlumni,
+              isVerifiedLms: true,
+              type: referrerType,
+              status: s.status,
+            }))
+          )
+        }
+      } catch (err) {
+        console.error('Error searching referrers:', err)
+        setReferrerResults([])
+      } finally {
+        setIsSearchingReferrer(false)
+      }
+    }, 350)
+
+    return () => clearTimeout(searchTimeoutRef.current)
+  }, [referrerSearch, referrerType, hasReferral, selectedReferrer])
+
   const handleProgramChange = newProg => {
     setCourseProgram(newProg)
     if (newProg !== 'Healthcare Management') {
@@ -55,6 +128,11 @@ export default function ManualLeadModal({
 
     if (!fullName.trim()) {
       showNotify?.('error', 'Student name is required')
+      return
+    }
+
+    if (hasReferral && !selectedReferrer) {
+      showNotify?.('error', 'Please search and select a referrer, or untick Referral Attachment.')
       return
     }
 
@@ -73,6 +151,20 @@ export default function ManualLeadModal({
         courseVariant: courseProgram === 'Healthcare Management' ? courseVariant : '',
         customerCategory,
         author: currentUser?.name || 'Staff',
+      }
+
+      if (hasReferral && selectedReferrer) {
+        payload.referralData = {
+          hasReferral: true,
+          referrerType,
+          referrerLeadId: selectedReferrer.leadId || null,
+          referrerStudentId: selectedReferrer.id || null,
+          referrerName: selectedReferrer.name,
+          referrerPhone: selectedReferrer.phone,
+          referrerCourse: selectedReferrer.course || '',
+          referrerBatch: selectedReferrer.batch || '',
+          isVerifiedLms: Boolean(selectedReferrer.isVerifiedLms),
+        }
       }
 
       if (assignDestination === 'pool') {
@@ -333,6 +425,394 @@ export default function ManualLeadModal({
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Referral Attachment Section */}
+            <div
+              style={{
+                marginBottom: 16,
+                padding: '14px',
+                borderRadius: 8,
+                background: hasReferral ? '#f8fafc' : '#ffffff',
+                border: hasReferral ? '1.5px solid #0284c7' : '1px dashed #cbd5e1',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    margin: 0,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={hasReferral}
+                    onChange={e => {
+                      setHasReferral(e.target.checked)
+                      if (!e.target.checked) {
+                        setSelectedReferrer(null)
+                        setReferrerSearch('')
+                        setReferrerResults([])
+                      }
+                    }}
+                    style={{ width: 16, height: 16, accentColor: '#0284c7', cursor: 'pointer' }}
+                  />
+                  <Share2 size={16} color={hasReferral ? '#0284c7' : '#64748b'} />
+                  <span>Attach Referral Source (Referred by Student, Alumni, or Lead)</span>
+                </label>
+                {hasReferral && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: 12,
+                      background: '#e0f2fe',
+                      color: '#0369a1',
+                    }}
+                  >
+                    Referral Enabled
+                  </span>
+                )}
+              </div>
+
+              {hasReferral && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e2e8f0' }}>
+                  {/* Referrer Type Selector (3 options as requested) */}
+                  <div style={{ marginBottom: 12 }}>
+                    <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                      REFERRER CLASSIFICATION
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReferrerType('student')
+                          setSelectedReferrer(null)
+                          setReferrerSearch('')
+                        }}
+                        style={{
+                          padding: '8px 6px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          border: referrerType === 'student' ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+                          background: referrerType === 'student' ? '#eff6ff' : '#fff',
+                          color: referrerType === 'student' ? '#1d4ed8' : '#475569',
+                        }}
+                      >
+                        <GraduationCap size={14} />
+                        <span>Verified Student</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReferrerType('alumni')
+                          setSelectedReferrer(null)
+                          setReferrerSearch('')
+                        }}
+                        style={{
+                          padding: '8px 6px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          border: referrerType === 'alumni' ? '1.5px solid #059669' : '1px solid #cbd5e1',
+                          background: referrerType === 'alumni' ? '#ecfdf5' : '#fff',
+                          color: referrerType === 'alumni' ? '#047857' : '#475569',
+                        }}
+                      >
+                        <Award size={14} />
+                        <span>Verified Alumni</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReferrerType('lead')
+                          setSelectedReferrer(null)
+                          setReferrerSearch('')
+                        }}
+                        style={{
+                          padding: '8px 6px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          border: referrerType === 'lead' ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
+                          background: referrerType === 'lead' ? '#f5f3ff' : '#fff',
+                          color: referrerType === 'lead' ? '#6d28d9' : '#475569',
+                        }}
+                      >
+                        <User size={14} />
+                        <span>Existing Lead</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Selected Referrer Card Preview */}
+                  {selectedReferrer ? (
+                    <div
+                      style={{
+                        padding: 10,
+                        borderRadius: 8,
+                        background: '#fff',
+                        border: '1px solid #bbf7d0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div
+                          style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: '50%',
+                            background:
+                              selectedReferrer.type === 'alumni'
+                                ? '#dcfce7'
+                                : selectedReferrer.type === 'student'
+                                ? '#dbeafe'
+                                : '#f3e8ff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color:
+                              selectedReferrer.type === 'alumni'
+                                ? '#15803d'
+                                : selectedReferrer.type === 'student'
+                                ? '#1d4ed8'
+                                : '#7e22ce',
+                            fontWeight: 700,
+                            fontSize: 12,
+                          }}
+                        >
+                          <CheckCircle2 size={18} />
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                              {selectedReferrer.name}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                background:
+                                  selectedReferrer.type === 'alumni'
+                                    ? '#ecfdf5'
+                                    : selectedReferrer.type === 'student'
+                                    ? '#eff6ff'
+                                    : '#f5f3ff',
+                                color:
+                                  selectedReferrer.type === 'alumni'
+                                    ? '#047857'
+                                    : selectedReferrer.type === 'student'
+                                    ? '#1d4ed8'
+                                    : '#6d28d9',
+                              }}
+                            >
+                              {selectedReferrer.type === 'alumni'
+                                ? 'Verified LMS Alumni (Graduated)'
+                                : selectedReferrer.type === 'student'
+                                ? 'Verified LMS Student'
+                                : 'Existing Lead'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                            {selectedReferrer.phone}
+                            {selectedReferrer.course ? ` • ${selectedReferrer.course}` : ''}
+                            {selectedReferrer.batch ? ` (${selectedReferrer.batch})` : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedReferrer(null)
+                          setReferrerSearch('')
+                        }}
+                        style={{
+                          background: '#fef2f2',
+                          border: '1px solid #fecaca',
+                          color: '#dc2626',
+                          borderRadius: 6,
+                          padding: '4px 10px',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    /* Search input with live dropdown */
+                    <div style={{ position: 'relative' }}>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="text"
+                          placeholder={
+                            referrerType === 'alumni'
+                              ? 'Search graduated alumni by name, phone, or batch...'
+                              : referrerType === 'student'
+                              ? 'Search LMS active student by name, phone, or roll no...'
+                              : 'Search CRM leads by name or phone...'
+                          }
+                          value={referrerSearch}
+                          onChange={e => setReferrerSearch(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px 8px 34px',
+                            fontSize: 12,
+                            borderRadius: 6,
+                            border: '1px solid #cbd5e1',
+                            background: '#fff',
+                          }}
+                        />
+                        <Search
+                          size={15}
+                          color="#94a3b8"
+                          style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}
+                        />
+                        {isSearchingReferrer && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              right: 10,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              fontSize: 10,
+                              color: '#0284c7',
+                              fontWeight: 600,
+                            }}
+                          >
+                            Searching LMS API...
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Dropdown Results */}
+                      {referrerResults.length > 0 && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            right: 0,
+                            marginTop: 4,
+                            background: '#fff',
+                            borderRadius: 8,
+                            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1)',
+                            border: '1px solid #cbd5e1',
+                            maxHeight: 220,
+                            overflowY: 'auto',
+                            zIndex: 20,
+                          }}
+                        >
+                          {referrerResults.map((item, idx) => (
+                            <div
+                              key={item.id || item.leadId || idx}
+                              onClick={() => {
+                                setSelectedReferrer(item)
+                                setReferrerResults([])
+                              }}
+                              style={{
+                                padding: '8px 12px',
+                                borderBottom: '1px solid #f1f5f9',
+                                cursor: 'pointer',
+                                transition: 'background 0.15s ease',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+                              onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                                  {item.name}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    padding: '1px 6px',
+                                    borderRadius: 4,
+                                    background:
+                                      item.type === 'alumni'
+                                        ? '#dcfce7'
+                                        : item.type === 'student'
+                                        ? '#dbeafe'
+                                        : '#f3e8ff',
+                                    color:
+                                      item.type === 'alumni'
+                                        ? '#15803d'
+                                        : item.type === 'student'
+                                        ? '#1d4ed8'
+                                        : '#6d28d9',
+                                  }}
+                                >
+                                  {item.type === 'alumni'
+                                    ? 'Verified Alumni'
+                                    : item.type === 'student'
+                                    ? 'Verified Student'
+                                    : 'Lead'}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                                {item.phone}
+                                {item.course ? ` • ${item.course}` : ''}
+                                {item.batch ? ` (${item.batch})` : ''}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {referrerSearch.trim() && !isSearchingReferrer && referrerResults.length === 0 && (
+                        <div
+                          style={{
+                            marginTop: 4,
+                            padding: '8px 12px',
+                            background: '#f8fafc',
+                            borderRadius: 6,
+                            fontSize: 11,
+                            color: '#64748b',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                          }}
+                        >
+                          <AlertCircle size={14} color="#94a3b8" />
+                          <span>No {referrerType} matching &quot;{referrerSearch}&quot; found via LMS API.</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Field: Lead Routing / Destination */}

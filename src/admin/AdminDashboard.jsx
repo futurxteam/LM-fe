@@ -59,6 +59,9 @@ import {
   Flame,
   Building2,
   ArrowLeft,
+  Pause,
+  Play,
+  Share2,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -72,6 +75,7 @@ import AdminLifecycleSettingsModal from '../components/AdminLifecycleSettingsMod
 import StaffHistoryDrawer from '../components/StaffHistoryDrawer'
 import FrdReportsView from '../components/FrdReportsView'
 import FollowupScheduleView from '../components/FollowupScheduleView'
+import ReferralDashboard from '../components/ReferralDashboard'
 import { getStatusBadgeStyle, getHeatBadgeStyle, LEAD_STATUSES, formatINR } from '../constants/leadLifecycle'
 
 export default function AdminDashboard({ user, onLogout }) {
@@ -244,6 +248,14 @@ export default function AdminDashboard({ user, onLogout }) {
   const [disableHandoverMode, setDisableHandoverMode] = useState('keep') // 'keep' | 'reassign_open'
   const [disableTargetRepId, setDisableTargetRepId] = useState('pool')
   const [disablingInProgress, setDisablingInProgress] = useState(false)
+
+  // Counselor Pause States
+  const [showPauseUserModal, setShowPauseUserModal] = useState(false)
+  const [pausingUser, setPausingUser] = useState(null)
+  const [pauseStartDate, setPauseStartDate] = useState('')
+  const [pauseEndDate, setPauseEndDate] = useState('')
+  const [pauseReason, setPauseReason] = useState('')
+  const [pausingInProgress, setPausingInProgress] = useState(false)
 
   const prevPoolCountRef = useRef(null)
 
@@ -1372,6 +1384,36 @@ export default function AdminDashboard({ user, onLogout }) {
       setSalesReps(repsData || [])
     } catch (err) {
       showNotify('error', err.message || 'Failed to re-enable user')
+    }
+  }
+
+  const handleOpenPauseUser = u => {
+    setPausingUser(u)
+    const todayStr = new Date().toISOString().split('T')[0]
+    setPauseStartDate(u.pauseStartDate ? new Date(u.pauseStartDate).toISOString().split('T')[0] : todayStr)
+    setPauseEndDate(u.pauseEndDate ? new Date(u.pauseEndDate).toISOString().split('T')[0] : '')
+    setPauseReason(u.pauseReason || '')
+    setShowPauseUserModal(true)
+  }
+
+  const handleConfirmPauseUser = async targetPauseState => {
+    if (!pausingUser) return
+    setPausingInProgress(true)
+    try {
+      const res = await api.pauseUser(pausingUser.id, {
+        isPaused: targetPauseState,
+        pauseStartDate: targetPauseState ? pauseStartDate : null,
+        pauseEndDate: targetPauseState && pauseEndDate ? pauseEndDate : null,
+        pauseReason: targetPauseState ? pauseReason.trim() : '',
+      })
+      showNotify('success', res.message || 'Counselor pause updated successfully')
+      setShowPauseUserModal(false)
+      setPausingUser(null)
+      await loadUsers(usersPage, showDisabledUsers, userRoleFilter, userSearch)
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to update pause status')
+    } finally {
+      setPausingInProgress(false)
     }
   }
 
@@ -2880,6 +2922,15 @@ export default function AdminDashboard({ user, onLogout }) {
                       badge: 'Audience & ROI',
                       Icon: Globe,
                     },
+                    {
+                      slug: 'referrals',
+                      title: 'Referral Intelligence & Demographics',
+                      desc: 'Track student, alumni, and lead referral sources, demographic breakdowns by course and date, leaderboard, and conversion revenue.',
+                      color: '#0284c7',
+                      bg: '#f0f9ff',
+                      badge: 'Referrals & Demographics',
+                      Icon: Share2,
+                    },
                   ].map(card => {
                     const CardIcon = card.Icon
                     return (
@@ -2965,6 +3016,41 @@ export default function AdminDashboard({ user, onLogout }) {
                 onOpenProfile={lead => setActiveLeadModal(lead)}
                 showNotify={showNotify}
               />
+            ) : reportSlug === 'referrals' ? (
+              <div>
+                <div style={{ marginBottom: 14 }}>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/reports')}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#0284c7',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: 0,
+                    }}
+                  >
+                    <ArrowLeft size={16} />
+                    <span>Back to Reports Hub</span>
+                  </button>
+                </div>
+                <ReferralDashboard
+                  onOpenLeadProfile={async leadId => {
+                    try {
+                      const res = await api.getLeadById(leadId)
+                      if (res.lead) setActiveLeadModal(res.lead)
+                    } catch (err) {
+                      showNotify('error', 'Could not open lead profile')
+                    }
+                  }}
+                  showNotify={showNotify}
+                />
+              </div>
             ) : ['business', 'conversion', 'status'].includes(reportSlug) ? (
               <FrdReportsView
                 reportType={reportSlug}
@@ -3740,29 +3826,55 @@ export default function AdminDashboard({ user, onLogout }) {
                                     )}
                                   </td>
                                   <td>
-                                    <span
-                                      style={{
-                                        background: u.active ? '#dcfce7' : '#fee2e2',
-                                        color: u.active ? '#15803d' : '#991b1b',
-                                        fontWeight: 700,
-                                        fontSize: 11,
-                                        padding: '3px 9px',
-                                        borderRadius: 12,
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: 4,
-                                      }}
-                                    >
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
                                       <span
                                         style={{
-                                          width: 6,
-                                          height: 6,
-                                          borderRadius: '50%',
-                                          background: u.active ? '#16a34a' : '#dc2626',
+                                          background: u.active ? '#dcfce7' : '#fee2e2',
+                                          color: u.active ? '#15803d' : '#991b1b',
+                                          fontWeight: 700,
+                                          fontSize: 11,
+                                          padding: '3px 9px',
+                                          borderRadius: 12,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
                                         }}
-                                      />
-                                      <span>{u.active ? 'Active' : 'Disabled'}</span>
-                                    </span>
+                                      >
+                                        <span
+                                          style={{
+                                            width: 6,
+                                            height: 6,
+                                            borderRadius: '50%',
+                                            background: u.active ? '#16a34a' : '#dc2626',
+                                          }}
+                                        />
+                                        <span>{u.active ? 'Active' : 'Disabled'}</span>
+                                      </span>
+                                      {u.active && u.isPaused && (
+                                        <span
+                                          style={{
+                                            background: '#fef3c7',
+                                            color: '#92400e',
+                                            fontWeight: 700,
+                                            fontSize: 10,
+                                            padding: '2px 7px',
+                                            borderRadius: 10,
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 4,
+                                            border: '1px solid #fde68a',
+                                          }}
+                                          title={u.pauseReason ? `Reason: ${u.pauseReason}` : 'Paused from allocation'}
+                                        >
+                                          <Pause size={10} />
+                                          <span>
+                                            {u.pauseEndDate
+                                              ? `Paused until ${new Date(u.pauseEndDate).toLocaleDateString([], { day: 'numeric', month: 'short' })}`
+                                              : 'Paused'}
+                                          </span>
+                                        </span>
+                                      )}
+                                    </div>
                                   </td>
                                   <td onClick={e => e.stopPropagation()}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
@@ -3791,16 +3903,37 @@ export default function AdminDashboard({ user, onLogout }) {
                                             <span>Edit</span>
                                           </button>
                                           {u.role !== 'admin' && (
-                                            <button
-                                              type="button"
-                                              className="btn-pulse-danger"
-                                              onClick={() => handleOpenDisableUser(u)}
-                                              style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                                              title="Disable account login without deleting any lead data"
-                                            >
-                                              <UserX size={12} />
-                                              <span>Disable</span>
-                                            </button>
+                                            <>
+                                              <button
+                                                type="button"
+                                                className="btn-pulse-secondary"
+                                                onClick={() => handleOpenPauseUser(u)}
+                                                style={{
+                                                  fontSize: 11,
+                                                  padding: '4px 9px',
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  gap: 4,
+                                                  background: u.isPaused ? '#fef3c7' : '#f8fafc',
+                                                  color: u.isPaused ? '#b45309' : '#334155',
+                                                  borderColor: u.isPaused ? '#fde68a' : '#cbd5e1',
+                                                }}
+                                                title={u.isPaused ? 'Resume counselor round-robin allocation' : 'Pause counselor from receiving round-robin leads'}
+                                              >
+                                                {u.isPaused ? <Play size={12} /> : <Pause size={12} />}
+                                                <span>{u.isPaused ? 'Resume' : 'Pause'}</span>
+                                              </button>
+                                              <button
+                                                type="button"
+                                                className="btn-pulse-danger"
+                                                onClick={() => handleOpenDisableUser(u)}
+                                                style={{ fontSize: 11, padding: '4px 9px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                                title="Disable account login without deleting any lead data"
+                                              >
+                                                <UserX size={12} />
+                                                <span>Disable</span>
+                                              </button>
+                                            </>
                                           )}
                                         </>
                                       ) : (
@@ -6143,6 +6276,171 @@ export default function AdminDashboard({ user, onLogout }) {
               >
                 <UserX size={14} />
                 <span>{disablingInProgress ? 'Disabling...' : 'Confirm Disable'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pause / Resume Counselor Modal */}
+      {showPauseUserModal && pausingUser && (
+        <div
+          className="modal-overlay"
+          style={{ zIndex: 1050 }}
+          onClick={() => !pausingInProgress && setShowPauseUserModal(false)}
+        >
+          <div
+            className="modal-card"
+            style={{ maxWidth: 480, width: '100%' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div
+              className="modal-header"
+              style={{
+                background: pausingUser.isPaused ? '#059669' : '#d97706',
+                color: '#fff',
+                padding: '16px 20px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {pausingUser.isPaused ? <Play size={20} /> : <Pause size={20} />}
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+                    {pausingUser.isPaused ? 'Resume Counselor Allocation' : 'Pause Counselor from Leads'}
+                  </h3>
+                  <div style={{ fontSize: 11, opacity: 0.9 }}>
+                    {pausingUser.name} ({pausingUser.title || 'Admissions Counselor'})
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPauseUserModal(false)}
+                disabled={pausingInProgress}
+                style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ padding: '20px' }}>
+              {pausingUser.isPaused ? (
+                <div>
+                  <p style={{ fontSize: 13, color: '#334155', margin: '0 0 14px 0', lineHeight: 1.5 }}>
+                    <strong>{pausingUser.name}</strong> is currently paused from round-robin lead allocation.
+                    Resuming will immediately re-include them in Meta auto-assignment, manual pool round-robin, and recycling.
+                  </p>
+                  {pausingUser.pauseReason && (
+                    <div
+                      style={{
+                        padding: '10px 14px',
+                        background: '#fef3c7',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        color: '#92400e',
+                        marginBottom: 14,
+                      }}
+                    >
+                      <strong>Active Pause Reason:</strong> {pausingUser.pauseReason}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <p style={{ fontSize: 13, color: '#334155', margin: '0 0 14px 0', lineHeight: 1.5 }}>
+                    Pausing temporarily stops this counselor from receiving leads via Meta webhook auto-allocation and manual round-robin.
+                    Their existing assigned leads remain untouched with full access.
+                  </p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                        PAUSE START DATE
+                      </label>
+                      <input
+                        type="date"
+                        value={pauseStartDate}
+                        onChange={e => setPauseStartDate(e.target.value)}
+                        style={{ width: '100%', padding: '7px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                        AUTO-RESUME DATE (OPTIONAL)
+                      </label>
+                      <input
+                        type="date"
+                        value={pauseEndDate}
+                        onChange={e => setPauseEndDate(e.target.value)}
+                        style={{ width: '100%', padding: '7px 10px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                      REASON (OPTIONAL)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Annual Leave, Medical, Travel, Exams..."
+                      value={pauseReason}
+                      onChange={e => setPauseReason(e.target.value)}
+                      style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                    />
+                  </div>
+
+                  <div style={{ fontSize: 11, color: '#64748b', background: '#f8fafc', padding: '10px 12px', borderRadius: 6 }}>
+                    ℹ️ If an auto-resume date is set, the system will automatically start routing leads to this counselor once the date passes.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div
+              className="modal-footer"
+              style={{
+                borderTop: '1px solid #e2e8f0',
+                padding: '14px 20px',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 10,
+              }}
+            >
+              <button
+                type="button"
+                className="btn-pulse-secondary"
+                onClick={() => setShowPauseUserModal(false)}
+                disabled={pausingInProgress}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmPauseUser(!pausingUser.isPaused)}
+                disabled={pausingInProgress}
+                style={{
+                  background: pausingUser.isPaused ? '#059669' : '#d97706',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '9px 18px',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                {pausingUser.isPaused ? <Play size={14} /> : <Pause size={14} />}
+                <span>
+                  {pausingInProgress
+                    ? 'Updating...'
+                    : pausingUser.isPaused
+                    ? 'Resume Counselor'
+                    : 'Confirm Pause'}
+                </span>
               </button>
             </div>
           </div>

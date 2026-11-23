@@ -30,6 +30,8 @@ import {
   TrendingUp,
   ArrowRight,
   Calendar,
+  Share2,
+  ArrowLeft,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -38,6 +40,7 @@ import StudentProfileModal from '../components/StudentProfileModal'
 import LeadStepModal from '../components/LeadStepModal'
 import FrdReportsView from '../components/FrdReportsView'
 import FollowupScheduleView from '../components/FollowupScheduleView'
+import ReferralDashboard from '../components/ReferralDashboard'
 import { getSalesDisplayStatus } from '../constants/leadLifecycle'
 
 export default function SalesDashboard({ user, onLogout }) {
@@ -380,7 +383,42 @@ export default function SalesDashboard({ user, onLogout }) {
               showNotify={showNotify}
             />
           ) : isReportsView ? (
-            salesReportSlug === 'business' || salesReportSlug === 'conversion' ? (
+            salesReportSlug === 'referrals' ? (
+              <div>
+                <div style={{ marginBottom: 14 }}>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/reports')}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#0284c7',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: 0,
+                    }}
+                  >
+                    <ArrowLeft size={16} />
+                    <span>Back to Reports Hub</span>
+                  </button>
+                </div>
+                <ReferralDashboard
+                  onOpenLeadProfile={async leadId => {
+                    try {
+                      const res = await api.getLeadById(leadId)
+                      if (res.lead) setActiveStudentModal(res.lead)
+                    } catch (err) {
+                      showNotify('error', 'Could not open lead profile')
+                    }
+                  }}
+                  showNotify={showNotify}
+                />
+              </div>
+            ) : salesReportSlug === 'business' || salesReportSlug === 'conversion' ? (
               <FrdReportsView
                 reportType={salesReportSlug}
                 isAdmin={false}
@@ -395,7 +433,7 @@ export default function SalesDashboard({ user, onLogout }) {
                       My Performance Reports
                     </h3>
                     <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                      Select a report card to open your dedicated Business Turnover or Conversion report.
+                      Select a report card to open your dedicated Business Turnover, Conversion, or Referral Intelligence report.
                     </div>
                   </div>
                 </div>
@@ -416,6 +454,14 @@ export default function SalesDashboard({ user, onLogout }) {
                       color: '#0284c7',
                       bg: '#f0f9ff',
                       Icon: TrendingUp,
+                    },
+                    {
+                      slug: 'referrals',
+                      title: 'Referral Intelligence & Demographics',
+                      desc: 'Track student, alumni, and lead referral sources, demographics across custom dates/months, leaderboard, and conversion revenue.',
+                      color: '#7c3aed',
+                      bg: '#f5f3ff',
+                      Icon: Share2,
                     },
                   ].map(card => {
                     const CardIcon = card.Icon

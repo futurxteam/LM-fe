@@ -192,6 +192,10 @@ export default function LeadStepModal({
 
   const isCategoryLockedForSales = cat => {
     if (isAdmin) return false
+    // Onboarded Business can strictly only be selected if lead is already in Converted Business
+    if (cat.leadStatus === 'ONBOARDED BUSINESS' && currentLeadStatus !== 'CONVERTED BUSINESS') {
+      return true
+    }
     // Once Converted Business, only staying on Converted (installment/note) or progressing to Onboarded is allowed
     if (currentLeadStatus === 'CONVERTED BUSINESS') {
       return !['CONVERTED BUSINESS', 'ONBOARDED BUSINESS'].includes(cat.leadStatus)
@@ -273,6 +277,32 @@ export default function LeadStepModal({
       }
       if (!courseFees || Number(courseFees) <= 0) {
         showNotify?.('error', 'Please enter applicable Course Fees (> 0).')
+        return
+      }
+    }
+
+    // Business Threshold Validation: Qualified (< 10000) vs Converted (>= 10000)
+    const effectivePaid =
+      receiptAmount !== '' && Number(receiptAmount) > 0
+        ? (Number(lead.paidAmount) || 0) + Number(receiptAmount)
+        : paidAmount !== ''
+        ? Number(paidAmount)
+        : Number(lead.paidAmount) || 0
+
+    if (targetStatus === 'CONVERTED BUSINESS' && !(isAdmin && adminException)) {
+      if (effectivePaid < 10000) {
+        showNotify?.('error', 'Converted Business requires a minimum payment of ₹10,000. For advance/token payments below ₹10,000, please mark as Qualified.')
+        return
+      }
+    }
+
+    if (targetStatus === 'ONBOARDED BUSINESS' && !(isAdmin && adminException)) {
+      if (currentLeadStatus !== 'CONVERTED BUSINESS' && !lead.milestoneHistory?.convertedAt) {
+        showNotify?.('error', 'A lead must first be in Converted Business state (with at least ₹10,000 paid) before it can be Onboarded.')
+        return
+      }
+      if (effectivePaid < 10000) {
+        showNotify?.('error', 'Onboarded Business requires at least ₹10,000 collected.')
         return
       }
     }
