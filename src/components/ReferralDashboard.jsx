@@ -86,7 +86,11 @@ export default function ReferralDashboard({ onOpenLeadProfile, showNotify }) {
       }
 
       const [statsRes, listRes] = await Promise.all([
-        api.getReferralStats({ startDate: sDate, endDate: eDate }),
+        api.getReferralStats({
+          dateFilter: datePreset,
+          startDate: sDate,
+          endDate: eDate,
+        }),
         api.getReferrals(params),
       ])
 
@@ -115,20 +119,28 @@ export default function ReferralDashboard({ onOpenLeadProfile, showNotify }) {
     loadData()
   }
 
-  const kpis = stats?.kpis || {
-    totalReferrals: 0,
-    qualified: 0,
-    converted: 0,
-    onboarded: 0,
-    conversionRate: 0,
-    totalRevenue: 0,
+  const kpis = {
+    totalReferrals: stats?.kpis?.totalReferrals ?? stats?.totalCount ?? stats?.totalReferrals ?? 0,
+    qualified: stats?.kpis?.qualified ?? stats?.qualifiedCount ?? 0,
+    converted: stats?.kpis?.converted ?? stats?.convertedCount ?? 0,
+    onboarded: stats?.kpis?.onboarded ?? stats?.onboardedCount ?? 0,
+    conversionRate: stats?.kpis?.conversionRate ?? stats?.conversionRate ?? 0,
+    totalRevenue: stats?.kpis?.totalRevenue ?? stats?.totalRevenue ?? 0,
   }
 
-  const byType = stats?.demographics?.byType || { student: 0, alumni: 0, lead: 0 }
+  const byType = {
+    student: stats?.demographics?.byType?.student ?? stats?.byType?.student?.count ?? stats?.byType?.student ?? 0,
+    alumni: stats?.demographics?.byType?.alumni ?? stats?.byType?.alumni?.count ?? stats?.byType?.alumni ?? 0,
+    lead: stats?.demographics?.byType?.lead ?? stats?.byType?.lead?.count ?? stats?.byType?.lead ?? 0,
+  }
   const totalByType = (byType.student || 0) + (byType.alumni || 0) + (byType.lead || 0) || 1
 
-  const courseBreakdown = stats?.demographics?.byCourse || []
-  const leaderboard = stats?.leaderboard || []
+  const courseBreakdown = stats?.demographics?.byCourse || stats?.courseBreakdown || []
+  const leaderboard = (stats?.leaderboard || []).map(r => ({
+    ...r,
+    totalCount: r.totalReferrals ?? r.totalReferred ?? 1,
+    convertedCount: r.convertedCount ?? 0,
+  }))
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1400, margin: '0 auto' }}>
@@ -514,9 +526,9 @@ export default function ReferralDashboard({ onOpenLeadProfile, showNotify }) {
                 POPULAR ENQUIRED COURSES
               </span>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {courseBreakdown.slice(0, 4).map(c => (
+                {courseBreakdown.slice(0, 4).map((c, cIdx) => (
                   <div
-                    key={c._id || 'Unknown'}
+                    key={c.course || c._id || cIdx}
                     style={{
                       padding: '4px 10px',
                       borderRadius: 16,
@@ -529,7 +541,7 @@ export default function ReferralDashboard({ onOpenLeadProfile, showNotify }) {
                       gap: 6,
                     }}
                   >
-                    <span style={{ fontWeight: 600 }}>{c._id || 'Healthcare Management'}</span>
+                    <span style={{ fontWeight: 600 }}>{c.course || c._id || 'Healthcare Management'}</span>
                     <span
                       style={{
                         background: '#0284c7',
@@ -612,7 +624,7 @@ export default function ReferralDashboard({ onOpenLeadProfile, showNotify }) {
 
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: '#0284c7' }}>
-                      {ref.totalReferred} {ref.totalReferred === 1 ? 'lead' : 'leads'}
+                      {ref.totalCount} {ref.totalCount === 1 ? 'lead' : 'leads'}
                     </div>
                     <div style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>
                       {ref.convertedCount} converted
