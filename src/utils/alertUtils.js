@@ -118,17 +118,22 @@ export function formatArrivalTime(dateVal) {
   const now = new Date()
   const diffMs = now - date
   const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMins / 60)
-  const diffDays = Math.floor(diffHours / 24)
 
   const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   if (diffMins < 1) return 'Just now'
   if (diffMins < 60) return `${diffMins}m ago (${timeStr})`
-  if (diffHours < 24 && date.getDate() === now.getDate()) return `Today at ${timeStr}`
-  if (diffDays === 1) return `Yesterday at ${timeStr}`
+
+  // Normalize both dates to calendar midnight to compare actual calendar days accurately
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const dateMidnight = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+  const oneDayMs = 24 * 60 * 60 * 1000
+  const calendarDayDiff = Math.round((todayMidnight - dateMidnight) / oneDayMs)
+
+  if (calendarDayDiff === 0) return `Today at ${timeStr}`
+  if (calendarDayDiff === 1) return `Yesterday at ${timeStr}`
 
   const dateStr = date.toLocaleDateString([], { day: 'numeric', month: 'short' })
-  return `${dateStr}, ${timeStr}`
+  return `${dateStr} at ${timeStr}`
 }
 
