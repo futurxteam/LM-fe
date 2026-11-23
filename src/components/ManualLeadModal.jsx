@@ -156,13 +156,16 @@ export default function ManualLeadModal({
       if (hasReferral && selectedReferrer) {
         payload.referralData = {
           hasReferral: true,
-          referrerType,
+          referralType: referrerType,
+          referrerType: referrerType,
           referrerLeadId: selectedReferrer.leadId || null,
           referrerStudentId: selectedReferrer.id || null,
+          lmsUserId: selectedReferrer.lmsUserId || '',
           referrerName: selectedReferrer.name,
           referrerPhone: selectedReferrer.phone,
           referrerCourse: selectedReferrer.course || '',
           referrerBatch: selectedReferrer.batch || '',
+          referrerRollNo: selectedReferrer.rollNo || '',
           isVerifiedLms: Boolean(selectedReferrer.isVerifiedLms),
         }
       }
