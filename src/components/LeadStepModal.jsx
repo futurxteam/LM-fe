@@ -73,11 +73,13 @@ export default function LeadStepModal({
   const [note, setNote] = useState('')
   const [callbackAt, setCallbackAt] = useState('')
   const [activeSection, setActiveSection] = useState('step') // 'step' | 'timeline'
+  const [modalAlert, setModalAlert] = useState(null)
 
   // Reset form only when opening a different lead (NOT when receipt update refreshes the same lead)
   const leadKey = lead?.id || lead?._id
   useEffect(() => {
     if (!lead) return
+    setModalAlert(null)
     setSelectedCategoryKey(lead.selectedCategory || '')
     setInquiryIntent(lead.inquiryIntent || '')
     setLostReason(lead.lostReason || '')
@@ -241,42 +243,56 @@ export default function LeadStepModal({
 
   const handleSubmit = async e => {
     e.preventDefault()
+    setModalAlert(null)
     if (!selectedCategoryKey) {
-      showNotify?.('error', 'Please select an interaction / outcome category.')
+      const msg = 'Please select an interaction / outcome category.'
+      setModalAlert(msg)
+      showNotify?.('error', msg)
       return
     }
     if (!isAdmin && selectedCatObj && isCategoryLockedForSales(selectedCatObj)) {
-      showNotify?.(
-        'error',
-        `${selectedCatObj.leadStatus} is locked until after the 1st interaction is logged.`
-      )
+      const msg = `${selectedCatObj.leadStatus} is locked until after the 1st interaction is logged.`
+      setModalAlert(msg)
+      showNotify?.('error', msg)
       return
     }
     if (showLostFields && !lostReason.trim()) {
-      showNotify?.('error', 'Lost Reason is mandatory when marking a lead as LOST.')
+      const msg = 'Lost Reason is mandatory when marking a lead as LOST.'
+      setModalAlert(msg)
+      showNotify?.('error', msg)
       return
     }
     if (showBusinessFields) {
       if (courseFees !== '' && Number(courseFees) < 0) {
-        showNotify?.('error', 'Course Fees cannot be negative.')
+        const msg = 'Course Fees cannot be negative.'
+        setModalAlert(msg)
+        showNotify?.('error', msg)
         return
       }
       if (paidAmount !== '' && Number(paidAmount) < 0) {
-        showNotify?.('error', 'Paid Amount cannot be negative.')
+        const msg = 'Paid Amount cannot be negative.'
+        setModalAlert(msg)
+        showNotify?.('error', msg)
         return
       }
       if (receiptAmount !== '' && Number(receiptAmount) < 0) {
-        showNotify?.('error', 'Receipt amount cannot be negative.')
+        const msg = 'Receipt amount cannot be negative.'
+        setModalAlert(msg)
+        showNotify?.('error', msg)
         return
       }
     }
     if (showBusinessFields && policy.requireBusinessFields && !(isAdmin && adminException)) {
       if (!businessProgramId) {
-        showNotify?.('error', 'Please select an approved Course Program.')
+        const msg = 'Please select an approved Course Program.'
+        setModalAlert(msg)
+        showNotify?.('error', msg)
         return
       }
       if (!courseFees || Number(courseFees) <= 0) {
-        showNotify?.('error', 'Please enter applicable Course Fees (> 0).')
+        const msg = 'Please enter applicable Course Fees (> 0).'
+        setModalAlert(msg)
+        showNotify?.('error', msg)
         return
       }
     }
@@ -291,18 +307,37 @@ export default function LeadStepModal({
 
     if (targetStatus === 'CONVERTED BUSINESS' && !(isAdmin && adminException)) {
       if (effectivePaid < 10000) {
-        showNotify?.('error', 'Converted Business requires a minimum payment of ₹10,000. For advance/token payments below ₹10,000, please mark as Qualified.')
+        const msg = "Can't update step: Total amount is not ₹10,000 or above for Converted Business. For advance/token payments below ₹10,000, please mark as Qualified."
+        setModalAlert(msg)
+        window.alert(msg)
+        showNotify?.('error', msg)
+        return
+      }
+    }
+
+    if (targetStatus === 'QUALIFIED BUSINESS' && !(isAdmin && adminException)) {
+      if (effectivePaid >= 10000) {
+        const msg = `Can't update step: Total amount is ₹${Number(effectivePaid).toLocaleString('en-IN')}. Qualified Business is strictly for advance/token payments below ₹10,000. Please select Converted Business.`
+        setModalAlert(msg)
+        window.alert(msg)
+        showNotify?.('error', msg)
         return
       }
     }
 
     if (targetStatus === 'ONBOARDED BUSINESS' && !(isAdmin && adminException)) {
       if (currentLeadStatus !== 'CONVERTED BUSINESS' && !lead.milestoneHistory?.convertedAt) {
-        showNotify?.('error', 'A lead must first be in Converted Business state (with at least ₹10,000 paid) before it can be Onboarded.')
+        const msg = "Can't update step: A lead must first be in Converted Business state (with at least ₹10,000 paid) before it can be Onboarded."
+        setModalAlert(msg)
+        window.alert(msg)
+        showNotify?.('error', msg)
         return
       }
       if (effectivePaid < 10000) {
-        showNotify?.('error', 'Onboarded Business requires at least ₹10,000 collected.')
+        const msg = "Can't update step: Onboarded Business requires at least ₹10,000 collected."
+        setModalAlert(msg)
+        window.alert(msg)
+        showNotify?.('error', msg)
         return
       }
     }
@@ -367,7 +402,10 @@ export default function LeadStepModal({
       onUpdated?.(res.lead)
       onClose?.()
     } catch (err) {
-      showNotify?.('error', err.message || 'Failed to save step')
+      const errMsg = err.message || 'Failed to save step'
+      setModalAlert(errMsg)
+      window.alert(errMsg)
+      showNotify?.('error', errMsg)
     } finally {
       setSaving(false)
     }
@@ -517,6 +555,41 @@ export default function LeadStepModal({
 
         {/* Body */}
         <div className="modal-body" style={{ overflowY: 'auto', flex: 1 }}>
+          {modalAlert && (
+            <div
+              style={{
+                background: '#fef2f2',
+                border: '2px solid #ef4444',
+                borderRadius: 8,
+                padding: '12px 14px',
+                marginBottom: 14,
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                color: '#991b1b',
+                boxShadow: '0 2px 8px rgba(239, 68, 68, 0.15)',
+              }}
+            >
+              <AlertTriangle size={20} color="#dc2626" style={{ flexShrink: 0, marginTop: 1 }} />
+              <div style={{ flex: 1, fontSize: 13, fontWeight: 700, lineHeight: 1.4 }}>
+                {modalAlert}
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalAlert(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#991b1b',
+                  cursor: 'pointer',
+                  padding: 2,
+                  fontWeight: 700,
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
           {activeSection === 'step' ? (
             <form id="lead-step-form" onSubmit={handleSubmit}>
               {lead.isCycleEnded && !isAdmin && lead.leadStatus !== 'CONVERTED BUSINESS' && (
@@ -1163,6 +1236,24 @@ export default function LeadStepModal({
         </div>
 
         {/* Footer */}
+        {modalAlert && activeSection === 'step' && (
+          <div
+            style={{
+              padding: '8px 16px',
+              background: '#fef2f2',
+              borderTop: '1px solid #fecaca',
+              color: '#dc2626',
+              fontSize: 12,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <AlertTriangle size={15} color="#dc2626" style={{ flexShrink: 0 }} />
+            <span>{modalAlert}</span>
+          </div>
+        )}
         <div className="modal-footer">
           <button type="button" className="btn-pulse-secondary" onClick={onClose} disabled={saving}>
             Close
