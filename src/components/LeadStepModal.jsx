@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import {
   X,
   PhoneCall,
@@ -10,6 +10,10 @@ import {
   History,
   Lock,
   Layers,
+  ChevronDown,
+  ChevronUp,
+  Search,
+  Check,
 } from 'lucide-react'
 import { api } from '../api'
 import {
@@ -74,12 +78,34 @@ export default function LeadStepModal({
   const [callbackAt, setCallbackAt] = useState('')
   const [activeSection, setActiveSection] = useState('step') // 'step' | 'timeline'
   const [modalAlert, setModalAlert] = useState(null)
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
+  const [categorySearchQuery, setCategorySearchQuery] = useState('')
+  const [selectedGroupTab, setSelectedGroupTab] = useState('All')
+  const categoryDropdownRef = useRef(null)
+
+  // Close custom category dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = e => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target)) {
+        setCategoryDropdownOpen(false)
+      }
+    }
+    if (categoryDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [categoryDropdownOpen])
 
   // Reset form only when opening a different lead (NOT when receipt update refreshes the same lead)
   const leadKey = lead?.id || lead?._id
   useEffect(() => {
     if (!lead) return
     setModalAlert(null)
+    setCategoryDropdownOpen(false)
+    setCategorySearchQuery('')
+    setSelectedGroupTab('All')
     setSelectedCategoryKey(lead.selectedCategory || '')
     setInquiryIntent(lead.inquiryIntent || '')
     setLostReason(lead.lostReason || '')
@@ -168,6 +194,33 @@ export default function LeadStepModal({
     }
     return groups
   }, [categories, isAdmin, allowedStatusesForStage])
+
+  const availableGroups = useMemo(() => {
+    return ['All', ...Object.keys(groupedCategories)]
+  }, [groupedCategories])
+
+  const filteredGroupedCategories = useMemo(() => {
+    const q = categorySearchQuery.trim().toLowerCase()
+    const result = {}
+
+    for (const [groupName, items] of Object.entries(groupedCategories)) {
+      if (selectedGroupTab !== 'All' && groupName !== selectedGroupTab) {
+        continue
+      }
+      const matchedItems = items.filter(cat => {
+        if (!q) return true
+        return (
+          cat.label.toLowerCase().includes(q) ||
+          cat.leadStatus.toLowerCase().includes(q) ||
+          (cat.heatTier && cat.heatTier.toLowerCase().includes(q))
+        )
+      })
+      if (matchedItems.length > 0) {
+        result[groupName] = matchedItems
+      }
+    }
+    return result
+  }, [groupedCategories, categorySearchQuery, selectedGroupTab])
 
   const selectedCatObj = useMemo(
     () => categories.find(c => c.key === selectedCategoryKey) || null,
@@ -614,45 +667,257 @@ export default function LeadStepModal({
                 </div>
               )}
 
-              {/* Outcome Category Selector */}
-              <div style={{ marginBottom: 14 }}>
+              {/* Outcome Category Custom Searchable Dropdown */}
+              <div ref={categoryDropdownRef} style={{ position: 'relative', marginBottom: 14 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>
                   SELECT INTERACTION / OUTCOME CATEGORY *
                 </label>
-                <select
+
+                {/* Hidden input to ensure form submission validation */}
+                <input
+                  type="text"
                   value={selectedCategoryKey}
-                  onChange={e => setSelectedCategoryKey(e.target.value)}
                   required
+                  readOnly
+                  style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', height: 0, width: 0 }}
+                />
+
+                {/* Trigger Button */}
+                <button
+                  type="button"
+                  onClick={() => !isCycleLockedForSales && setCategoryDropdownOpen(prev => !prev)}
                   disabled={isCycleLockedForSales}
                   style={{
                     width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 6,
-                    border: '1px solid #cbd5e1',
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    border: categoryDropdownOpen ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                    background: isCycleLockedForSales ? '#f1f5f9' : '#ffffff',
                     fontSize: 13,
-                    fontWeight: 500,
+                    fontWeight: 600,
+                    color: selectedCatObj ? '#0f172a' : '#64748b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: isCycleLockedForSales ? 'not-allowed' : 'pointer',
+                    textAlign: 'left',
+                    boxShadow: categoryDropdownOpen ? '0 0 0 3px rgba(2, 132, 199, 0.15)' : 'none',
+                    transition: 'all 0.15s ease',
                   }}
                 >
-                  <option value="">-- Choose outcome category --</option>
-                  {Object.entries(groupedCategories).map(([groupName, items]) => (
-                    <optgroup key={groupName} label={groupName}>
-                      {items.map(cat => {
-                        const locked = isCategoryLockedForSales(cat)
-                        const needsFirst =
-                          !isAdmin &&
-                          requiresFirstInteractionStatuses.includes(cat.leadStatus) &&
-                          currentCycleInteractions === 0
-                        return (
-                          <option key={cat.key} value={cat.key} disabled={locked}>
-                            {cat.label}
-                            {needsFirst ? ' (Unlocked after 1st interaction)' : ''}
-                            {isAdmin && cat.heatTier ? ` [${cat.leadStatus} • ${cat.heatTier}]` : ''}
-                          </option>
-                        )
-                      })}
-                    </optgroup>
-                  ))}
-                </select>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selectedCatObj ? (
+                      <>
+                        <span style={{ fontWeight: 700, color: '#0f172a' }}>{selectedCatObj.label}</span>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 4,
+                            background: isBusinessStatus(selectedCatObj.leadStatus)
+                              ? '#ecfdf5'
+                              : selectedCatObj.leadStatus === 'HOT'
+                              ? '#fef2f2'
+                              : selectedCatObj.leadStatus === 'NON-CONNECT'
+                              ? '#fffbeb'
+                              : '#f1f5f9',
+                            color: isBusinessStatus(selectedCatObj.leadStatus)
+                              ? '#047857'
+                              : selectedCatObj.leadStatus === 'HOT'
+                              ? '#b91c1c'
+                              : selectedCatObj.leadStatus === 'NON-CONNECT'
+                              ? '#b45309'
+                              : '#334155',
+                          }}
+                        >
+                          {selectedCatObj.leadStatus}
+                        </span>
+                      </>
+                    ) : (
+                      <span style={{ color: '#94a3b8' }}>-- Choose outcome category --</span>
+                    )}
+                  </div>
+                  <div style={{ color: '#64748b', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    {categoryDropdownOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </div>
+                </button>
+
+                {/* Custom Floating Popover Menu (Bounded Height, Never Cut Off by Screen) */}
+                {categoryDropdownOpen && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 4px)',
+                      left: 0,
+                      right: 0,
+                      zIndex: 150,
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: 8,
+                      boxShadow: '0 12px 28px rgba(0, 0, 0, 0.22)',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      maxHeight: 300,
+                    }}
+                  >
+                    {/* Real-time Search Input inside Dropdown */}
+                    <div style={{ padding: '8px 10px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <Search size={15} color="#64748b" style={{ flexShrink: 0 }} />
+                      <input
+                        type="text"
+                        placeholder="Search category or status (e.g. Converted, Qualified, Callback)..."
+                        value={categorySearchQuery}
+                        onChange={e => setCategorySearchQuery(e.target.value)}
+                        autoFocus
+                        style={{
+                          width: '100%',
+                          border: 'none',
+                          outline: 'none',
+                          background: 'transparent',
+                          fontSize: 12,
+                          color: '#0f172a',
+                        }}
+                      />
+                      {categorySearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setCategorySearchQuery('')}
+                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 2 }}
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Quick Group Filter Tabs */}
+                    {availableGroups.length > 2 && (
+                      <div style={{ display: 'flex', gap: 4, padding: '6px 10px', overflowX: 'auto', borderBottom: '1px solid #f1f5f9', background: '#ffffff', flexShrink: 0 }}>
+                        {availableGroups.map(grp => (
+                          <button
+                            key={grp}
+                            type="button"
+                            onClick={() => setSelectedGroupTab(grp)}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: 12,
+                              fontSize: 10,
+                              fontWeight: 700,
+                              border: 'none',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              background: selectedGroupTab === grp ? '#1e293b' : '#f1f5f9',
+                              color: selectedGroupTab === grp ? '#ffffff' : '#475569',
+                            }}
+                          >
+                            {grp}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Scrollable Group Options List */}
+                    <div style={{ overflowY: 'auto', flex: 1, padding: '4px 0', WebkitOverflowScrolling: 'touch' }}>
+                      {Object.keys(filteredGroupedCategories).length === 0 ? (
+                        <div style={{ padding: '16px', textAlign: 'center', fontSize: 12, color: '#94a3b8' }}>
+                          No outcome categories match &quot;{categorySearchQuery}&quot;
+                        </div>
+                      ) : (
+                        Object.entries(filteredGroupedCategories).map(([groupName, items]) => (
+                          <div key={groupName} style={{ marginBottom: 4 }}>
+                            <div
+                              style={{
+                                padding: '4px 12px',
+                                fontSize: 10,
+                                fontWeight: 800,
+                                color: '#64748b',
+                                letterSpacing: '0.05em',
+                                textTransform: 'uppercase',
+                                background: '#f8fafc',
+                                borderTop: '1px solid #f1f5f9',
+                                borderBottom: '1px solid #f1f5f9',
+                              }}
+                            >
+                              {groupName}
+                            </div>
+                            {items.map(cat => {
+                              const isSelected = selectedCategoryKey === cat.key
+                              const locked = isCategoryLockedForSales(cat)
+                              const needsFirst =
+                                !isAdmin &&
+                                requiresFirstInteractionStatuses.includes(cat.leadStatus) &&
+                                currentCycleInteractions === 0
+
+                              return (
+                                <div
+                                  key={cat.key}
+                                  onClick={() => {
+                                    if (locked) return
+                                    setSelectedCategoryKey(cat.key)
+                                    setCategoryDropdownOpen(false)
+                                    if (modalAlert) setModalAlert(null)
+                                  }}
+                                  style={{
+                                    padding: '8px 12px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    cursor: locked ? 'not-allowed' : 'pointer',
+                                    background: isSelected ? '#eff6ff' : 'transparent',
+                                    opacity: locked ? 0.45 : 1,
+                                    transition: 'background 0.1s ease',
+                                  }}
+                                  onMouseEnter={e => {
+                                    if (!locked && !isSelected) e.currentTarget.style.background = '#f8fafc'
+                                  }}
+                                  onMouseLeave={e => {
+                                    if (!locked && !isSelected) e.currentTarget.style.background = 'transparent'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    <div style={{ fontSize: 13, fontWeight: isSelected ? 700 : 500, color: isSelected ? '#1d4ed8' : '#0f172a' }}>
+                                      {cat.label}
+                                    </div>
+                                    {needsFirst && (
+                                      <div style={{ fontSize: 10, color: '#dc2626' }}>
+                                        Unlocked after 1st interaction
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span
+                                      style={{
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                        padding: '2px 6px',
+                                        borderRadius: 4,
+                                        background: isBusinessStatus(cat.leadStatus)
+                                          ? '#dcfce7'
+                                          : cat.leadStatus === 'HOT'
+                                          ? '#fee2e2'
+                                          : '#f1f5f9',
+                                        color: isBusinessStatus(cat.leadStatus)
+                                          ? '#15803d'
+                                          : cat.leadStatus === 'HOT'
+                                          ? '#b91c1c'
+                                          : '#475569',
+                                      }}
+                                    >
+                                      {cat.leadStatus}
+                                      {isAdmin && cat.heatTier ? ` • ${cat.heatTier}` : ''}
+                                    </span>
+                                    {isSelected && <Check size={16} color="#2563eb" />}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
                 {!isAdmin && currentCycleInteractions === 0 && (
                   <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
                     Showing valid 1st-interaction options. Lost, Converted, and Onboarded unlock after Step #1.

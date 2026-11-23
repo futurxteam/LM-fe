@@ -42,6 +42,15 @@ export default function AdminLifecycleSettingsModal({
   const [newCatStatus, setNewCatStatus] = useState('HOT')
   const [newCatGroup, setNewCatGroup] = useState('Positive Interest')
 
+  // Edit Existing Category
+  const [editingCatKey, setEditingCatKey] = useState(null)
+  const [editCatForm, setEditCatForm] = useState({
+    label: '',
+    group: '',
+    leadStatus: 'HOT',
+    heatTier: 'HOT',
+  })
+
   useEffect(() => {
     if (isOpen) {
       setTab(initialTab || 'policy')
@@ -224,6 +233,49 @@ export default function AdminLifecycleSettingsModal({
     setOutcomeCategories(prev =>
       prev.map(c => (c.key === key ? { ...c, active: c.active === false } : c))
     )
+  }
+
+  const startEditCategory = cat => {
+    setEditingCatKey(cat.key)
+    setEditCatForm({
+      label: cat.label || '',
+      group: cat.group || '',
+      leadStatus: cat.leadStatus || 'HOT',
+      heatTier: cat.heatTier || 'HOT',
+    })
+  }
+
+  const handleSaveEditCategory = key => {
+    if (!editCatForm.label.trim()) {
+      showNotify?.('error', 'Category label is required.')
+      return
+    }
+    const computedHeat = ['HOT', 'QUALIFIED BUSINESS', 'CONVERTED BUSINESS', 'ONBOARDED BUSINESS'].includes(editCatForm.leadStatus)
+      ? 'HOT'
+      : editCatForm.leadStatus === 'WARM'
+      ? 'WARM'
+      : 'COLD'
+
+    setOutcomeCategories(prev =>
+      prev.map(c =>
+        c.key === key
+          ? {
+              ...c,
+              label: editCatForm.label.trim(),
+              group: editCatForm.group.trim() || 'General',
+              leadStatus: editCatForm.leadStatus,
+              heatTier: editCatForm.heatTier || computedHeat,
+            }
+          : c
+      )
+    )
+    setEditingCatKey(null)
+  }
+
+  const handleDeleteCategory = cat => {
+    const ok = window.confirm(`Delete outcome category "${cat.label}"?`)
+    if (!ok) return
+    setOutcomeCategories(prev => prev.filter(c => c.key !== cat.key))
   }
 
   if (!isOpen) return null
@@ -684,35 +736,178 @@ export default function AdminLifecycleSettingsModal({
                 </button>
               </form>
 
-              <div style={{ maxHeight: 340, overflowY: 'auto' }}>
+              <div style={{ maxHeight: 380, overflowY: 'auto' }}>
                 <table className="leads-table" style={{ width: '100%' }}>
                   <thead>
                     <tr>
-                      <th>Category Label</th>
-                      <th>Group</th>
-                      <th>System Status</th>
-                      <th>Heat (Admin-Only)</th>
-                      <th>Enabled</th>
+                      <th style={{ minWidth: 160 }}>Category Label</th>
+                      <th style={{ minWidth: 120 }}>Group</th>
+                      <th style={{ minWidth: 130 }}>System Status</th>
+                      <th style={{ minWidth: 90 }}>Heat (Admin)</th>
+                      <th style={{ width: 60, textAlign: 'center' }}>Active</th>
+                      <th style={{ width: 90, textAlign: 'center' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {outcomeCategories.map(c => (
-                      <tr key={c.key}>
-                        <td style={{ fontWeight: 600, fontSize: 12 }}>{c.label}</td>
-                        <td style={{ fontSize: 11, color: '#64748b' }}>{c.group}</td>
-                        <td style={{ fontSize: 11, fontWeight: 700 }}>{c.leadStatus}</td>
-                        <td style={{ fontSize: 11, fontWeight: 800, color: c.heatTier === 'HOT' ? '#dc2626' : c.heatTier === 'WARM' ? '#d97706' : '#2563eb' }}>
-                          {c.heatTier || '—'}
-                        </td>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={c.active !== false}
-                            onChange={() => handleToggleCategory(c.key)}
-                          />
-                        </td>
-                      </tr>
-                    ))}
+                    {outcomeCategories.map(c => {
+                      const isEditing = editingCatKey === c.key
+                      return (
+                        <tr key={c.key}>
+                          <td style={{ fontWeight: 600, fontSize: 12 }}>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editCatForm.label}
+                                onChange={e => setEditCatForm({ ...editCatForm, label: e.target.value })}
+                                style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid #0284c7', fontSize: 12 }}
+                              />
+                            ) : (
+                              c.label
+                            )}
+                          </td>
+                          <td style={{ fontSize: 11, color: '#64748b' }}>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editCatForm.group}
+                                onChange={e => setEditCatForm({ ...editCatForm, group: e.target.value })}
+                                style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid #0284c7', fontSize: 12 }}
+                              />
+                            ) : (
+                              c.group
+                            )}
+                          </td>
+                          <td style={{ fontSize: 11, fontWeight: 700 }}>
+                            {isEditing ? (
+                              <select
+                                value={editCatForm.leadStatus}
+                                onChange={e => {
+                                  const nextSt = e.target.value
+                                  const computedHeat = ['HOT', 'QUALIFIED BUSINESS', 'CONVERTED BUSINESS', 'ONBOARDED BUSINESS'].includes(nextSt)
+                                    ? 'HOT'
+                                    : nextSt === 'WARM'
+                                    ? 'WARM'
+                                    : 'COLD'
+                                  setEditCatForm({ ...editCatForm, leadStatus: nextSt, heatTier: computedHeat })
+                                }}
+                                style={{ width: '100%', padding: '5px 6px', borderRadius: 5, border: '1px solid #0284c7', fontSize: 11 }}
+                              >
+                                <option value="HOT">HOT</option>
+                                <option value="WARM">WARM</option>
+                                <option value="COLD">COLD</option>
+                                <option value="NON-CONNECT">NON-CONNECT</option>
+                                <option value="NON PROSPECT">NON PROSPECT</option>
+                                <option value="LOST">LOST</option>
+                                <option value="QUALIFIED BUSINESS">QUALIFIED BUSINESS</option>
+                                <option value="CONVERTED BUSINESS">CONVERTED BUSINESS</option>
+                                <option value="ONBOARDED BUSINESS">ONBOARDED BUSINESS</option>
+                              </select>
+                            ) : (
+                              c.leadStatus
+                            )}
+                          </td>
+                          <td style={{ fontSize: 11, fontWeight: 800 }}>
+                            {isEditing ? (
+                              <select
+                                value={editCatForm.heatTier}
+                                onChange={e => setEditCatForm({ ...editCatForm, heatTier: e.target.value })}
+                                style={{ width: '100%', padding: '5px 6px', borderRadius: 5, border: '1px solid #0284c7', fontSize: 11 }}
+                              >
+                                <option value="HOT">HOT</option>
+                                <option value="WARM">WARM</option>
+                                <option value="COLD">COLD</option>
+                              </select>
+                            ) : (
+                              <span style={{ color: c.heatTier === 'HOT' ? '#dc2626' : c.heatTier === 'WARM' ? '#d97706' : '#2563eb' }}>
+                                {c.heatTier || '—'}
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={c.active !== false}
+                              onChange={() => handleToggleCategory(c.key)}
+                            />
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveEditCategory(c.key)}
+                                    style={{
+                                      padding: '4px 8px',
+                                      borderRadius: 4,
+                                      border: 'none',
+                                      background: '#059669',
+                                      color: '#fff',
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 3,
+                                    }}
+                                  >
+                                    <Save size={11} /> Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingCatKey(null)}
+                                    style={{
+                                      padding: '4px 7px',
+                                      borderRadius: 4,
+                                      border: '1px solid #cbd5e1',
+                                      background: '#fff',
+                                      color: '#475569',
+                                      fontSize: 11,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditCategory(c)}
+                                    title="Edit CRM Outcome Category"
+                                    style={{
+                                      padding: '4px 7px',
+                                      borderRadius: 4,
+                                      border: '1px solid #bae6fd',
+                                      background: '#f0f9ff',
+                                      color: '#0369a1',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <Edit2 size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteCategory(c)}
+                                    title="Delete Category"
+                                    style={{
+                                      padding: '4px 7px',
+                                      borderRadius: 4,
+                                      border: '1px solid #fecaca',
+                                      background: '#fef2f2',
+                                      color: '#dc2626',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
