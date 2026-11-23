@@ -254,10 +254,21 @@ export default function ManualLeadModal({
   }
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 1050 }}>
-      <div className="modal-card" style={{ maxWidth: 680, width: '95%', maxHeight: '92vh', overflowY: 'auto' }}>
+    <div className="modal-overlay" style={{ zIndex: 1050, padding: 8 }}>
+      <div
+        className="modal-card manual-lead-card"
+        style={{
+          maxWidth: 680,
+          width: '100%',
+          maxHeight: '94vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          borderRadius: 12,
+        }}
+      >
         {/* Header */}
-        <div className="modal-header" style={{ background: '#0f172a', color: '#fff', padding: '16px 20px' }}>
+        <div className="modal-header" style={{ background: '#0f172a', color: '#fff', padding: '14px 18px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
               style={{
@@ -268,14 +279,15 @@ export default function ManualLeadModal({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                flexShrink: 0,
               }}
             >
               <UserPlus size={18} color="#fff" />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>+ Add Student Lead (Manual Typing)</h3>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>+ Add Student Lead</h3>
               <p style={{ margin: 0, fontSize: 11, opacity: 0.8 }}>
-                Capture student inquiry details matching Futureace Academy standard schema
+                Capture student inquiry details directly into CRM
               </p>
             </div>
           </div>
@@ -288,8 +300,8 @@ export default function ManualLeadModal({
         </div>
 
         {/* Body Form */}
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body" style={{ padding: '18px 20px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div className="modal-body" style={{ padding: '16px 18px', overflowY: 'auto', flex: 1, WebkitOverflowScrolling: 'touch' }}>
             {/* Field: Name */}
             <div style={{ marginBottom: 14 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
@@ -297,26 +309,28 @@ export default function ManualLeadModal({
               </label>
               <input
                 type="text"
+                autoCapitalize="words"
                 placeholder="Candidate student full name"
                 value={fullName}
                 onChange={e => setFullName(e.target.value)}
                 required
-                style={{ width: '100%', padding: '8px 12px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 6, border: '1px solid #cbd5e1' }}
               />
             </div>
 
             {/* Field: Phone & Email */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+            <div className="responsive-grid-2" style={{ marginBottom: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                  PHONE NUMBER
+                  PHONE NUMBER *
                 </label>
                 <input
-                  type="text"
+                  type="tel"
+                  inputMode="tel"
                   placeholder="+91 9876543210"
                   value={phone}
                   onChange={e => setPhone(e.target.value)}
-                  style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 6, border: '1px solid #cbd5e1' }}
                 />
               </div>
               <div>
@@ -325,16 +339,18 @@ export default function ManualLeadModal({
                 </label>
                 <input
                   type="email"
+                  inputMode="email"
+                  autoCapitalize="none"
                   placeholder="student@example.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 6, border: '1px solid #cbd5e1' }}
                 />
               </div>
             </div>
 
             {/* Field: Qualification & Age */}
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 14 }}>
+            <div className="responsive-grid-2" style={{ marginBottom: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                   QUALIFICATION
@@ -342,7 +358,7 @@ export default function ManualLeadModal({
                 <select
                   value={qualification}
                   onChange={e => setQualification(e.target.value)}
-                  style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
+                  style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
                 >
                   <option value="">-- Select Qualification --</option>
                   {QUALIFICATIONS.map(q => (
@@ -356,18 +372,19 @@ export default function ManualLeadModal({
                 </label>
                 <input
                   type="number"
+                  inputMode="numeric"
                   placeholder="Age in years"
                   min="14"
                   max="70"
                   value={age}
                   onChange={e => setAge(e.target.value)}
-                  style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 6, border: '1px solid #cbd5e1' }}
                 />
               </div>
             </div>
 
             {/* Field: State & District */}
-            <div style={{ display: 'grid', gridTemplateColumns: state === 'Other' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
+            <div className={state === 'Other' ? 'responsive-grid-3' : 'responsive-grid-2'} style={{ marginBottom: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                   STATE
@@ -384,7 +401,7 @@ export default function ManualLeadModal({
                       setDistrict('')
                     }
                   }}
-                  style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
+                  style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
                 >
                   <option value="">-- Select State --</option>
                   <option value="Kerala">Kerala</option>
@@ -402,20 +419,20 @@ export default function ManualLeadModal({
                     placeholder="Enter state name"
                     value={otherState}
                     onChange={e => setOtherState(e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                    style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 6, border: '1px solid #cbd5e1' }}
                   />
                 </div>
               )}
 
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                  DISTRICT {state === 'Kerala' ? '(14 Kerala Districts)' : ''}
+                  DISTRICT {state === 'Kerala' ? '(Kerala Districts)' : ''}
                 </label>
                 {state === 'Kerala' ? (
                   <select
                     value={district}
                     onChange={e => setDistrict(e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
+                    style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
                   >
                     <option value="">-- Select District --</option>
                     {KERALA_DISTRICTS.map(d => (
@@ -425,18 +442,18 @@ export default function ManualLeadModal({
                 ) : (
                   <input
                     type="text"
-                    placeholder={state === 'Other' ? 'District / City name' : 'Select a State first'}
+                    placeholder={state === 'Other' ? 'District / City name' : 'Select State first'}
                     disabled={!state}
                     value={district}
                     onChange={e => setDistrict(e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: !state ? '#f8fafc' : '#fff' }}
+                    style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 6, border: '1px solid #cbd5e1', background: !state ? '#f8fafc' : '#fff' }}
                   />
                 )}
               </div>
             </div>
 
             {/* Field: Inquired Course Program & Conditional Course Variant */}
-            <div style={{ display: 'grid', gridTemplateColumns: courseProgram === 'Healthcare Management' ? '1fr 1fr' : '1fr', gap: 12, marginBottom: 14 }}>
+            <div className="responsive-grid-2" style={{ marginBottom: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                   INQUIRED COURSE PROGRAM
@@ -444,7 +461,7 @@ export default function ManualLeadModal({
                 <select
                   value={courseProgram}
                   onChange={e => handleProgramChange(e.target.value)}
-                  style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
+                  style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
                 >
                   {COURSE_PROGRAMS.map(p => (
                     <option key={p} value={p}>{p}</option>
@@ -461,7 +478,7 @@ export default function ManualLeadModal({
                   <select
                     value={courseVariant}
                     onChange={e => setCourseVariant(e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #38bdf8', background: '#f0f9ff' }}
+                    style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 6, border: '1px solid #38bdf8', background: '#f0f9ff' }}
                   >
                     {HEALTHCARE_VARIANTS.map(v => (
                       <option key={v} value={v}>{v}</option>
@@ -479,7 +496,7 @@ export default function ManualLeadModal({
               <select
                 value={customerCategory}
                 onChange={e => setCustomerCategory(e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
+                style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
               >
                 {CUSTOMER_CATEGORIES.map(c => (
                   <option key={c} value={c}>{c}</option>
@@ -550,7 +567,7 @@ export default function ManualLeadModal({
                     <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
                       REFERRER CLASSIFICATION
                     </span>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
                       <button
                         type="button"
                         onClick={() => {
@@ -559,21 +576,22 @@ export default function ManualLeadModal({
                           setReferrerSearch('')
                         }}
                         style={{
-                          padding: '8px 6px',
+                          padding: '10px 8px',
                           borderRadius: 6,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: 600,
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: 6,
+                          minHeight: 40,
                           border: referrerType === 'student' ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
                           background: referrerType === 'student' ? '#eff6ff' : '#fff',
                           color: referrerType === 'student' ? '#1d4ed8' : '#475569',
                         }}
                       >
-                        <GraduationCap size={14} />
+                        <GraduationCap size={15} />
                         <span>Verified Student</span>
                       </button>
 
@@ -585,21 +603,22 @@ export default function ManualLeadModal({
                           setReferrerSearch('')
                         }}
                         style={{
-                          padding: '8px 6px',
+                          padding: '10px 8px',
                           borderRadius: 6,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: 600,
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: 6,
+                          minHeight: 40,
                           border: referrerType === 'alumni' ? '1.5px solid #059669' : '1px solid #cbd5e1',
                           background: referrerType === 'alumni' ? '#ecfdf5' : '#fff',
                           color: referrerType === 'alumni' ? '#047857' : '#475569',
                         }}
                       >
-                        <Award size={14} />
+                        <Award size={15} />
                         <span>Verified Alumni</span>
                       </button>
 
@@ -611,21 +630,22 @@ export default function ManualLeadModal({
                           setReferrerSearch('')
                         }}
                         style={{
-                          padding: '8px 6px',
+                          padding: '10px 8px',
                           borderRadius: 6,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: 600,
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: 6,
+                          minHeight: 40,
                           border: referrerType === 'lead' ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
                           background: referrerType === 'lead' ? '#f5f3ff' : '#fff',
                           color: referrerType === 'lead' ? '#6d28d9' : '#475569',
                         }}
                       >
-                        <User size={14} />
+                        <User size={15} />
                         <span>Existing Lead</span>
                       </button>
                     </div>
@@ -949,12 +969,32 @@ export default function ManualLeadModal({
           </div>
 
           {/* Footer */}
-          <div className="modal-footer" style={{ borderTop: '1px solid #e2e8f0', padding: '14px 20px', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <div
+            className="modal-footer"
+            style={{
+              borderTop: '1px solid #e2e8f0',
+              padding: '12px 18px',
+              display: 'flex',
+              gap: 10,
+              background: '#ffffff',
+              flexShrink: 0,
+            }}
+          >
             <button
               type="button"
               className="btn-pulse-secondary"
               onClick={onClose}
               disabled={saving}
+              style={{
+                flex: 1,
+                minHeight: 44,
+                padding: '10px 16px',
+                fontSize: 13,
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
               Cancel
             </button>
@@ -963,16 +1003,22 @@ export default function ManualLeadModal({
               disabled={saving}
               className="btn-pulse"
               style={{
-                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                flex: 2,
+                minHeight: 44,
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#ffffff',
+                border: 'none',
                 fontWeight: 700,
                 fontSize: 13,
-                padding: '9px 20px',
+                padding: '10px 20px',
                 display: 'inline-flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: 6,
+                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)',
               }}
             >
-              <Sparkles size={14} />
+              <Sparkles size={16} />
               <span>{saving ? 'Creating Lead...' : 'Create Student Lead'}</span>
             </button>
           </div>
