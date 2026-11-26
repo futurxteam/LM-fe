@@ -16,6 +16,7 @@ export default function CounselorGroupModal({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [managerId, setManagerId] = useState('')
+  const [managerReceivesLeads, setManagerReceivesLeads] = useState(true)
   const [selectedMemberIds, setSelectedMemberIds] = useState([])
   const [active, setActive] = useState(true)
 
@@ -24,6 +25,7 @@ export default function CounselorGroupModal({
       setName(group.name || '')
       setDescription(group.description || '')
       setManagerId(group.manager?._id || group.manager?.id || group.managerId || '')
+      setManagerReceivesLeads(group.manager?.receiveLeads !== false)
       const memberIds = (group.members || []).map(m => m._id || m.id || m)
       setSelectedMemberIds(memberIds)
       setActive(group.active !== false)
@@ -31,6 +33,7 @@ export default function CounselorGroupModal({
       setName('')
       setDescription('')
       setManagerId('')
+      setManagerReceivesLeads(true)
       setSelectedMemberIds([])
       setActive(true)
     }
@@ -55,6 +58,7 @@ export default function CounselorGroupModal({
         name: name.trim(),
         description: description.trim(),
         managerId: managerId || null,
+        managerReceivesLeads: managerId ? managerReceivesLeads : true,
         memberIds: selectedMemberIds,
         active,
       }
@@ -153,8 +157,12 @@ export default function CounselorGroupModal({
                 onChange={e => {
                   const val = e.target.value
                   setManagerId(val)
-                  if (val && !selectedMemberIds.includes(val)) {
-                    setSelectedMemberIds(prev => [...prev, val])
+                  if (val) {
+                    const matched = counselors.find(c => String(c.id || c._id) === String(val))
+                    if (matched) setManagerReceivesLeads(matched.receiveLeads !== false)
+                    if (!selectedMemberIds.includes(val)) {
+                      setSelectedMemberIds(prev => [...prev, val])
+                    }
                   }
                 }}
                 style={{ width: '100%', padding: '8px 12px', fontSize: 12, borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff' }}
@@ -167,8 +175,65 @@ export default function CounselorGroupModal({
                 ))}
               </select>
               <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-                The Group Manager can oversee their team's pipeline and assigned leads.
+                The Group Manager can oversee their team's pipeline and group-wise reports.
               </div>
+
+              {/* Group Manager Lead Allocation Mode */}
+              {managerId && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: 10,
+                    borderRadius: 8,
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>
+                    GROUP MANAGER LEAD ALLOCATION MODE
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setManagerReceivesLeads(true)}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        border: managerReceivesLeads ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+                        background: managerReceivesLeads ? '#eff6ff' : '#fff',
+                      }}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: 700, color: managerReceivesLeads ? '#0369a1' : '#334155' }}>
+                        Get Leads &amp; Manage
+                      </div>
+                      <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                        Included in Round-Robin &amp; counselor reports
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManagerReceivesLeads(false)}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        border: !managerReceivesLeads ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
+                        background: !managerReceivesLeads ? '#f5f3ff' : '#fff',
+                      }}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: 700, color: !managerReceivesLeads ? '#6d28d9' : '#334155' }}>
+                        No Leads Assigned (Manage Only)
+                      </div>
+                      <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                        Excluded from Round-Robin &amp; counselor reports
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Member Counselors Multi-select */}
