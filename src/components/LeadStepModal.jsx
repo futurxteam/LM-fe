@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   X,
   PhoneCall,
@@ -89,19 +90,57 @@ export default function LeadStepModal({
   const [categorySearchQuery, setCategorySearchQuery] = useState('')
   const [selectedGroupTab, setSelectedGroupTab] = useState('All')
   const categoryDropdownRef = useRef(null)
+  const triggerBtnRef = useRef(null)
+  const portalMenuRef = useRef(null)
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 480, maxHeight: 380 })
 
-  // Close custom category dropdown when clicking outside
+  const updateDropdownPosition = () => {
+    if (!triggerBtnRef.current) return
+    const rect = triggerBtnRef.current.getBoundingClientRect()
+    const viewportH = window.innerHeight
+    const spaceBelow = viewportH - rect.bottom - 16
+    const spaceAbove = rect.top - 16
+    const preferredMax = 420
+
+    if (spaceBelow >= 220 || spaceBelow >= spaceAbove) {
+      setDropdownPos({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+        maxHeight: Math.min(preferredMax, Math.max(180, spaceBelow)),
+      })
+    } else {
+      const mh = Math.min(preferredMax, Math.max(180, spaceAbove))
+      setDropdownPos({
+        top: Math.max(12, rect.top - mh - 4),
+        left: rect.left,
+        width: rect.width,
+        maxHeight: mh,
+      })
+    }
+  }
+
+  // Close custom category dropdown when clicking outside & keep position synced
   useEffect(() => {
+    if (!categoryDropdownOpen) return
+    updateDropdownPosition()
+
     const handleClickOutside = e => {
-      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target)) {
+      const inTrigger = categoryDropdownRef.current && categoryDropdownRef.current.contains(e.target)
+      const inPortal = portalMenuRef.current && portalMenuRef.current.contains(e.target)
+      if (!inTrigger && !inPortal) {
         setCategoryDropdownOpen(false)
       }
     }
-    if (categoryDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
+    const handleReposition = () => updateDropdownPosition()
+
+    document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('resize', handleReposition)
+    window.addEventListener('scroll', handleReposition, true)
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('resize', handleReposition)
+      window.removeEventListener('scroll', handleReposition, true)
     }
   }, [categoryDropdownOpen])
 
@@ -722,6 +761,7 @@ export default function LeadStepModal({
 
                 {/* Trigger Button */}
                 <button
+                  ref={triggerBtnRef}
                   type="button"
                   onClick={() => !isCycleLockedForSales && setCategoryDropdownOpen(prev => !prev)}
                   disabled={isCycleLockedForSales}
@@ -781,25 +821,27 @@ export default function LeadStepModal({
                   </div>
                 </button>
 
-                {/* Custom Floating Popover Menu (Bounded Height, Never Cut Off by Screen) */}
-                {categoryDropdownOpen && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 4px)',
-                      left: 0,
-                      right: 0,
-                      zIndex: 150,
-                      background: '#ffffff',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: 8,
-                      boxShadow: '0 12px 28px rgba(0, 0, 0, 0.22)',
-                      overflow: 'hidden',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      maxHeight: 300,
-                    }}
-                  >
+                {/* Pop-out Floating Portal Menu (Renders outside modal bounds, never clipped by modal or screen edge) */}
+                {categoryDropdownOpen &&
+                  createPortal(
+                    <div
+                      ref={portalMenuRef}
+                      style={{
+                        position: 'fixed',
+                        top: dropdownPos.top,
+                        left: dropdownPos.left,
+                        width: dropdownPos.width,
+                        maxHeight: dropdownPos.maxHeight,
+                        zIndex: 9999,
+                        background: '#ffffff',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 10,
+                        boxShadow: '0 18px 42px rgba(15, 23, 42, 0.28)',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                      }}
+                    >
                     {/* Real-time Search Input inside Dropdown */}
                     <div style={{ padding: '8px 10px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                       <Search size={15} color="#64748b" style={{ flexShrink: 0 }} />
@@ -954,7 +996,8 @@ export default function LeadStepModal({
                         ))
                       )}
                     </div>
-                  </div>
+                  </div>,
+                  document.body
                 )}
                 {!isAdmin && currentCycleInteractions === 0 && (
                   <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
