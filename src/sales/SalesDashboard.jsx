@@ -476,7 +476,7 @@ export default function SalesDashboard({ user, onLogout }) {
               />
             ) : salesReportSlug === 'schedule' && (user?.isGroupManager || user?.role === 'manager') ? (
               <FollowupScheduleView
-                isAdmin={false}
+                isAdmin={true}
                 salesReps={teamCounselors}
                 currentUser={user}
                 refreshKey={scheduleRefreshKey}
