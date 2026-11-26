@@ -62,6 +62,7 @@ import {
   Pause,
   Play,
   Share2,
+  Tag,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -76,6 +77,7 @@ import StaffHistoryDrawer from '../components/StaffHistoryDrawer'
 import FrdReportsView from '../components/FrdReportsView'
 import FollowupScheduleView from '../components/FollowupScheduleView'
 import ReferralDashboard from '../components/ReferralDashboard'
+import DiscountReportView from '../components/DiscountReportView'
 import { getStatusBadgeStyle, getHeatBadgeStyle, LEAD_STATUSES, formatINR } from '../constants/leadLifecycle'
 
 export default function AdminDashboard({ user, onLogout }) {
@@ -2923,6 +2925,15 @@ export default function AdminDashboard({ user, onLogout }) {
                       Icon: Globe,
                     },
                     {
+                      slug: 'discounts',
+                      title: 'Discount Report (Agreed vs Standard Fee)',
+                      desc: 'Track monthly discounts given by Sales Rep, Group & Group Manager, and who authorized each discount across Qualified, Converted, and Onboarded leads.',
+                      color: '#be185d',
+                      bg: '#fdf2f8',
+                      badge: 'Discounts',
+                      Icon: Tag,
+                    },
+                    {
                       slug: 'referrals',
                       title: 'Referral Intelligence & Demographics',
                       desc: 'Track student, alumni, and lead referral sources, demographic breakdowns by course and date, leaderboard, and conversion revenue.',
@@ -3014,6 +3025,12 @@ export default function AdminDashboard({ user, onLogout }) {
                 onBack={() => navigate('/reports')}
                 onOpenStep={lead => setActiveStepLead(lead)}
                 onOpenProfile={lead => setActiveLeadModal(lead)}
+                showNotify={showNotify}
+              />
+            ) : reportSlug === 'discounts' ? (
+              <DiscountReportView
+                isManagerScoped={false}
+                onBack={() => navigate('/reports')}
                 showNotify={showNotify}
               />
             ) : reportSlug === 'referrals' ? (

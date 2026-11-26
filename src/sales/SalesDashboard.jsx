@@ -33,6 +33,12 @@ import {
   Share2,
   ArrowLeft,
   UserPlus,
+  Tag,
+  Flame,
+  Building2,
+  Activity,
+  RotateCcw,
+  PieChart,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -43,6 +49,8 @@ import ManualLeadModal from '../components/ManualLeadModal'
 import FrdReportsView from '../components/FrdReportsView'
 import FollowupScheduleView from '../components/FollowupScheduleView'
 import ReferralDashboard from '../components/ReferralDashboard'
+import AdminAdvancedReports from '../components/AdminAdvancedReports'
+import DiscountReportView from '../components/DiscountReportView'
 import { getSalesDisplayStatus } from '../constants/leadLifecycle'
 
 export default function SalesDashboard({ user, onLogout }) {
@@ -460,11 +468,46 @@ export default function SalesDashboard({ user, onLogout }) {
                   showNotify={showNotify}
                 />
               </div>
-            ) : salesReportSlug === 'business' || salesReportSlug === 'conversion' ? (
+            ) : salesReportSlug === 'discounts' && (user?.isGroupManager || user?.role === 'manager') ? (
+              <DiscountReportView
+                isManagerScoped={true}
+                onBack={() => navigate('/reports')}
+                showNotify={showNotify}
+              />
+            ) : salesReportSlug === 'schedule' && (user?.isGroupManager || user?.role === 'manager') ? (
+              <FollowupScheduleView
+                isAdmin={false}
+                salesReps={teamCounselors}
+                currentUser={user}
+                refreshKey={scheduleRefreshKey}
+                onBack={() => navigate('/reports')}
+                onOpenStep={lead => setActiveStepLead(lead)}
+                onOpenProfile={lead => setActiveStudentModal(lead)}
+                showNotify={showNotify}
+              />
+            ) : ['business', 'conversion', 'status'].includes(salesReportSlug) &&
+              (salesReportSlug !== 'status' || user?.isGroupManager || user?.role === 'manager') ? (
               <FrdReportsView
                 reportType={salesReportSlug}
-                isAdmin={false}
+                isAdmin={Boolean(user?.isGroupManager || user?.role === 'manager')}
                 onBack={() => navigate('/reports')}
+                showNotify={showNotify}
+              />
+            ) : ['heat', 'groups', 'lifecycle', 'recycle', 'finance', 'counselors'].includes(salesReportSlug) &&
+              (user?.isGroupManager || user?.role === 'manager') ? (
+              <AdminAdvancedReports
+                salesReps={teamCounselors}
+                forcedSubTab={salesReportSlug}
+                onBack={() => navigate('/reports')}
+                onInspectLeadById={async leadId => {
+                  try {
+                    const res = await api.getLeadById(leadId)
+                    if (res.lead) setActiveStepLead(res.lead)
+                  } catch (err) {
+                    showNotify('error', 'Could not open lead')
+                  }
+                }}
+                onRefreshParent={loadData}
                 showNotify={showNotify}
               />
             ) : (
@@ -472,40 +515,144 @@ export default function SalesDashboard({ user, onLogout }) {
                 <div className="pool-action-bar" style={{ marginBottom: 18 }}>
                   <div>
                     <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
-                      My Performance Reports
+                      {user?.isGroupManager || user?.role === 'manager'
+                        ? 'Group Management Reports & Analytics Hub'
+                        : 'My Performance Reports'}
                     </h3>
                     <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                      Select a report card to open your dedicated Business Turnover, Conversion, or Referral Intelligence report.
+                      {user?.isGroupManager || user?.role === 'manager'
+                        ? 'Full report suite scoped to your managed group & team members.'
+                        : 'Select a report card to open your dedicated Business Turnover, Conversion, or Referral Intelligence report.'}
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-                  {[
-                    {
-                      slug: 'business',
-                      title: 'My Business Report',
-                      desc: 'Track your Leads Allocated, Unique Aggregate Business Count, Course Fees (Turnover), Actual Paid Revenue, and Qualified / Converted / Onboarded splits.',
-                      color: '#059669',
-                      bg: '#ecfdf5',
-                      Icon: IndianRupee,
-                    },
-                    {
-                      slug: 'conversion',
-                      title: 'My Lead Conversion Report',
-                      desc: 'View your monthly and till-date conversion ratios across Aggregate, Qualified, Converted, and Onboarded Business milestones.',
-                      color: '#0284c7',
-                      bg: '#f0f9ff',
-                      Icon: TrendingUp,
-                    },
-                    {
-                      slug: 'referrals',
-                      title: 'Referral Intelligence & Demographics',
-                      desc: 'Track student, alumni, and lead referral sources, demographics across custom dates/months, leaderboard, and conversion revenue.',
-                      color: '#7c3aed',
-                      bg: '#f5f3ff',
-                      Icon: Share2,
-                    },
-                  ].map(card => {
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 16 }}>
+                  {(user?.isGroupManager || user?.role === 'manager'
+                    ? [
+                        {
+                          slug: 'business',
+                          title: 'Business Report (FRD 7.1)',
+                          desc: 'Group-wise Leads Allocated, Unique Aggregate Business Count, Course Fees (Turnover), Actual Paid Revenue, and Qualified / Converted / Onboarded splits.',
+                          color: '#059669',
+                          bg: '#ecfdf5',
+                          Icon: IndianRupee,
+                        },
+                        {
+                          slug: 'conversion',
+                          title: 'Lead Conversion Report (FRD 7.2)',
+                          desc: 'Monthly and till-date conversion ratios across Aggregate, Qualified, Converted, and Onboarded milestones for your group.',
+                          color: '#0284c7',
+                          bg: '#f0f9ff',
+                          Icon: TrendingUp,
+                        },
+                        {
+                          slug: 'status',
+                          title: 'Lead Status Report (FRD 7.3)',
+                          desc: 'Distribution of group leads across HOT, WARM, COLD, LOST, NON-CONNECT, NON PROSPECT & Other statuses.',
+                          color: '#dc2626',
+                          bg: '#fef2f2',
+                          Icon: BarChart3,
+                        },
+                        {
+                          slug: 'discounts',
+                          title: 'Discount Report (Agreed vs Standard)',
+                          desc: 'Track monthly discounts given across your group by Sales Rep, Group Manager, and who authorized each discount.',
+                          color: '#be185d',
+                          bg: '#fdf2f8',
+                          Icon: Tag,
+                        },
+                        {
+                          slug: 'schedule',
+                          title: 'Follow-Up & Next Contact Schedule',
+                          desc: 'View daily, upcoming, and overdue follow-up schedules for your team.',
+                          color: '#0284c7',
+                          bg: '#f0f9ff',
+                          Icon: Calendar,
+                        },
+                        {
+                          slug: 'heat',
+                          title: 'Hot / Warm / Cold Classification',
+                          desc: 'Heat tier donut chart, category breakdown, and searchable leads table for your group.',
+                          color: '#ea580c',
+                          bg: '#fff7ed',
+                          Icon: Flame,
+                        },
+                        {
+                          slug: 'groups',
+                          title: 'Group-Wise Performance Report',
+                          desc: 'Group lead volume, Hot/Warm/Cold split, milestone conversions, course fees, and collections.',
+                          color: '#4f46e5',
+                          bg: '#eef2ff',
+                          Icon: Building2,
+                        },
+                        {
+                          slug: 'lifecycle',
+                          title: '10-Status Lifecycle Funnel',
+                          desc: 'End-to-end visual funnel across all 10 canonical lead lifecycle statuses for your team.',
+                          color: '#0e7490',
+                          bg: '#ecfeff',
+                          Icon: Activity,
+                        },
+                        {
+                          slug: 'recycle',
+                          title: 'Lost Business & Recycle Queue',
+                          desc: 'Lost reason breakdown and lost cycle tracking for your group.',
+                          color: '#991b1b',
+                          bg: '#fef2f2',
+                          Icon: RotateCcw,
+                        },
+                        {
+                          slug: 'finance',
+                          title: 'Program & Milestone Financials',
+                          desc: 'Total Course Fees vs Actual Collected vs Pending Balance by Business Milestone and Program.',
+                          color: '#15803d',
+                          bg: '#f0fdf4',
+                          Icon: PieChart,
+                        },
+                        {
+                          slug: 'counselors',
+                          title: 'Counselor Performance Matrix',
+                          desc: 'Advisor-by-advisor performance table for your group members.',
+                          color: '#1b2b6b',
+                          bg: '#eff6ff',
+                          Icon: Users,
+                        },
+                        {
+                          slug: 'referrals',
+                          title: 'Referral Intelligence & Class Teachers',
+                          desc: 'Track student, alumni, and lead referrals, ongoing student class teachers, and class teacher leaderboard.',
+                          color: '#7c3aed',
+                          bg: '#f5f3ff',
+                          Icon: Share2,
+                        },
+                      ]
+                    : [
+                        {
+                          slug: 'business',
+                          title: 'My Business Report',
+                          desc: 'Track your Leads Allocated, Unique Aggregate Business Count, Course Fees (Turnover), Actual Paid Revenue, and Qualified / Converted / Onboarded splits.',
+                          color: '#059669',
+                          bg: '#ecfdf5',
+                          Icon: IndianRupee,
+                        },
+                        {
+                          slug: 'conversion',
+                          title: 'My Lead Conversion Report',
+                          desc: 'View your monthly and till-date conversion ratios across Aggregate, Qualified, Converted, and Onboarded Business milestones.',
+                          color: '#0284c7',
+                          bg: '#f0f9ff',
+                          Icon: TrendingUp,
+                        },
+                        {
+                          slug: 'referrals',
+                          title: 'Referral Intelligence & Demographics',
+                          desc: 'Track student, alumni, and lead referral sources, demographics across custom dates/months, leaderboard, and conversion revenue.',
+                          color: '#7c3aed',
+                          bg: '#f5f3ff',
+                          Icon: Share2,
+                        },
+                      ]
+                  ).map(card => {
                     const CardIcon = card.Icon
                     return (
                       <div

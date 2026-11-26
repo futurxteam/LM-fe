@@ -62,6 +62,13 @@ export default function LeadStepModal({
   const [courseFees, setCourseFees] = useState(
     lead.courseFees !== null && lead.courseFees !== undefined ? String(lead.courseFees) : ''
   )
+  const [agreedAmount, setAgreedAmount] = useState(
+    lead.agreedAmount !== null && lead.agreedAmount !== undefined
+      ? String(lead.agreedAmount)
+      : lead.courseFees !== null && lead.courseFees !== undefined
+      ? String(lead.courseFees)
+      : ''
+  )
   const [paidAmount, setPaidAmount] = useState(
     lead.paidAmount !== null && lead.paidAmount !== undefined ? String(lead.paidAmount) : ''
   )
@@ -113,6 +120,13 @@ export default function LeadStepModal({
     setBusinessProgramId(lead.businessProgramId || '')
     setBusinessProgramVariant(lead.businessProgramVariant || '')
     setCourseFees(lead.courseFees !== null && lead.courseFees !== undefined ? String(lead.courseFees) : '')
+    setAgreedAmount(
+      lead.agreedAmount !== null && lead.agreedAmount !== undefined
+        ? String(lead.agreedAmount)
+        : lead.courseFees !== null && lead.courseFees !== undefined
+        ? String(lead.courseFees)
+        : ''
+    )
     setPaidAmount(lead.paidAmount !== null && lead.paidAmount !== undefined ? String(lead.paidAmount) : '')
     setLocalReceipts(Array.isArray(lead.paymentReceipts) ? lead.paymentReceipts : [])
     setReceiptAmount('')
@@ -279,6 +293,7 @@ export default function LeadStepModal({
     }
     if (prog && prog.defaultFee > 0) {
       setCourseFees(String(prog.defaultFee))
+      setAgreedAmount(String(prog.defaultFee))
     }
   }
 
@@ -288,8 +303,10 @@ export default function LeadStepModal({
       const vFee = selectedProgramObj.variantFees?.[newVariant]
       if (vFee !== undefined && vFee !== null && Number(vFee) > 0) {
         setCourseFees(String(vFee))
+        setAgreedAmount(String(vFee))
       } else if (selectedProgramObj.defaultFee > 0) {
         setCourseFees(String(selectedProgramObj.defaultFee))
+        setAgreedAmount(String(selectedProgramObj.defaultFee))
       }
     }
   }
@@ -318,6 +335,22 @@ export default function LeadStepModal({
     if (showBusinessFields) {
       if (courseFees !== '' && Number(courseFees) < 0) {
         const msg = 'Course Fees cannot be negative.'
+        setModalAlert(msg)
+        showNotify?.('error', msg)
+        return
+      }
+      if (agreedAmount !== '' && Number(agreedAmount) < 0) {
+        const msg = 'Total Agreed Amount cannot be negative.'
+        setModalAlert(msg)
+        showNotify?.('error', msg)
+        return
+      }
+      if (
+        courseFees !== '' &&
+        agreedAmount !== '' &&
+        Number(agreedAmount) > Number(courseFees)
+      ) {
+        const msg = `Total Agreed Amount (₹${Number(agreedAmount).toLocaleString('en-IN')}) cannot exceed Course Fees (₹${Number(courseFees).toLocaleString('en-IN')}).`
         setModalAlert(msg)
         showNotify?.('error', msg)
         return
@@ -436,6 +469,11 @@ export default function LeadStepModal({
         }
         payload.businessProgramVariant = businessProgramVariant
         if (courseFees !== '') payload.courseFees = Number(courseFees)
+        if (agreedAmount !== '') {
+          payload.agreedAmount = Number(agreedAmount)
+        } else if (courseFees !== '') {
+          payload.agreedAmount = Number(courseFees)
+        }
         if (receiptAmount !== '' && Number(receiptAmount) > 0) {
           payload.newReceipt = {
             amount: Number(receiptAmount),
@@ -1149,19 +1187,27 @@ export default function LeadStepModal({
                     )}
                   </div>
 
-                  <div className="responsive-grid-2">
+                  <div className="responsive-grid-3">
                     <div>
                       <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#14532d', marginBottom: 4 }}>
-                        COURSE FEES (₹ BUSINESS VALUE) *
+                        COURSE FEES (STANDARD ₹) *
                       </label>
                       <input
                         type="number"
                         min="0"
                         step="1"
                         value={courseFees}
-                        onChange={e => setCourseFees(e.target.value)}
+                        onChange={e => {
+                          const val = e.target.value
+                          const prevCourse = courseFees
+                          setCourseFees(val)
+                          // Keep agreedAmount in sync if it was equal to previous courseFees or empty
+                          if (agreedAmount === '' || agreedAmount === prevCourse) {
+                            setAgreedAmount(val)
+                          }
+                        }}
                         disabled={isFinancialLockedForSales}
-                        placeholder="e.g. 65000"
+                        placeholder="e.g. 60000"
                         style={{
                           width: '100%',
                           padding: '8px 10px',
@@ -1174,7 +1220,42 @@ export default function LeadStepModal({
                     </div>
                     <div>
                       <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#14532d', marginBottom: 4 }}>
-                        TOTAL PAID AMOUNT (AUTO-SUM FROM RECEIPTS)
+                        TOTAL AGREED AMOUNT (₹) *
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={agreedAmount}
+                        onChange={e => setAgreedAmount(e.target.value)}
+                        disabled={isFinancialLockedForSales}
+                        placeholder="e.g. 55000"
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: 6,
+                          border:
+                            courseFees !== '' && agreedAmount !== '' && Number(agreedAmount) < Number(courseFees)
+                              ? '1.5px solid #be185d'
+                              : '1px solid #86efac',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          background: '#fff',
+                        }}
+                      />
+                      {courseFees !== '' && Number(courseFees) > 0 && agreedAmount !== '' && (
+                        <div style={{ fontSize: 10, marginTop: 3, fontWeight: 700, color: Number(courseFees) - Number(agreedAmount) > 0 ? '#be123c' : '#047857' }}>
+                          {Number(courseFees) - Number(agreedAmount) > 0
+                            ? `Discount: ${formatINR(Number(courseFees) - Number(agreedAmount))} (${Math.round(((Number(courseFees) - Number(agreedAmount)) / Number(courseFees)) * 1000) / 10}%)`
+                            : Number(agreedAmount) > Number(courseFees)
+                            ? 'Cannot exceed Course Fees'
+                            : 'No discount (Full fee)'}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#14532d', marginBottom: 4 }}>
+                        TOTAL PAID AMOUNT (AUTO-SUM)
                       </label>
                       <div
                         style={{
@@ -1192,9 +1273,15 @@ export default function LeadStepModal({
                         {formatINR(paidNum)}
                       </div>
                       <div style={{ fontSize: 10, color: '#047857', marginTop: 3 }}>
-                        {localReceipts.length > 0
-                          ? `Summed from ${localReceipts.length} recorded receipt(s)`
-                          : 'Enter any payment below (leave blank for ₹0)'}
+                        {(() => {
+                          const targetAmt = agreedAmount !== '' ? Number(agreedAmount) : feesNum
+                          const bal = Math.max(0, (targetAmt || 0) - paidNum)
+                          return targetAmt > 0
+                            ? `Balance: ${formatINR(bal)} (${localReceipts.length} receipt${localReceipts.length === 1 ? '' : 's'})`
+                            : localReceipts.length > 0
+                            ? `Summed from ${localReceipts.length} receipt(s)`
+                            : 'Enter any payment below'
+                        })()}
                       </div>
                     </div>
                   </div>

@@ -14,6 +14,10 @@ import {
   Search,
   ExternalLink,
   ChevronDown,
+  BookOpen,
+  Phone,
+  Mail,
+  X,
 } from 'lucide-react'
 import { api } from '../api'
 
@@ -30,6 +34,50 @@ export default function ReferralDashboard({ onOpenLeadProfile, showNotify }) {
   const [filterType, setFilterType] = useState('All') // 'All', 'student', 'alumni', 'lead'
   const [filterStatus, setFilterStatus] = useState('All')
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedStudentTeacherModal, setSelectedStudentTeacherModal] = useState(null)
+  const [loadingTeacherDetails, setLoadingTeacherDetails] = useState(false)
+
+  const handleOpenOngoingStudentTeacher = async studentObj => {
+    setSelectedStudentTeacherModal({
+      name: studentObj.name || studentObj.referrerName || 'Student',
+      phone: studentObj.phone || studentObj.referrerPhone || '',
+      email: studentObj.email || studentObj.referrerEmail || '',
+      course: studentObj.course || studentObj.referrerCourse || '',
+      batch: studentObj.batch || studentObj.referrerBatch || '',
+      lmsUserId: studentObj.lmsUserId || studentObj.referrerLmsUserId || '',
+      totalReferrals: studentObj.totalReferrals ?? studentObj.totalCount ?? null,
+      convertedCount: studentObj.convertedCount ?? null,
+      classTeachers: Array.isArray(studentObj.classTeachers) ? studentObj.classTeachers : [],
+      classTeacherName: studentObj.classTeacher || studentObj.referrerClassTeacher || '',
+    })
+
+    setLoadingTeacherDetails(true)
+    try {
+      const res = await api.getStudentClassTeacher({
+        lmsUserId: studentObj.lmsUserId || studentObj.referrerLmsUserId || '',
+        phone: studentObj.phone || studentObj.referrerPhone || '',
+        email: studentObj.email || studentObj.referrerEmail || '',
+      })
+      if (res?.success && res.data) {
+        setSelectedStudentTeacherModal(prev =>
+          prev
+            ? {
+                ...prev,
+                course: res.data.courseName && res.data.courseName !== 'Not Assigned' ? res.data.courseName : prev.course,
+                batch: res.data.batchName && res.data.batchName !== 'Not Assigned' ? res.data.batchName : prev.batch,
+                batchType: res.data.batchType || '',
+                classTeachers: Array.isArray(res.data.classTeachers) ? res.data.classTeachers : prev.classTeachers,
+                classTeacherName: res.data.classTeacherName || prev.classTeacherName,
+              }
+            : null
+        )
+      }
+    } catch (err) {
+      console.warn('Failed to load class teacher details:', err)
+    } finally {
+      setLoadingTeacherDetails(false)
+    }
+  }
 
   // Calculate preset date ranges
   const computeDateRange = preset => {
@@ -141,6 +189,8 @@ export default function ReferralDashboard({ onOpenLeadProfile, showNotify }) {
     totalCount: r.totalReferrals ?? r.totalReferred ?? 1,
     convertedCount: r.convertedCount ?? 0,
   }))
+  const ongoingStudentReferrers = stats?.ongoingStudentReferrers || []
+  const classTeacherLeaderboard = stats?.classTeacherLeaderboard || []
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1400, margin: '0 auto' }}>
@@ -583,7 +633,12 @@ export default function ReferralDashboard({ onOpenLeadProfile, showNotify }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {leaderboard.slice(0, 5).map((ref, idx) => (
                 <div
-                  key={ref._id}
+                  key={`${ref.name}_${ref.phone}_${idx}`}
+                  onClick={() => {
+                    if (ref.type === 'student' && !ref.isAlumni) {
+                      handleOpenOngoingStudentTeacher(ref)
+                    }
+                  }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -592,7 +647,9 @@ export default function ReferralDashboard({ onOpenLeadProfile, showNotify }) {
                     borderRadius: 8,
                     background: idx === 0 ? '#eff6ff' : '#f8fafc',
                     border: idx === 0 ? '1px solid #bfdbfe' : '1px solid #f1f5f9',
+                    cursor: ref.type === 'student' && !ref.isAlumni ? 'pointer' : 'default',
                   }}
+                  title={ref.type === 'student' && !ref.isAlumni ? 'Click to view assigned Class Teacher' : ''}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div
@@ -619,6 +676,11 @@ export default function ReferralDashboard({ onOpenLeadProfile, showNotify }) {
                         {ref.phone}
                         {ref.batch ? ` • ${ref.batch}` : ''}
                       </div>
+                      {ref.classTeacher && (
+                        <div style={{ fontSize: 10, color: '#0369a1', fontWeight: 700, marginTop: 2 }}>
+                          Class Teacher: {ref.classTeacher}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -628,6 +690,170 @@ export default function ReferralDashboard({ onOpenLeadProfile, showNotify }) {
                     </div>
                     <div style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>
                       {ref.convertedCount} converted
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Class Teacher Leaderboard & Referred Ongoing Students Row */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+          gap: 16,
+          marginBottom: 24,
+        }}
+      >
+        {/* Class Teacher Referral Leaderboard */}
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: 12,
+            padding: 20,
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <BookOpen size={18} color="#0284c7" />
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
+                Class Teacher Referral Leaderboard
+              </h3>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#0369a1', background: '#e0f2fe', padding: '2px 8px', borderRadius: 10 }}>
+              {classTeacherLeaderboard.length} Teachers
+            </span>
+          </div>
+
+          {classTeacherLeaderboard.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: 13 }}>
+              No ongoing student referrals with assigned class teachers in selected period
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+              {classTeacherLeaderboard.map((ct, idx) => (
+                <div
+                  key={`${ct.teacherId}_${ct.teacherName}_${idx}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '9px 12px',
+                    borderRadius: 8,
+                    background: idx === 0 ? '#f0fdf4' : '#f8fafc',
+                    border: idx === 0 ? '1px solid #bbf7d0' : '1px solid #f1f5f9',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        background: idx === 0 ? '#059669' : '#64748b',
+                        color: '#fff',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                        {ct.teacherName}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#64748b' }}>
+                        {ct.referringStudentsCount} referring {ct.referringStudentsCount === 1 ? 'student' : 'students'}
+                        {ct.teacherPhone ? ` • ${ct.teacherPhone}` : ''}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0284c7' }}>
+                      {ct.totalReferrals} {ct.totalReferrals === 1 ? 'referral' : 'referrals'}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>
+                      {ct.convertedCount} converted • ₹{Number(ct.totalRevenue || 0).toLocaleString('en-IN')}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Clickable Referred Ongoing Students List -> View Class Teacher */}
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: 12,
+            padding: 20,
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <GraduationCap size={18} color="#7c3aed" />
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
+                Referred Ongoing Students (Click for Class Teacher)
+              </h3>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#6d28d9', background: '#f5f3ff', padding: '2px 8px', borderRadius: 10 }}>
+              {ongoingStudentReferrers.length} Students
+            </span>
+          </div>
+
+          {ongoingStudentReferrers.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: 13 }}>
+              No ongoing student referrers in selected period
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+              {ongoingStudentReferrers.map((stu, idx) => (
+                <div
+                  key={`${stu.name}_${stu.phone}_${idx}`}
+                  onClick={() => handleOpenOngoingStudentTeacher(stu)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '9px 12px',
+                    borderRadius: 8,
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s ease',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#eff6ff')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '#f8fafc')}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                      {stu.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                      {stu.phone}
+                      {stu.batch ? ` • ${stu.batch}` : ''}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#0369a1', fontWeight: 600, marginTop: 2 }}>
+                      {stu.classTeacher ? `Class Teacher: ${stu.classTeacher}` : 'Click to check Class Teacher'}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed' }}>
+                      {stu.totalReferrals} ref{stu.totalReferrals === 1 ? '' : 's'}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#059669', fontWeight: 600 }}>
+                      {stu.convertedCount} converted
                     </div>
                   </div>
                 </div>
@@ -778,7 +1004,20 @@ export default function ReferralDashboard({ onOpenLeadProfile, showNotify }) {
                       {/* Referrer */}
                       <td style={{ padding: '12px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontWeight: 700, color: '#0f172a' }}>
+                          <span
+                            onClick={() => {
+                              if (ref.referralType === 'student' && !ref.isAlumni) {
+                                handleOpenOngoingStudentTeacher(ref)
+                              }
+                            }}
+                            style={{
+                              fontWeight: 700,
+                              color: ref.referralType === 'student' && !ref.isAlumni ? '#0284c7' : '#0f172a',
+                              cursor: ref.referralType === 'student' && !ref.isAlumni ? 'pointer' : 'default',
+                              textDecoration: ref.referralType === 'student' && !ref.isAlumni ? 'underline' : 'none',
+                            }}
+                            title={ref.referralType === 'student' && !ref.isAlumni ? 'Click to view assigned Class Teacher' : ''}
+                          >
                             {ref.referrerName}
                           </span>
                           <span
@@ -953,6 +1192,131 @@ export default function ReferralDashboard({ onOpenLeadProfile, showNotify }) {
           </div>
         )}
       </div>
+
+      {/* Ongoing Student Class Teacher Modal */}
+      {selectedStudentTeacherModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1200,
+            background: 'rgba(15, 23, 42, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+          onClick={() => setSelectedStudentTeacherModal(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#fff',
+              borderRadius: 14,
+              width: '100%',
+              maxWidth: 480,
+              overflow: 'hidden',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
+            }}
+          >
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                color: '#fff',
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800 }}>
+                  {selectedStudentTeacherModal.name}
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.9 }}>
+                  Ongoing Student Referrer • Class Teacher Details
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedStudentTeacherModal(null)}
+                style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}>
+                <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <div style={{ color: '#64748b', fontSize: 10, fontWeight: 700 }}>COURSE</div>
+                  <div style={{ fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
+                    {selectedStudentTeacherModal.course || 'Not Assigned'}
+                  </div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <div style={{ color: '#64748b', fontSize: 10, fontWeight: 700 }}>BATCH</div>
+                  <div style={{ fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
+                    {selectedStudentTeacherModal.batch || 'Not Assigned'}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10, padding: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#0369a1', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <BookOpen size={14} />
+                  <span>ASSIGNED CLASS TEACHER(S)</span>
+                </div>
+                {loadingTeacherDetails ? (
+                  <div style={{ fontSize: 12, color: '#0369a1' }}>Fetching live class teacher details from LMS...</div>
+                ) : selectedStudentTeacherModal.classTeachers && selectedStudentTeacherModal.classTeachers.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {selectedStudentTeacherModal.classTeachers.map((t, idx) => (
+                      <div
+                        key={t.id || idx}
+                        style={{ background: '#fff', padding: '10px 12px', borderRadius: 8, border: '1px solid #e0f2fe' }}
+                      >
+                        <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{t.name}</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 4, fontSize: 11, color: '#475569' }}>
+                          {t.phone && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <Phone size={11} /> {t.phone}
+                            </span>
+                          )}
+                          {t.email && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <Mail size={11} /> {t.email}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : selectedStudentTeacherModal.classTeacherName ? (
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                    {selectedStudentTeacherModal.classTeacherName}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                    No class teacher assigned to this student&apos;s batch in LMS yet.
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedStudentTeacherModal(null)}
+                  className="btn-pulse-secondary"
+                  style={{ fontSize: 12, padding: '6px 14px' }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

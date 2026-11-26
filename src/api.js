@@ -395,6 +395,28 @@ export const api = {
     return await request(`/stats/frd-reports${qs ? `?${qs}` : ''}`, { method: 'GET' })
   },
 
+  // Discount Report (Admin: org-wide; Group Manager: group-scoped)
+  getDiscountReport: async (params = {}) => {
+    const query = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '' && v !== 'All') {
+        query.append(k, v)
+      }
+    })
+    const qs = query.toString()
+    return await request(`/stats/discounts${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+
+  // Fetch assigned Class Teacher(s) for an LMS student via fa-backend proxy
+  getStudentClassTeacher: async (params = {}) => {
+    const query = new URLSearchParams()
+    if (params.lmsUserId) query.append('lmsUserId', params.lmsUserId)
+    if (params.phone) query.append('phone', params.phone)
+    if (params.email) query.append('email', params.email)
+    const qs = query.toString()
+    return await request(`/students/class-teacher${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+
   // Counselor Pause / Resume
   pauseUser: async (id, payload) => {
     return await request(`/users/${id}/pause`, {

@@ -1,25 +1,13 @@
 import React, { useState } from 'react'
-import { Shield, User, Lock, Mail, ArrowRight } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { api } from './api'
 
 export default function Login({ onLoginSuccess }) {
-  const [role, setRole] = useState('sales') // 'sales' or 'admin'
-  const [email, setEmail] = useState('sales@leadpulse.com')
-  const [password, setPassword] = useState('sales123')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
-  const handleRoleToggle = (selectedRole) => {
-    setRole(selectedRole)
-    setError('')
-    if (selectedRole === 'admin') {
-      setEmail('admin@leadpulse.com')
-      setPassword('admin123')
-    } else {
-      setEmail('sales@leadpulse.com')
-      setPassword('sales123')
-    }
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -27,8 +15,8 @@ export default function Login({ onLoginSuccess }) {
     setError('')
 
     try {
-      const res = await api.login(email, password, role)
-      if (res && res.success) {
+      const res = await api.login(email, password)
+      if (res && res.success && res.user) {
         localStorage.setItem('leadpulse_token', res.token)
         localStorage.setItem('leadpulse_user', JSON.stringify(res.user))
         onLoginSuccess(res.user)
@@ -42,36 +30,6 @@ export default function Login({ onLoginSuccess }) {
     }
   }
 
-  const handleDemoLogin = async (demoRole) => {
-    handleRoleToggle(demoRole)
-    const demoEmail = demoRole === 'admin' ? 'admin@leadpulse.com' : 'jordan@leadpulse.com'
-    setLoading(true)
-    try {
-      const res = await api.login(demoEmail, 'password123', demoRole)
-      if (res && res.success && res.user) {
-        localStorage.setItem('leadpulse_token', res.token)
-        localStorage.setItem('leadpulse_user', JSON.stringify(res.user))
-        onLoginSuccess(res.user)
-        return
-      }
-    } catch (err) {
-      console.warn('API login error, using safe fallback', err)
-    } finally {
-      setLoading(false)
-    }
-
-    const demoUser = {
-      id: demoRole === 'admin' ? 'admin_01' : 'sales_01',
-      name: demoRole === 'admin' ? 'Alex Sterling' : 'Jordan Chase',
-      email: demoEmail,
-      role: demoRole,
-      title: demoRole === 'admin' ? 'System Administrator' : 'Senior Sales Executive',
-    }
-    localStorage.setItem('leadpulse_token', `demo_token_${demoRole}`)
-    localStorage.setItem('leadpulse_user', JSON.stringify(demoUser))
-    onLoginSuccess(demoUser)
-  }
-
   return (
     <div className="login-screen">
       <div className="login-card">
@@ -81,31 +39,10 @@ export default function Login({ onLoginSuccess }) {
             <img src="/logo-brand-white.png" alt="Futureace Academy Logo" style={{ maxHeight: 46, width: 'auto' }} />
           </div>
           <h2>CRM</h2>
-
         </div>
 
         {/* Body */}
         <div className="login-card-body">
-          {/* Role Selector Tabs */}
-          <div className="role-tabs">
-            <button
-              type="button"
-              className={`role-tab ${role === 'sales' ? 'active' : ''}`}
-              onClick={() => handleRoleToggle('sales')}
-            >
-              <User size={14} style={{ display: 'inline', marginRight: 6 }} />
-              Sales Rep
-            </button>
-            <button
-              type="button"
-              className={`role-tab ${role === 'admin' ? 'active' : ''}`}
-              onClick={() => handleRoleToggle('admin')}
-            >
-              <Shield size={14} style={{ display: 'inline', marginRight: 6 }} />
-              Administrator
-            </button>
-          </div>
-
           {error && (
             <div
               style={{
@@ -121,7 +58,7 @@ export default function Login({ onLoginSuccess }) {
             </div>
           )}
 
-          {/* Form */}
+          {/* Single Login Form — redirects automatically based on verified role */}
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label>Work Email</label>
@@ -130,50 +67,51 @@ export default function Login({ onLoginSuccess }) {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@leadpulse.com"
+                placeholder="you@futureaceacademy.com"
+                autoComplete="email"
               />
             </div>
 
             <div className="form-group">
               <label>Password</label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  style={{ paddingRight: 38 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(prev => !prev)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#64748b',
+                    padding: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
 
             <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? 'Authenticating...' : `Sign in as ${role === 'admin' ? 'Admin' : 'Sales'}`}
+              {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
-
-          {/* Demo 1-Click Buttons */}
-          <div className="demo-credentials-box">
-            <div className="demo-credentials-title">Quick 1-Click Demo Login</div>
-            <div className="demo-btn-group">
-              <button
-                type="button"
-                className="btn-demo"
-                onClick={() => handleDemoLogin('sales')}
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-              >
-                <User size={14} />
-                <span>Test as Sales</span>
-              </button>
-              <button
-                type="button"
-                className="btn-demo"
-                onClick={() => handleDemoLogin('admin')}
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-              >
-                <Shield size={14} />
-                <span>Test as Admin</span>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
