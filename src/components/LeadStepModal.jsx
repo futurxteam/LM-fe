@@ -70,6 +70,8 @@ export default function LeadStepModal({
       ? String(lead.courseFees)
       : ''
   )
+  const [discountReason, setDiscountReason] = useState(lead.discountReason || '')
+  const [discountReasonDescription, setDiscountReasonDescription] = useState(lead.discountReasonDescription || '')
   const [paidAmount, setPaidAmount] = useState(
     lead.paidAmount !== null && lead.paidAmount !== undefined ? String(lead.paidAmount) : ''
   )
@@ -166,6 +168,8 @@ export default function LeadStepModal({
         ? String(lead.courseFees)
         : ''
     )
+    setDiscountReason(lead.discountReason || '')
+    setDiscountReasonDescription(lead.discountReasonDescription || '')
     setPaidAmount(lead.paidAmount !== null && lead.paidAmount !== undefined ? String(lead.paidAmount) : '')
     setLocalReceipts(Array.isArray(lead.paymentReceipts) ? lead.paymentReceipts : [])
     setReceiptAmount('')
@@ -319,10 +323,26 @@ export default function LeadStepModal({
     return false
   }
 
-  const isCycleLockedForSales =
+  const isPendingDiscountLock = lead.discountApprovalStatus === 'PENDING'
+  const requiresDiscountApproval =
     !isAdmin &&
-    (Boolean(lead.isCycleEnded) || irreversibleStatusesForSales.includes(currentLeadStatus)) &&
-    !(currentLeadStatus === 'CONVERTED BUSINESS' && ['CONVERTED BUSINESS', 'ONBOARDED BUSINESS'].includes(targetStatus))
+    ['QUALIFIED BUSINESS', 'CONVERTED BUSINESS'].includes(targetStatus) &&
+    courseFees !== '' &&
+    agreedAmount !== '' &&
+    Number(courseFees) > 0 &&
+    Number(agreedAmount) < Number(courseFees) &&
+    !(
+      lead.discountApprovalStatus === 'APPROVED' &&
+      lead.agreedAmount !== null &&
+      Number(lead.agreedAmount) === Number(agreedAmount) &&
+      Number(lead.courseFees) === Number(courseFees)
+    )
+
+  const isCycleLockedForSales =
+    (!isAdmin && isPendingDiscountLock) ||
+    (!isAdmin &&
+      (Boolean(lead.isCycleEnded) || irreversibleStatusesForSales.includes(currentLeadStatus)) &&
+      !(currentLeadStatus === 'CONVERTED BUSINESS' && ['CONVERTED BUSINESS', 'ONBOARDED BUSINESS'].includes(targetStatus)))
 
   const handleProgramChange = newId => {
     setBusinessProgramId(newId)
@@ -393,6 +413,20 @@ export default function LeadStepModal({
         setModalAlert(msg)
         showNotify?.('error', msg)
         return
+      }
+      if (requiresDiscountApproval) {
+        if (!discountReason) {
+          const msg = 'Please select a Discount Reason (Referral, Lump Sum Discount, Spot Admission Discount, or Other).'
+          setModalAlert(msg)
+          showNotify?.('error', msg)
+          return
+        }
+        if (discountReason === 'Other' && !discountReasonDescription.trim()) {
+          const msg = 'Please enter a description for the Other discount reason.'
+          setModalAlert(msg)
+          showNotify?.('error', msg)
+          return
+        }
       }
       if (paidAmount !== '' && Number(paidAmount) < 0) {
         const msg = 'Paid Amount cannot be negative.'
@@ -512,6 +546,10 @@ export default function LeadStepModal({
           payload.agreedAmount = Number(agreedAmount)
         } else if (courseFees !== '') {
           payload.agreedAmount = Number(courseFees)
+        }
+        if (discountReason) {
+          payload.discountReason = discountReason
+          payload.discountReasonDescription = discountReasonDescription.trim()
         }
         if (receiptAmount !== '' && Number(receiptAmount) > 0) {
           payload.newReceipt = {
@@ -722,6 +760,28 @@ export default function LeadStepModal({
           )}
           {activeSection === 'step' ? (
             <form id="lead-step-form" onSubmit={handleSubmit}>
+              {isPendingDiscountLock && (
+                <div
+                  style={{
+                    background: '#fffbeb',
+                    border: '1px solid #f59e0b',
+                    color: '#92400e',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    marginBottom: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontWeight: 600,
+                  }}
+                >
+                  <Lock size={15} />
+                  <span>
+                    Status Locked — Pending Admin Discount Approval. {!isAdmin ? 'Wait for Admin to approve or reject before making further changes.' : 'Review this request under Discount Approvals in the sidebar.'}
+                  </span>
+                </div>
+              )}
               {lead.isCycleEnded && !isAdmin && lead.leadStatus !== 'CONVERTED BUSINESS' && (
                 <div
                   style={{
@@ -1328,6 +1388,75 @@ export default function LeadStepModal({
                       </div>
                     </div>
                   </div>
+
+                  {/* Discount Approval Notice & Mandatory Reason Dropdown (when Agreed Amount < Standard Fee) */}
+                  {requiresDiscountApproval && (
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: 12,
+                        borderRadius: 8,
+                        background: '#fffbeb',
+                        border: '1.5px solid #f59e0b',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, color: '#92400e', marginBottom: 6 }}>
+                        <AlertTriangle size={14} />
+                        <span>Discount Approval Required — Status will remain Pending until Admin approves</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: '#78350f', marginBottom: 10 }}>
+                        Changing the agreed amount below the standard fee ({formatINR(Number(courseFees))}) requires Admin approval. The lead status will be locked as Pending and will not reflect in Discount Reports until approved.
+                      </div>
+                      <div className="responsive-grid-2">
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+                            DISCOUNT REASON *
+                          </label>
+                          <select
+                            value={discountReason}
+                            onChange={e => setDiscountReason(e.target.value)}
+                            required
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: 6,
+                              border: '1px solid #f59e0b',
+                              fontSize: 12,
+                              background: '#fff',
+                            }}
+                          >
+                            <option value="">-- Select Discount Reason --</option>
+                            <option value="Referral">1. Referral</option>
+                            <option value="Lump Sum Discount">2. Lump Sum Discount</option>
+                            <option value="Spot Admission Discount">3. Spot Admission Discount</option>
+                            <option value="Other">4. Other (Specify Description)</option>
+                          </select>
+                        </div>
+                        {discountReason === 'Other' && (
+                          <div>
+                            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+                              REASON DESCRIPTION *
+                            </label>
+                            <input
+                              type="text"
+                              value={discountReasonDescription}
+                              onChange={e => setDiscountReasonDescription(e.target.value)}
+                              required
+                              placeholder="Explain the discount reason..."
+                              style={{
+                                width: '100%',
+                                padding: '8px 10px',
+                                borderRadius: 6,
+                                border: '1px solid #f59e0b',
+                                fontSize: 12,
+                                background: '#fff',
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Single Payment / Installment Receipt Entry (FRD Section 8 & 9) */}
                   <div

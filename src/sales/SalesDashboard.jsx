@@ -51,6 +51,7 @@ import FollowupScheduleView from '../components/FollowupScheduleView'
 import ReferralDashboard from '../components/ReferralDashboard'
 import AdminAdvancedReports from '../components/AdminAdvancedReports'
 import DiscountReportView from '../components/DiscountReportView'
+import ResponseSlaReportView from '../components/ResponseSlaReportView'
 import { getSalesDisplayStatus } from '../constants/leadLifecycle'
 
 export default function SalesDashboard({ user, onLogout }) {
@@ -65,6 +66,24 @@ export default function SalesDashboard({ user, onLogout }) {
     ? location.pathname.replace('/reports/', '').split('/')[0]
     : ''
   const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0)
+  const [discountNotifications, setDiscountNotifications] = useState([])
+  const [myPendingDiscountCount, setMyPendingDiscountCount] = useState(0)
+
+  const loadDiscountNotifications = async () => {
+    try {
+      const res = await api.getMyDiscountNotifications()
+      if (res?.success) {
+        setDiscountNotifications(res.notifications || [])
+        setMyPendingDiscountCount(res.pendingCount || 0)
+      }
+    } catch (err) {
+      // silent
+    }
+  }
+
+  useEffect(() => {
+    loadDiscountNotifications()
+  }, [location.pathname])
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [leads, setLeads] = useState([])
   const [stats, setStats] = useState(null)
@@ -474,6 +493,12 @@ export default function SalesDashboard({ user, onLogout }) {
                 onBack={() => navigate('/reports')}
                 showNotify={showNotify}
               />
+            ) : salesReportSlug === 'response-sla' && (user?.isGroupManager || user?.role === 'manager') ? (
+              <ResponseSlaReportView
+                isManagerScoped={true}
+                onBack={() => navigate('/reports')}
+                showNotify={showNotify}
+              />
             ) : salesReportSlug === 'schedule' && (user?.isGroupManager || user?.role === 'manager') ? (
               <FollowupScheduleView
                 isAdmin={true}
@@ -560,6 +585,14 @@ export default function SalesDashboard({ user, onLogout }) {
                           color: '#be185d',
                           bg: '#fdf2f8',
                           Icon: Tag,
+                        },
+                        {
+                          slug: 'response-sla',
+                          title: 'Round-Robin to First Contact SLA',
+                          desc: 'Track your team response times across IST windows: 9 AM–5 PM (P1), 5 PM–8 PM (P2), Sunday Holiday (Relaxed), Other Hours & Paused Dates.',
+                          color: '#0284c7',
+                          bg: '#f0f9ff',
+                          Icon: Clock,
                         },
                         {
                           slug: 'schedule',
@@ -704,6 +737,96 @@ export default function SalesDashboard({ user, onLogout }) {
             )
           ) : (
             <>
+              {/* Discount Approval Notifications Banner (Approved / Rejected / Pending) */}
+              {(discountNotifications.length > 0 || myPendingDiscountCount > 0) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                  {myPendingDiscountCount > 0 && (
+                    <div
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 8,
+                        background: '#fffbeb',
+                        border: '1px solid #fcd34d',
+                        color: '#92400e',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                    >
+                      <Clock size={15} />
+                      <span>
+                        You have <strong>{myPendingDiscountCount}</strong> discount approval {myPendingDiscountCount === 1 ? 'request' : 'requests'} pending Admin review (locked until decided).
+                      </span>
+                    </div>
+                  )}
+                  {discountNotifications.map(n => {
+                    const isApproved = n.status === 'APPROVED'
+                    return (
+                      <div
+                        key={n.id}
+                        style={{
+                          padding: '10px 14px',
+                          borderRadius: 8,
+                          background: isApproved ? '#ecfdf5' : '#fef2f2',
+                          border: `1px solid ${isApproved ? '#86efac' : '#fca5a5'}`,
+                          color: isApproved ? '#065f46' : '#991b1b',
+                          fontSize: 12,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 10,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {isApproved ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+                          <div>
+                            <strong>
+                              Discount {isApproved ? 'Approved' : 'Rejected'} — {n.leadName}
+                            </strong>
+                            {isApproved ? (
+                              <span>
+                                {' '}
+                                • Final Agreed: ₹{Number(n.finalAgreedAmount ?? n.requestedAgreedAmount).toLocaleString('en-IN')} (Discount: ₹{Number(n.finalDiscountAmount ?? n.requestedDiscountAmount).toLocaleString('en-IN')}) — Status updated to {n.targetStatus}.
+                              </span>
+                            ) : (
+                              <span>
+                                {' '}
+                                • Lead unlocked at previous status.
+                              </span>
+                            )}
+                            {n.adminRemarks && (
+                              <div style={{ fontSize: 11, opacity: 0.9, marginTop: 2 }}>
+                                Admin Note: {n.adminRemarks}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await api.markDiscountNotificationRead(n.id)
+                            setDiscountNotifications(prev => prev.filter(item => item.id !== n.id))
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'inherit',
+                            cursor: 'pointer',
+                            padding: 4,
+                            flexShrink: 0,
+                          }}
+                          title="Dismiss notification"
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
               {/* Top Dials */}
               <div className="template-card" style={{ marginBottom: 20 }}>
                 <div className="template-card-header">

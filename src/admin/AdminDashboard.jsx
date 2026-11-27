@@ -78,6 +78,8 @@ import FrdReportsView from '../components/FrdReportsView'
 import FollowupScheduleView from '../components/FollowupScheduleView'
 import ReferralDashboard from '../components/ReferralDashboard'
 import DiscountReportView from '../components/DiscountReportView'
+import DiscountApprovalsView from '../components/DiscountApprovalsView'
+import ResponseSlaReportView from '../components/ResponseSlaReportView'
 import { getStatusBadgeStyle, getHeatBadgeStyle, LEAD_STATUSES, formatINR } from '../constants/leadLifecycle'
 
 export default function AdminDashboard({ user, onLogout }) {
@@ -88,6 +90,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const getTabFromPath = path => {
     if (path.includes('/pool')) return 'pool'
     if (path.includes('/leads') || path.includes('/all-leads')) return 'all-leads'
+    if (path.includes('/discount-approvals')) return 'discount-approvals'
     if (path.includes('/reports')) return 'reports'
     if (path.includes('/users') || path.includes('/team')) return 'users'
     return 'dashboard'
@@ -113,11 +116,22 @@ export default function AdminDashboard({ user, onLogout }) {
     if (tab === 'dashboard') navigate('/dashboard')
     else if (tab === 'pool') navigate('/pool')
     else if (tab === 'all-leads') navigate('/leads')
+    else if (tab === 'discount-approvals') navigate('/discount-approvals')
     else if (tab === 'reports') navigate('/reports')
     else if (tab === 'users') navigate('/users')
   }
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [pendingDiscountCount, setPendingDiscountCount] = useState(0)
+
+  useEffect(() => {
+    api
+      .getPendingDiscountCount()
+      .then(res => {
+        if (res?.success) setPendingDiscountCount(res.pendingCount || 0)
+      })
+      .catch(() => {})
+  }, [activeTab])
 
   // Data states
   const [poolLeads, setPoolLeads] = useState([])
@@ -1512,6 +1526,22 @@ export default function AdminDashboard({ user, onLogout }) {
           </div>
 
           <div
+            className={`nav-item ${activeTab === 'discount-approvals' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('discount-approvals')
+              setMobileMenuOpen(false)
+            }}
+          >
+            <span className="nav-item-icon"><Tag size={16} /></span>
+            <span>Discount Approvals</span>
+            {pendingDiscountCount > 0 && (
+              <span style={{ marginLeft: 'auto', background: '#dc2626', color: '#fff', fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 10 }}>
+                {pendingDiscountCount}
+              </span>
+            )}
+          </div>
+
+          <div
             className={`nav-item ${activeTab === 'reports' ? 'active' : ''}`}
             onClick={() => {
               setActiveTab('reports')
@@ -1583,6 +1613,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   {activeTab === 'dashboard' && 'Dashboard Overview'}
                   {activeTab === 'pool' && 'Lead Pool & Allocation'}
                   {activeTab === 'all-leads' && 'Master Company Leads Directory'}
+                  {activeTab === 'discount-approvals' && 'Discount Approvals Queue'}
                   {activeTab === 'reports' && 'Reports & Analytics'}
                   {activeTab === 'users' && 'Staff & Admissions Advisors Management'}
                 </h1>
@@ -1640,6 +1671,42 @@ export default function AdminDashboard({ user, onLogout }) {
               </div>
             ) : (
               <div>
+                {/* Pending Discount Approval Requests Banner on Admin Dashboard */}
+                {pendingDiscountCount > 0 && (
+                  <div
+                    onClick={() => setActiveTab('discount-approvals')}
+                    style={{
+                      marginBottom: 16,
+                      padding: '12px 16px',
+                      borderRadius: 10,
+                      background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+                      border: '1.5px solid #f59e0b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 8, background: '#f59e0b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+                        {pendingDiscountCount}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: '#92400e' }}>
+                          {pendingDiscountCount} Discount Approval {pendingDiscountCount === 1 ? 'Request' : 'Requests'} Pending
+                        </div>
+                        <div style={{ fontSize: 11, color: '#78350f' }}>
+                          Leads are locked awaiting your review. Click to approve, adjust agreed amount, or reject.
+                        </div>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      Review Now <ArrowRight size={14} />
+                    </span>
+                  </div>
+                )}
+
                 {/* LIVE INGESTION & CONVERSION PIPELINE (Only on Dashboard Overview!) */}
                 <div className="template-card" style={{ marginBottom: 20 }}>
                   <div className="template-card-header">
@@ -2778,6 +2845,14 @@ export default function AdminDashboard({ user, onLogout }) {
             </div>
           )}
 
+          {/* TAB: DISCOUNT APPROVALS */}
+          {activeTab === 'discount-approvals' && (
+            <DiscountApprovalsView
+              onCountsChanged={setPendingDiscountCount}
+              showNotify={showNotify}
+            />
+          )}
+
           {/* ========================================================
               TAB 4: REPORTS HUB (CARDS -> DEDICATED PAGE FOR EACH REPORT)
               ======================================================== */}
@@ -2934,6 +3009,15 @@ export default function AdminDashboard({ user, onLogout }) {
                       Icon: Tag,
                     },
                     {
+                      slug: 'response-sla',
+                      title: 'Round-Robin to First Contact SLA',
+                      desc: 'Track Sales Rep response times by IST priority windows: 9 AM–5 PM (P1), 5 PM–8 PM (P2), Sunday Holiday (Relaxed), Other Hours & Paused Dates.',
+                      color: '#0284c7',
+                      bg: '#f0f9ff',
+                      badge: 'Response SLA',
+                      Icon: Clock,
+                    },
+                    {
                       slug: 'referrals',
                       title: 'Referral Intelligence & Demographics',
                       desc: 'Track student, alumni, and lead referral sources, demographic breakdowns by course and date, leaderboard, and conversion revenue.',
@@ -3029,6 +3113,12 @@ export default function AdminDashboard({ user, onLogout }) {
               />
             ) : reportSlug === 'discounts' ? (
               <DiscountReportView
+                isManagerScoped={false}
+                onBack={() => navigate('/reports')}
+                showNotify={showNotify}
+              />
+            ) : reportSlug === 'response-sla' ? (
+              <ResponseSlaReportView
                 isManagerScoped={false}
                 onBack={() => navigate('/reports')}
                 showNotify={showNotify}

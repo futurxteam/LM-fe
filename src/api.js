@@ -407,6 +407,54 @@ export const api = {
     return await request(`/stats/discounts${qs ? `?${qs}` : ''}`, { method: 'GET' })
   },
 
+  // Round-Robin -> First Contact Response SLA Report (Admin & Group Manager)
+  getResponseSlaReport: async (params = {}) => {
+    const query = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '' && v !== 'All') {
+        query.append(k, v)
+      }
+    })
+    const qs = query.toString()
+    return await request(`/stats/response-sla${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+
+  // Discount Approval Workflow (Admin Approvals & Sales Rep Notifications)
+  getDiscountApprovals: async (params = {}) => {
+    const query = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') query.append(k, v)
+    })
+    const qs = query.toString()
+    return await request(`/discounts/approvals${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+
+  getPendingDiscountCount: async () => {
+    return await request('/discounts/approvals/pending-count', { method: 'GET' })
+  },
+
+  approveDiscountRequest: async (id, payload = {}) => {
+    return await request(`/discounts/approvals/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  rejectDiscountRequest: async (id, payload = {}) => {
+    return await request(`/discounts/approvals/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  getMyDiscountNotifications: async () => {
+    return await request('/discounts/my-notifications', { method: 'GET' })
+  },
+
+  markDiscountNotificationRead: async id => {
+    return await request(`/discounts/my-notifications/${id}/read`, { method: 'PATCH' })
+  },
+
   // Fetch assigned Class Teacher(s) for an LMS student via fa-backend proxy
   getStudentClassTeacher: async (params = {}) => {
     const query = new URLSearchParams()
