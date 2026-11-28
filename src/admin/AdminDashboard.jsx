@@ -63,6 +63,8 @@ import {
   Play,
   Share2,
   Tag,
+  ChevronDown,
+  List,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -208,7 +210,11 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
   const [metaForms, setMetaForms] = useState([])
   const [assigningForm, setAssigningForm] = useState(null) // Form whose counselor assignment popup is open
   const [metaPageIdInput, setMetaPageIdInput] = useState('')
+  const [metaAdAccountIdInput, setMetaAdAccountIdInput] = useState('')
   const [metaTokenInput, setMetaTokenInput] = useState('')
+  const [metaFormsGroupByCampaign, setMetaFormsGroupByCampaign] = useState(true)
+  const [metaFormSearch, setMetaFormSearch] = useState('')
+  const [collapsedMetaCampaigns, setCollapsedMetaCampaigns] = useState({})
   const [metaAutoSync, setMetaAutoSync] = useState(false)
   const [metaAlerts, setMetaAlerts] = useState({
     soundAlert: true,
@@ -890,6 +896,7 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
       if (res?.config) {
         setMetaConfig(res.config)
         setMetaPageIdInput(res.config.pageId || '')
+        setMetaAdAccountIdInput(res.config.adAccountId || '')
         setMetaAutoSync(Boolean(res.config.autoSync))
         if (res.config.selectedForms && res.config.selectedForms.length > 0) {
           setMetaForms(res.config.selectedForms)
@@ -919,6 +926,7 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
     try {
       const payload = {
         pageId: metaPageIdInput.trim(),
+        adAccountId: metaAdAccountIdInput.trim(),
         autoSync: metaAutoSync,
         alerts: metaAlerts,
       }
@@ -941,13 +949,18 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
     try {
       const payload = {}
       if (metaPageIdInput.trim()) payload.pageId = metaPageIdInput.trim()
+      if (metaAdAccountIdInput.trim()) payload.adAccountId = metaAdAccountIdInput.trim()
       if (metaTokenInput.trim()) payload.accessToken = metaTokenInput.trim()
 
       const res = await api.fetchPageForms(payload)
       if (res?.forms) {
         setMetaForms(res.forms)
         setMetaTab('forms')
-        showNotify('success', `Connected! Found ${res.forms.length} Lead Ads forms.`)
+        const mappedText =
+          typeof res.mappedCampaignsCount === 'number'
+            ? ` (${res.mappedCampaignsCount} linked to campaigns)`
+            : ''
+        showNotify('success', `Connected! Found ${res.forms.length} Lead Ads forms${mappedText}.`)
         const confRes = await api.getMetaConfig()
         if (confRes?.config) setMetaConfig(confRes.config)
       }
@@ -962,6 +975,20 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
     setMetaForms(prev =>
       prev.map(f => (f.formId === formId ? { ...f, active: !f.active } : f))
     )
+  }
+
+  const handleToggleCampaignForms = (formIds, targetActive) => {
+    const idSet = new Set(formIds.map(String))
+    setMetaForms(prev =>
+      prev.map(f => (idSet.has(String(f.formId)) ? { ...f, active: targetActive } : f))
+    )
+  }
+
+  const toggleMetaCampaignCollapse = groupKey => {
+    setCollapsedMetaCampaigns(prev => ({
+      ...prev,
+      [groupKey]: !prev[groupKey],
+    }))
   }
 
   const handleSelectAllForms = activeState => {
@@ -4871,42 +4898,200 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
                     </div>
                   )}
 
-                  {/* Form Select / Deselect All Bar */}
-                  {metaForms.length > 0 && (
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '8px 12px',
-                        background: '#f8fafc',
-                        borderRadius: 6,
-                        marginBottom: 12,
-                        fontSize: 12,
-                      }}
-                    >
-                      <span style={{ color: '#475569' }}>
-                        Showing <strong>{metaForms.length}</strong> forms ({metaForms.filter(f => f.active).length} active for CRM ingestion)
-                      </span>
-                      <div style={{ display: 'flex', gap: 10 }}>
-                        <button
-                          type="button"
-                          onClick={() => handleSelectAllForms(true)}
-                          style={{ background: 'none', border: 'none', color: '#1877f2', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+                  {/* Form Search, Grouping & Select Bar */}
+                  {metaForms.length > 0 && (() => {
+                    const q = metaFormSearch.trim().toLowerCase()
+                    const filteredCount = q
+                      ? metaForms.filter(
+                          f =>
+                            String(f.formName || '').toLowerCase().includes(q) ||
+                            String(f.formId || '').toLowerCase().includes(q) ||
+                            String(f.campaignName || '').toLowerCase().includes(q) ||
+                            String(f.adName || '').toLowerCase().includes(q)
+                        ).length
+                      : metaForms.length
+                    const uniqueCampaignsCount = new Set(
+                      metaForms.map(f => (f.campaignName || '').trim()).filter(Boolean)
+                    ).size
+                    const allGroupKeys = Array.from(
+                      new Set(metaForms.map(f => (f.campaignName || '').trim() || '__UNLINKED__'))
+                    )
+                    const anyExpanded = allGroupKeys.some(k => !collapsedMetaCampaigns[k])
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 8,
+                          }}
                         >
-                          Select All
-                        </button>
-                        <span style={{ color: '#cbd5e1' }}>|</span>
-                        <button
-                          type="button"
-                          onClick={() => handleSelectAllForms(false)}
-                          style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+                          {/* Search Input */}
+                          <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 190 }}>
+                            <Search
+                              size={14}
+                              color="#94a3b8"
+                              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+                            />
+                            <input
+                              type="text"
+                              value={metaFormSearch}
+                              onChange={e => setMetaFormSearch(e.target.value)}
+                              placeholder="Search campaign, form name, or ID..."
+                              style={{
+                                width: '100%',
+                                padding: '7px 28px 7px 30px',
+                                borderRadius: 6,
+                                border: '1px solid #cbd5e1',
+                                fontSize: 12,
+                                outline: 'none',
+                                background: '#ffffff',
+                                color: '#0f172a',
+                              }}
+                            />
+                            {metaFormSearch && (
+                              <button
+                                type="button"
+                                onClick={() => setMetaFormSearch('')}
+                                style={{
+                                  position: 'absolute',
+                                  right: 6,
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#94a3b8',
+                                  cursor: 'pointer',
+                                  padding: 2,
+                                  display: 'inline-flex',
+                                }}
+                                title="Clear search"
+                              >
+                                <X size={13} />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* View Toggle: Grouped by Campaign vs All Forms */}
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              background: '#f1f5f9',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: 6,
+                              padding: 2,
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setMetaFormsGroupByCampaign(true)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                padding: '4px 10px',
+                                borderRadius: 5,
+                                border: 'none',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                background: metaFormsGroupByCampaign ? '#ffffff' : 'transparent',
+                                color: metaFormsGroupByCampaign ? '#1d4ed8' : '#64748b',
+                                boxShadow: metaFormsGroupByCampaign ? '0 1px 2px rgba(15,23,42,0.08)' : 'none',
+                              }}
+                            >
+                              <Layers size={12} />
+                              <span>By Campaign</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setMetaFormsGroupByCampaign(false)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                padding: '4px 10px',
+                                borderRadius: 5,
+                                border: 'none',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                background: !metaFormsGroupByCampaign ? '#ffffff' : 'transparent',
+                                color: !metaFormsGroupByCampaign ? '#1d4ed8' : '#64748b',
+                                boxShadow: !metaFormsGroupByCampaign ? '0 1px 2px rgba(15,23,42,0.08)' : 'none',
+                              }}
+                            >
+                              <List size={12} />
+                              <span>All Forms</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Summary & Bulk Controls Bar */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 8,
+                            padding: '8px 12px',
+                            background: '#f8fafc',
+                            borderRadius: 6,
+                            fontSize: 12,
+                          }}
                         >
-                          Deselect All
-                        </button>
+                          <span style={{ color: '#475569' }}>
+                            Showing <strong>{filteredCount}</strong>
+                            {q ? ` of ${metaForms.length}` : ''} forms ({metaForms.filter(f => f.active).length} active)
+                            {uniqueCampaignsCount > 0 && (
+                              <span>
+                                {' '}• <strong>{uniqueCampaignsCount}</strong> campaign{uniqueCampaignsCount === 1 ? '' : 's'} linked
+                              </span>
+                            )}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            {metaFormsGroupByCampaign && allGroupKeys.length > 1 && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const next = {}
+                                    allGroupKeys.forEach(k => {
+                                      next[k] = anyExpanded
+                                    })
+                                    setCollapsedMetaCampaigns(next)
+                                  }}
+                                  style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+                                >
+                                  {anyExpanded ? 'Collapse All' : 'Expand All'}
+                                </button>
+                                <span style={{ color: '#cbd5e1' }}>|</span>
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleSelectAllForms(true)}
+                              style={{ background: 'none', border: 'none', color: '#1877f2', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+                            >
+                              Select All
+                            </button>
+                            <span style={{ color: '#cbd5e1' }}>|</span>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectAllForms(false)}
+                              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+                            >
+                              Deselect All
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )
+                  })()}
 
                   {/* Form Checklist */}
                   {metaForms.length === 0 ? (
@@ -4944,110 +5129,375 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
                         {!metaConfig?.hasToken && !metaTokenInput ? 'Configure Credentials First' : 'Fetch Forms from Meta'}
                       </button>
                     </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      {metaForms.map(form => (
-                        <div
-                          key={form.formId}
-                          className={`meta-form-row ${form.active ? 'selected' : ''}`}
-                          onClick={() => handleToggleForm(form.formId)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <div className="meta-form-info">
-                            <div className="meta-form-title">{form.formName}</div>
-                            <div className="meta-form-meta">
-                              <span>ID: <code>{form.formId}</code></span>
-                              <span className={form.status === 'ACTIVE' ? 'meta-badge-active' : 'meta-badge-archived'}>
-                                {form.status || 'ACTIVE'}
-                              </span>
-                              {form.leadsCount !== undefined && (
-                                <span className="meta-badge-count">
-                                  {form.leadsCount} Meta Submissions
-                                </span>
-                              )}
-                              {form.locale && (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                  <Globe size={11} color="#64748b" />
-                                  <span>{form.locale}</span>
-                                </span>
-                              )}
-                            </div>
+                  ) : (() => {
+                    const q = metaFormSearch.trim().toLowerCase()
+                    const visibleForms = q
+                      ? metaForms.filter(
+                          f =>
+                            String(f.formName || '').toLowerCase().includes(q) ||
+                            String(f.formId || '').toLowerCase().includes(q) ||
+                            String(f.campaignName || '').toLowerCase().includes(q) ||
+                            String(f.adName || '').toLowerCase().includes(q)
+                        )
+                      : metaForms
 
-                            {/* Form Counselor Assignment with Change Button */}
-                            <div
-                              style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}
-                              onClick={e => e.stopPropagation()}
-                            >
-                              <span style={{ fontSize: 11, color: '#475569' }}>
-                                Assigned to:{' '}
-                                <strong style={{ color: '#0369a1' }}>
-                                  {getAssignedLabel(form)}
-                                </strong>
-                              </span>
-                              <button
-                                type="button"
-                                onClick={e => {
-                                  e.stopPropagation()
-                                  setAssigningForm(form)
-                                }}
-                                style={{
-                                  background: '#eff6ff',
-                                  color: '#1d4ed8',
-                                  border: '1px solid #bfdbfe',
-                                  borderRadius: 4,
-                                  padding: '2px 8px',
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                }}
-                                title="Click to choose one, many, or all counselors"
-                              >
-                                Change
-                              </button>
-                            </div>
+                    if (visibleForms.length === 0) {
+                      return (
+                        <div
+                          style={{
+                            textAlign: 'center',
+                            padding: '28px 16px',
+                            border: '1px dashed #cbd5e1',
+                            borderRadius: 8,
+                            background: '#f8fafc',
+                          }}
+                        >
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                            No matching campaigns or forms found
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 16 }}>
+                          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+                            Try another keyword or clear your search filter.
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setMetaFormSearch('')}
+                            className="btn-pulse-secondary"
+                            style={{ fontSize: 12, padding: '5px 12px' }}
+                          >
+                            Clear Search
+                          </button>
+                        </div>
+                      )
+                    }
+
+                    const renderMetaFormRow = (form, showCampaignPill = false) => (
+                      <div
+                        key={form.formId}
+                        className={`meta-form-row ${form.active ? 'selected' : ''}`}
+                        onClick={() => handleToggleForm(form.formId)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <div className="meta-form-info">
+                          <div className="meta-form-title">{form.formName}</div>
+                          <div className="meta-form-meta">
+                            <span>ID: <code>{form.formId}</code></span>
+                            <span className={form.status === 'ACTIVE' ? 'meta-badge-active' : 'meta-badge-archived'}>
+                              {form.status || 'ACTIVE'}
+                            </span>
+                            {form.leadsCount !== undefined && (
+                              <span className="meta-badge-count">
+                                {form.leadsCount} Meta Submissions
+                              </span>
+                            )}
+                            {showCampaignPill && form.campaignName && (
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  padding: '2px 7px',
+                                  borderRadius: 4,
+                                  background: '#eef2ff',
+                                  color: '#4338ca',
+                                  fontWeight: 600,
+                                  fontSize: 11,
+                                }}
+                              >
+                                <Layers size={11} />
+                                <span>{form.campaignName}</span>
+                              </span>
+                            )}
+                            {form.adName && (
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  color: '#64748b',
+                                  fontSize: 11,
+                                }}
+                                title={`Ad: ${form.adName}`}
+                              >
+                                <Tag size={11} color="#94a3b8" />
+                                <span>{form.adName}</span>
+                              </span>
+                            )}
+                            {form.locale && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                <Globe size={11} color="#64748b" />
+                                <span>{form.locale}</span>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Form Counselor Assignment with Change Button */}
+                          <div
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <span style={{ fontSize: 11, color: '#475569' }}>
+                              Assigned to:{' '}
+                              <strong style={{ color: '#0369a1' }}>
+                                {getAssignedLabel(form)}
+                              </strong>
+                            </span>
                             <button
                               type="button"
-                              className="btn-pulse-secondary"
                               onClick={e => {
                                 e.stopPropagation()
-                                handleOpenFormPreview(form.formId, form.formName)
+                                setAssigningForm(form)
                               }}
                               style={{
-                                fontSize: 12,
-                                padding: '5px 11px',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 5,
                                 background: '#eff6ff',
-                                borderColor: '#bfdbfe',
                                 color: '#1d4ed8',
-                                fontWeight: 600,
+                                border: '1px solid #bfdbfe',
+                                borderRadius: 4,
+                                padding: '2px 8px',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                cursor: 'pointer',
                               }}
-                              title="Inspect leads from this form in UI and optionally add to pool"
+                              title="Click to choose one, many, or all counselors"
                             >
-                              <Eye size={13} />
-                              <span>View Leads</span>
+                              Change
                             </button>
-
-                            <label
-                              className="toggle-switch"
-                              onClick={e => e.stopPropagation()}
-                              title="Toggle active for auto sync"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={!!form.active}
-                                onChange={() => handleToggleForm(form.formId)}
-                              />
-                              <span className="toggle-slider" />
-                            </label>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 16 }}>
+                          <button
+                            type="button"
+                            className="btn-pulse-secondary"
+                            onClick={e => {
+                              e.stopPropagation()
+                              handleOpenFormPreview(form.formId, form.formName)
+                            }}
+                            style={{
+                              fontSize: 12,
+                              padding: '5px 11px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              background: '#eff6ff',
+                              borderColor: '#bfdbfe',
+                              color: '#1d4ed8',
+                              fontWeight: 600,
+                            }}
+                            title="Inspect leads from this form in UI and optionally add to pool"
+                          >
+                            <Eye size={13} />
+                            <span>View Leads</span>
+                          </button>
+
+                          <label
+                            className="toggle-switch"
+                            onClick={e => e.stopPropagation()}
+                            title="Toggle active for auto sync"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={!!form.active}
+                              onChange={() => handleToggleForm(form.formId)}
+                            />
+                            <span className="toggle-slider" />
+                          </label>
+                        </div>
+                      </div>
+                    )
+
+                    if (!metaFormsGroupByCampaign) {
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          {visibleForms.map(form => renderMetaFormRow(form, true))}
+                        </div>
+                      )
+                    }
+
+                    // Group visibleForms by Campaign Name
+                    const groupMap = new Map()
+                    visibleForms.forEach(form => {
+                      const rawCampaign = (form.campaignName || '').trim()
+                      const key = rawCampaign || '__UNLINKED__'
+                      if (!groupMap.has(key)) {
+                        groupMap.set(key, {
+                          key,
+                          label: rawCampaign || 'Other / No Campaign Linked Yet',
+                          isUnlinked: !rawCampaign,
+                          campaignStatus: form.campaignStatus || '',
+                          forms: [],
+                        })
+                      }
+                      const grp = groupMap.get(key)
+                      grp.forms.push(form)
+                      if (!grp.campaignStatus && form.campaignStatus) {
+                        grp.campaignStatus = form.campaignStatus
+                      }
+                    })
+
+                    const campaignGroups = Array.from(groupMap.values()).sort((a, b) => {
+                      if (a.isUnlinked !== b.isUnlinked) return a.isUnlinked ? 1 : -1
+                      const aActive = a.forms.filter(f => f.active).length
+                      const bActive = b.forms.filter(f => f.active).length
+                      if (aActive !== bActive) return bActive - aActive
+                      const aLeads = a.forms.reduce((sum, f) => sum + (Number(f.leadsCount) || 0), 0)
+                      const bLeads = b.forms.reduce((sum, f) => sum + (Number(f.leadsCount) || 0), 0)
+                      if (aLeads !== bLeads) return bLeads - aLeads
+                      return a.label.localeCompare(b.label)
+                    })
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {campaignGroups.map(group => {
+                          const isCollapsed = !!collapsedMetaCampaigns[group.key]
+                          const activeInGroup = group.forms.filter(f => f.active).length
+                          const totalLeadsInGroup = group.forms.reduce(
+                            (sum, f) => sum + (Number(f.leadsCount) || 0),
+                            0
+                          )
+                          const allGroupActive = activeInGroup === group.forms.length
+                          const statusUpper = String(group.campaignStatus || '').toUpperCase()
+
+                          return (
+                            <div
+                              key={group.key}
+                              style={{
+                                border: group.isUnlinked ? '1px solid #e2e8f0' : '1px solid #cbd5e1',
+                                borderRadius: 10,
+                                overflow: 'hidden',
+                                background: '#ffffff',
+                              }}
+                            >
+                              {/* Campaign Accordion Header */}
+                              <div
+                                onClick={() => toggleMetaCampaignCollapse(group.key)}
+                                style={{
+                                  display: 'flex',
+                                  flexWrap: 'wrap',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  gap: 10,
+                                  padding: '10px 14px',
+                                  background: group.isUnlinked
+                                    ? '#f8fafc'
+                                    : activeInGroup > 0
+                                      ? '#eff6ff'
+                                      : '#f8fafc',
+                                  borderBottom: isCollapsed ? 'none' : '1px solid #e2e8f0',
+                                  cursor: 'pointer',
+                                  userSelect: 'none',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: '1 1 240px' }}>
+                                  {isCollapsed ? (
+                                    <ChevronRight size={16} color="#475569" style={{ flexShrink: 0 }} />
+                                  ) : (
+                                    <ChevronDown size={16} color="#475569" style={{ flexShrink: 0 }} />
+                                  )}
+                                  <Layers
+                                    size={15}
+                                    color={group.isUnlinked ? '#94a3b8' : '#1d4ed8'}
+                                    style={{ flexShrink: 0 }}
+                                  />
+                                  <span
+                                    style={{
+                                      fontSize: 13,
+                                      fontWeight: 800,
+                                      color: group.isUnlinked ? '#475569' : '#0f172a',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                    title={group.label}
+                                  >
+                                    {group.label}
+                                  </span>
+                                  {statusUpper && (
+                                    <span
+                                      style={{
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                        padding: '2px 6px',
+                                        borderRadius: 4,
+                                        flexShrink: 0,
+                                        background: statusUpper === 'ACTIVE' ? '#dcfce7' : '#fef3c7',
+                                        color: statusUpper === 'ACTIVE' ? '#166534' : '#92400e',
+                                      }}
+                                    >
+                                      {statusUpper}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div
+                                  style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}
+                                  onClick={e => e.stopPropagation()}
+                                >
+                                  <span style={{ fontSize: 11, color: '#475569', fontWeight: 600 }}>
+                                    {activeInGroup}/{group.forms.length} active
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      padding: '2px 8px',
+                                      borderRadius: 12,
+                                      background: '#ffffff',
+                                      border: '1px solid #e2e8f0',
+                                      color: '#334155',
+                                    }}
+                                  >
+                                    {totalLeadsInGroup} submissions
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleToggleCampaignForms(
+                                        group.forms.map(f => f.formId),
+                                        !allGroupActive
+                                      )
+                                    }
+                                    style={{
+                                      background: allGroupActive ? '#ffffff' : '#1d4ed8',
+                                      color: allGroupActive ? '#475569' : '#ffffff',
+                                      border: allGroupActive ? '1px solid #cbd5e1' : '1px solid #1d4ed8',
+                                      borderRadius: 5,
+                                      padding: '3px 9px',
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    {allGroupActive ? 'Disable Group' : 'Enable All'}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Nested Forms inside Campaign */}
+                              {!isCollapsed && (
+                                <div style={{ padding: '10px 10px 2px 10px', display: 'flex', flexDirection: 'column' }}>
+                                  {group.isUnlinked && !metaConfig?.adAccountId && (
+                                    <div
+                                      style={{
+                                        fontSize: 11,
+                                        color: '#64748b',
+                                        background: '#f8fafc',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: 6,
+                                        padding: '6px 10px',
+                                        marginBottom: 8,
+                                      }}
+                                    >
+                                      Forms with 0 submissions have no lead metadata yet. Click <strong>Fetch Forms from Meta</strong> after adding your optional <strong>Ad Account ID</strong> in the Credentials tab to map 0-lead forms to their Ads Manager Campaigns.
+                                    </div>
+                                  )}
+                                  {group.forms.map(form => renderMetaFormRow(form, false))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
 
                   {metaForms.length > 0 && (
                     <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
@@ -5107,6 +5557,29 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
                       />
                       <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
                         Your Facebook Page ID for Futureace Healthcare Academy.
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                        META AD ACCOUNT ID (OPTIONAL — FOR 0-LEAD CAMPAIGN GROUPING)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 10183628... (from Ads Manager top dropdown)"
+                        value={metaAdAccountIdInput}
+                        onChange={e => setMetaAdAccountIdInput(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: 6,
+                          border: '1px solid #cbd5e1',
+                          fontSize: 13,
+                          outline: 'none',
+                        }}
+                      />
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                        Forms with submissions group under Campaigns automatically using your Page Token. Add your Ad Account ID (with <code>ads_read</code> permission) to also link 0-submission forms to Ads Manager Campaigns.
                       </div>
                     </div>
 
