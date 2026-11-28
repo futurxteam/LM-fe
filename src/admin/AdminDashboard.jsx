@@ -215,6 +215,7 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
   const [metaFormsGroupByCampaign, setMetaFormsGroupByCampaign] = useState(true)
   const [metaFormSearch, setMetaFormSearch] = useState('')
   const [collapsedMetaCampaigns, setCollapsedMetaCampaigns] = useState({})
+  const [metaCampaignNotice, setMetaCampaignNotice] = useState('')
   const [metaAutoSync, setMetaAutoSync] = useState(false)
   const [metaAlerts, setMetaAlerts] = useState({
     soundAlert: true,
@@ -891,6 +892,7 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
   // -------------------------------------------------------------
   const openMetaModal = async () => {
     setShowMetaModal(true)
+    setMetaCampaignNotice('')
     try {
       const res = await api.getMetaConfig()
       if (res?.config) {
@@ -901,6 +903,25 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
         if (res.config.selectedForms && res.config.selectedForms.length > 0) {
           setMetaForms(res.config.selectedForms)
           setMetaTab('forms')
+          // Auto-fetch campaign links from Meta if any form with submissions is not yet linked
+          const hasUnlinkedWithLeads = res.config.selectedForms.some(
+            f => !f.campaignName && Number(f.leadsCount || 0) > 0
+          )
+          if (res.config.hasToken && hasUnlinkedWithLeads) {
+            setFetchingMetaForms(true)
+            api
+              .fetchPageForms({
+                pageId: res.config.pageId || undefined,
+                adAccountId: res.config.adAccountId || undefined,
+              })
+              .then(fetchRes => {
+                if (fetchRes?.forms) setMetaForms(fetchRes.forms)
+                const warn = [fetchRes?.adAccountWarning, fetchRes?.leadLookupWarning].filter(Boolean).join(' • ')
+                if (warn) setMetaCampaignNotice(warn)
+              })
+              .catch(() => {})
+              .finally(() => setFetchingMetaForms(false))
+          }
         } else {
           setMetaTab('credentials')
         }
@@ -946,6 +967,7 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
 
   const handleFetchMetaForms = async () => {
     setFetchingMetaForms(true)
+    setMetaCampaignNotice('')
     try {
       const payload = {}
       if (metaPageIdInput.trim()) payload.pageId = metaPageIdInput.trim()
@@ -956,6 +978,8 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
       if (res?.forms) {
         setMetaForms(res.forms)
         setMetaTab('forms')
+        const warn = [res.adAccountWarning, res.leadLookupWarning].filter(Boolean).join(' • ')
+        if (warn) setMetaCampaignNotice(warn)
         const mappedText =
           typeof res.mappedCampaignsCount === 'number'
             ? ` (${res.mappedCampaignsCount} linked to campaigns)`
@@ -4823,7 +4847,7 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
                         style={{ fontSize: 12, padding: '6px 12px' }}
                       >
                         <RefreshCw size={13} className={fetchingMetaForms ? 'spin' : ''} />
-                        <span>Refresh Forms</span>
+                        <span>{fetchingMetaForms ? 'Fetching Campaigns...' : 'Refresh Forms & Campaigns'}</span>
                       </button>
                       <button
                         type="button"
@@ -5474,19 +5498,48 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
                               {/* Nested Forms inside Campaign */}
                               {!isCollapsed && (
                                 <div style={{ padding: '10px 10px 2px 10px', display: 'flex', flexDirection: 'column' }}>
-                                  {group.isUnlinked && !metaConfig?.adAccountId && (
+                                  {group.isUnlinked && (
                                     <div
                                       style={{
+                                        display: 'flex',
+                                        flexWrap: 'wrap',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: 8,
                                         fontSize: 11,
                                         color: '#64748b',
                                         background: '#f8fafc',
                                         border: '1px solid #e2e8f0',
                                         borderRadius: 6,
-                                        padding: '6px 10px',
+                                        padding: '7px 10px',
                                         marginBottom: 8,
                                       }}
                                     >
-                                      Forms with 0 submissions have no lead metadata yet. Click <strong>Fetch Forms from Meta</strong> after adding your optional <strong>Ad Account ID</strong> in the Credentials tab to map 0-lead forms to their Ads Manager Campaigns.
+                                      <span>
+                                        {metaCampaignNotice
+                                          ? `Meta API note: ${metaCampaignNotice}`
+                                          : !metaConfig?.adAccountId
+                                            ? 'Click Refresh to link forms with Meta submissions to their Campaigns. Add your Ad Account ID in Credentials to also map 0-submission forms.'
+                                            : 'Forms here either have 0 submissions or were not returned by active Ads in Meta.'}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={handleFetchMetaForms}
+                                        disabled={fetchingMetaForms}
+                                        style={{
+                                          background: '#eff6ff',
+                                          color: '#1d4ed8',
+                                          border: '1px solid #bfdbfe',
+                                          borderRadius: 5,
+                                          padding: '3px 9px',
+                                          fontSize: 11,
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                          flexShrink: 0,
+                                        }}
+                                      >
+                                        {fetchingMetaForms ? 'Fetching...' : 'Fetch Campaigns Now'}
+                                      </button>
                                     </div>
                                   )}
                                   {group.forms.map(form => renderMetaFormRow(form, false))}
