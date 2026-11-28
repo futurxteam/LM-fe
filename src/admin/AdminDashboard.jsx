@@ -968,13 +968,29 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
     setMetaForms(prev => prev.map(f => ({ ...f, active: activeState })))
   }
 
-  const handleSaveFormsSelection = async () => {
+  const handleSaveFormsSelection = async formsOverride => {
     setSavingMetaForms(true)
     try {
-      const res = await api.saveSelectedForms(metaForms)
+      const sourceForms = Array.isArray(formsOverride) ? formsOverride : metaForms
+      const activeRepIdSet = new Set(salesReps.map(r => String(r.id || r._id)))
+      const cleanedForms = sourceForms.map(f => {
+        const rawIds = Array.isArray(f.assignedCounselorIds) ? f.assignedCounselorIds.map(String) : []
+        const validIds = Array.from(new Set(rawIds.filter(id => activeRepIdSet.has(id))))
+        return {
+          ...f,
+          assignedCounselorIds: validIds.length >= salesReps.length ? [] : validIds,
+        }
+      })
+      const res = await api.saveSelectedForms(cleanedForms)
       showNotify('success', res.message || 'Active form selection saved!')
+      setMetaForms(cleanedForms)
       const confRes = await api.getMetaConfig()
-      if (confRes?.config) setMetaConfig(confRes.config)
+      if (confRes?.config) {
+        setMetaConfig(confRes.config)
+        if (Array.isArray(confRes.config.selectedForms)) {
+          setMetaForms(confRes.config.selectedForms)
+        }
+      }
     } catch (err) {
       showNotify('error', err.message || 'Failed to save forms selection')
     } finally {
@@ -984,23 +1000,31 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
 
   // -------------------------------------------------------------
   // Form Routing Assignment Helpers (Default: All Counselors)
+  // Always prune stale/deleted/disabled counselor IDs not in active salesReps
   // -------------------------------------------------------------
+  const getValidAssignedIds = form => {
+    if (!form) return []
+    const activeRepIdSet = new Set(salesReps.map(r => String(r.id || r._id)))
+    const rawIds = Array.isArray(form.assignedCounselorIds) ? form.assignedCounselorIds.map(String) : []
+    return Array.from(new Set(rawIds.filter(id => activeRepIdSet.has(id))))
+  }
+
   const isFormAllSelected = form => {
     if (!form) return true
-    const ids = form.assignedCounselorIds || []
-    return ids.length === 0 || ids.length >= salesReps.length
+    const ids = getValidAssignedIds(form)
+    return ids.length === 0 || (salesReps.length > 0 && ids.length >= salesReps.length)
   }
 
   const isFormCounselorSelected = (form, repId) => {
     if (!form) return false
     if (isFormAllSelected(form)) return true
-    return (form.assignedCounselorIds || []).map(String).includes(String(repId))
+    return getValidAssignedIds(form).includes(String(repId))
   }
 
   const getAssignedLabel = form => {
     if (!form) return 'All Counselors (Round-Robin)'
-    const ids = form.assignedCounselorIds || []
-    if (ids.length === 0 || ids.length >= salesReps.length) {
+    const ids = getValidAssignedIds(form)
+    if (ids.length === 0 || (salesReps.length > 0 && ids.length >= salesReps.length)) {
       return 'All Counselors (Round-Robin)'
     }
     if (ids.length === 1) {
@@ -1012,8 +1036,8 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
 
   const getFormRoutingSummary = form => {
     if (!form) return ''
-    const ids = form.assignedCounselorIds || []
-    if (ids.length === 0 || ids.length >= salesReps.length) {
+    const ids = getValidAssignedIds(form)
+    if (ids.length === 0 || (salesReps.length > 0 && ids.length >= salesReps.length)) {
       return 'Incoming leads will rotate capacity-aware between ALL active counselors.'
     }
     if (ids.length === 1) {
@@ -1037,32 +1061,34 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
   }
 
   const handleToggleCounselorForForm = (formId, repId) => {
+    const targetRepId = String(repId)
+    const targetForm =
+      (assigningForm && assigningForm.formId === formId ? assigningForm : null) ||
+      metaForms.find(f => f.formId === formId)
+    let currentIds = getValidAssignedIds(targetForm)
+    const isCurrentlyAll =
+      currentIds.length === 0 || (salesReps.length > 0 && currentIds.length >= salesReps.length)
+
+    if (isCurrentlyAll) {
+      currentIds = [targetRepId]
+    } else if (currentIds.includes(targetRepId)) {
+      currentIds = currentIds.filter(id => id !== targetRepId)
+      if (currentIds.length === 0) {
+        currentIds = []
+      }
+    } else {
+      currentIds = [...currentIds, targetRepId]
+      if (salesReps.length > 0 && currentIds.length >= salesReps.length) {
+        currentIds = []
+      }
+    }
+
+    const nextAssignedIds = currentIds
     setMetaForms(prev =>
-      prev.map(f => {
-        if (f.formId !== formId) return f
-        let currentIds = (f.assignedCounselorIds || []).map(String)
-        const isCurrentlyAll = currentIds.length === 0 || currentIds.length >= salesReps.length
-
-        if (isCurrentlyAll) {
-          currentIds = [String(repId)]
-        } else if (currentIds.includes(String(repId))) {
-          currentIds = currentIds.filter(id => id !== String(repId))
-          if (currentIds.length === 0) {
-            currentIds = []
-          }
-        } else {
-          currentIds = [...currentIds, String(repId)]
-          if (currentIds.length >= salesReps.length) {
-            currentIds = []
-          }
-        }
-
-        const updated = { ...f, assignedCounselorIds: currentIds }
-        if (assigningForm && assigningForm.formId === formId) {
-          setAssigningForm(updated)
-        }
-        return updated
-      })
+      prev.map(f => (f.formId === formId ? { ...f, assignedCounselorIds: nextAssignedIds } : f))
+    )
+    setAssigningForm(prev =>
+      prev && prev.formId === formId ? { ...prev, assignedCounselorIds: nextAssignedIds } : prev
     )
   }
 
