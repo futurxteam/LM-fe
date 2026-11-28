@@ -47,6 +47,7 @@ export default function AdminLifecycleSettingsModal({
   const [telegramTemplates, setTelegramTemplates] = useState({})
   const [testChatId, setTestChatId] = useState('')
   const [testingEventKey, setTestingEventKey] = useState('')
+  const [telegramFeedback, setTelegramFeedback] = useState(null) // { type: 'error' | 'success', message: string }
 
   // Program & Fee Structure Master
   const [programs, setPrograms] = useState([])
@@ -81,6 +82,7 @@ export default function AdminLifecycleSettingsModal({
     if (isOpen) {
       setTab(initialTab || 'policy')
       setEditingProgId(null)
+      setTelegramFeedback(null)
       loadSettings()
     }
   }, [isOpen, initialTab])
@@ -151,9 +153,16 @@ export default function AdminLifecycleSettingsModal({
         },
       })
       showNotify?.('success', tab === 'telegram' ? 'Telegram notification settings & templates saved!' : 'CRM Lifecycle & Recycle Policy saved!')
+      if (tab === 'telegram') {
+        setTelegramFeedback({ type: 'success', message: 'Telegram notification settings & templates saved.' })
+      }
       onSaved?.()
     } catch (err) {
-      showNotify?.('error', err.message || 'Failed to save policy')
+      const msg = err.message || 'Failed to save policy'
+      showNotify?.('error', msg)
+      if (tab === 'telegram') {
+        setTelegramFeedback({ type: 'error', message: msg })
+      }
     } finally {
       setSaving(false)
     }
@@ -161,19 +170,26 @@ export default function AdminLifecycleSettingsModal({
 
   const handleSendTestTemplate = async eventKey => {
     if (!testChatId.trim()) {
-      showNotify?.('error', 'Enter a Telegram Chat ID in the test bar above first.')
+      const msg = 'Enter a Telegram Chat ID in the test bar above first.'
+      setTelegramFeedback({ type: 'error', message: msg })
+      showNotify?.('error', msg)
       return
     }
     setTestingEventKey(eventKey)
+    setTelegramFeedback(null)
     try {
       const res = await api.testCrmTelegram({
         chatId: testChatId.trim(),
         eventKey,
         customTemplate: telegramTemplates[eventKey] || defaultTelegramTemplates[eventKey] || '',
       })
-      showNotify?.('success', res.message || 'Test Telegram notification sent!')
+      const okMsg = res.message || 'Test Telegram notification sent!'
+      setTelegramFeedback({ type: 'success', message: okMsg })
+      showNotify?.('success', okMsg)
     } catch (err) {
-      showNotify?.('error', err.message || 'Failed to send test Telegram alert')
+      const errMsg = err.message || 'Failed to send test Telegram alert'
+      setTelegramFeedback({ type: 'error', message: errMsg })
+      showNotify?.('error', errMsg)
     } finally {
       setTestingEventKey('')
     }
@@ -1093,6 +1109,52 @@ export default function AdminLifecycleSettingsModal({
                   <span>{testingEventKey === 'newLead' ? 'Sending...' : 'Send Quick Test'}</span>
                 </button>
               </div>
+
+              {/* Inline Error / Success Feedback inside Modal */}
+              {telegramFeedback && (
+                <div
+                  role="alert"
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: `1px solid ${telegramFeedback.type === 'error' ? '#fecaca' : '#bbf7d0'}`,
+                    background: telegramFeedback.type === 'error' ? '#fef2f2' : '#f0fdf4',
+                    color: telegramFeedback.type === 'error' ? '#991b1b' : '#166534',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    lineHeight: 1.45,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    {telegramFeedback.type === 'error' ? (
+                      <AlertTriangle size={16} color="#dc2626" style={{ flexShrink: 0, marginTop: 1 }} />
+                    ) : (
+                      <CheckCircle2 size={16} color="#16a34a" style={{ flexShrink: 0, marginTop: 1 }} />
+                    )}
+                    <span>{telegramFeedback.message}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTelegramFeedback(null)}
+                    aria-label="Dismiss alert"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'inherit',
+                      cursor: 'pointer',
+                      padding: 2,
+                      display: 'inline-flex',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
 
               {/* Event Toggles & Customizable Message Templates */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

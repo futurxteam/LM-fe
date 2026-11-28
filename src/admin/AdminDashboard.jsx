@@ -268,6 +268,7 @@ export default function AdminDashboard({ user, onLogout }) {
     },
   })
   const [testingUserTelegram, setTestingUserTelegram] = useState(false)
+  const [userTelegramFeedback, setUserTelegramFeedback] = useState(null)
   const [togglingTelegramUserId, setTogglingTelegramUserId] = useState(null)
   const [savingUser, setSavingUser] = useState(false)
   const [showDisableUserModal, setShowDisableUserModal] = useState(false)
@@ -1301,6 +1302,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const handleOpenCreateUser = () => {
     setEditingUser(null)
+    setUserTelegramFeedback(null)
     setUserFormData({
       name: '',
       email: '',
@@ -1325,6 +1327,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const handleOpenEditUser = u => {
     setEditingUser(u)
+    setUserTelegramFeedback(null)
     setUserFormData({
       name: u.name || '',
       email: u.email || '',
@@ -1372,17 +1375,24 @@ export default function AdminDashboard({ user, onLogout }) {
   const handleTestUserTelegram = async () => {
     const cleanChatId = String(userFormData.telegramChatId || '').trim()
     if (!cleanChatId) {
-      showNotify('error', 'Enter a Telegram Chat ID first to send a test alert.')
+      const msg = 'Enter a Telegram Chat ID first to send a test alert.'
+      setUserTelegramFeedback({ type: 'error', message: msg })
+      showNotify('error', msg)
       return
     }
     setTestingUserTelegram(true)
+    setUserTelegramFeedback(null)
     try {
       const res = editingUser
         ? await api.testUserTelegram(editingUser.id, { chatId: cleanChatId })
         : await api.testCrmTelegram({ chatId: cleanChatId, eventKey: 'newLead' })
-      showNotify('success', res.message || 'Test Telegram alert sent!')
+      const okMsg = res.message || 'Test Telegram alert sent!'
+      setUserTelegramFeedback({ type: 'success', message: okMsg })
+      showNotify('success', okMsg)
     } catch (err) {
-      showNotify('error', err.message || 'Failed to send test Telegram alert')
+      const errMsg = err.message || 'Failed to send test Telegram alert'
+      setUserTelegramFeedback({ type: 'error', message: errMsg })
+      showNotify('error', errMsg)
     } finally {
       setTestingUserTelegram(false)
     }
@@ -6163,6 +6173,42 @@ export default function AdminDashboard({ user, onLogout }) {
                         <span>{testingUserTelegram ? 'Sending...' : 'Send Test'}</span>
                       </button>
                     </div>
+                    {userTelegramFeedback && (
+                      <div
+                        role="alert"
+                        style={{
+                          marginTop: 8,
+                          padding: '8px 10px',
+                          borderRadius: 6,
+                          border: `1px solid ${userTelegramFeedback.type === 'error' ? '#fecaca' : '#bbf7d0'}`,
+                          background: userTelegramFeedback.type === 'error' ? '#fef2f2' : '#f0fdf4',
+                          color: userTelegramFeedback.type === 'error' ? '#991b1b' : '#166534',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          justifyContent: 'space-between',
+                          gap: 8,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                          {userTelegramFeedback.type === 'error' ? (
+                            <AlertTriangle size={14} color="#dc2626" style={{ flexShrink: 0, marginTop: 1 }} />
+                          ) : (
+                            <CheckCircle2 size={14} color="#16a34a" style={{ flexShrink: 0, marginTop: 1 }} />
+                          )}
+                          <span>{userTelegramFeedback.message}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setUserTelegramFeedback(null)}
+                          style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, display: 'inline-flex' }}
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Per-user Event Preferences */}
