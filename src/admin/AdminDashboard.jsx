@@ -76,15 +76,17 @@ import AdminLifecycleSettingsModal from '../components/AdminLifecycleSettingsMod
 import StaffHistoryDrawer from '../components/StaffHistoryDrawer'
 import FrdReportsView from '../components/FrdReportsView'
 import FollowupScheduleView from '../components/FollowupScheduleView'
+import MyProfileTelegramModal from '../components/MyProfileTelegramModal'
 import ReferralDashboard from '../components/ReferralDashboard'
 import DiscountReportView from '../components/DiscountReportView'
 import DiscountApprovalsView from '../components/DiscountApprovalsView'
 import ResponseSlaReportView from '../components/ResponseSlaReportView'
 import { getStatusBadgeStyle, getHeatBadgeStyle, LEAD_STATUSES, formatINR } from '../constants/leadLifecycle'
 
-export default function AdminDashboard({ user, onLogout }) {
+export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const [showMyProfileModal, setShowMyProfileModal] = useState(false)
 
   // Derive active tab from URL path (stays on refreshed page!)
   const getTabFromPath = path => {
@@ -1666,7 +1668,32 @@ export default function AdminDashboard({ user, onLogout }) {
           ))}
         </div>
 
-        <div className="sidebar-footer">
+        <div className="sidebar-footer" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => {
+              setMobileMenuOpen(false)
+              setShowMyProfileModal(true)
+            }}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              background: 'rgba(56, 189, 248, 0.14)',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
+              color: '#bae6fd',
+              padding: '8px 10px',
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <Send size={13} />
+            <span>My Profile &amp; Telegram</span>
+          </button>
           <button className="btn-sidebar-logout" onClick={onLogout}>
             <LogOut size={14} />
             <span>Sign Out</span>
@@ -6211,19 +6238,26 @@ export default function AdminDashboard({ user, onLogout }) {
                     )}
                   </div>
 
-                  {/* Per-user Event Preferences */}
+                  {/* Role-Aware Per-User Event Preferences */}
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                      Notify This User On:
+                      {userFormData.role === 'admin'
+                        ? 'Admin Alerts for This Account:'
+                        : 'Personal Alerts for This Counselor (Own Leads Only):'}
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 6 }}>
-                      {[
-                        { key: 'newLead', label: 'New Leads Captured' },
-                        { key: 'leadAssigned', label: 'Lead Assigned to Me' },
-                        { key: 'discountRequested', label: 'Discount Requests (Admin)' },
-                        { key: 'discountDecision', label: 'Discount Approved / Rejected' },
-                        { key: 'businessMilestone', label: 'Business Milestones' },
-                      ].map(pref => (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))', gap: 6 }}>
+                      {(userFormData.role === 'admin'
+                        ? [
+                            { key: 'newLead', label: 'New Leads Captured' },
+                            { key: 'discountRequested', label: 'Discount Approval Requests' },
+                            { key: 'businessMilestone', label: 'Business Milestones Reached' },
+                          ]
+                        : [
+                            { key: 'leadAssigned', label: 'Leads Assigned to Counselor' },
+                            { key: 'discountDecision', label: 'Discount Approved / Rejected' },
+                            { key: 'businessMilestone', label: 'Own Lead Milestone Updates' },
+                          ]
+                      ).map(pref => (
                         <label
                           key={pref.key}
                           style={{
@@ -6916,6 +6950,20 @@ export default function AdminDashboard({ user, onLogout }) {
           showNotify={showNotify}
         />
       )}
+
+      {/* Self-Service Admin Profile & Telegram Chat ID Modal */}
+      <MyProfileTelegramModal
+        isOpen={showMyProfileModal}
+        user={user}
+        onClose={() => setShowMyProfileModal(false)}
+        onProfileUpdated={updatedUser => {
+          onUserUpdated?.(updatedUser)
+          if (activeTab === 'users') {
+            loadUsers(usersPage, showDisabledUsers, userRoleFilter, userSearch)
+          }
+        }}
+        showNotify={showNotify}
+      />
     </div>
   )
 }

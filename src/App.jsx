@@ -88,14 +88,14 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<AdminDashboard user={user} onLogout={handleLogout} />} />
-        <Route path="/pool" element={<AdminDashboard user={user} onLogout={handleLogout} />} />
-        <Route path="/leads" element={<AdminDashboard user={user} onLogout={handleLogout} />} />
+        <Route path="/dashboard" element={<AdminDashboard user={user} onLogout={handleLogout} onUserUpdated={setUser} />} />
+        <Route path="/pool" element={<AdminDashboard user={user} onLogout={handleLogout} onUserUpdated={setUser} />} />
+        <Route path="/leads" element={<AdminDashboard user={user} onLogout={handleLogout} onUserUpdated={setUser} />} />
         <Route path="/all-leads" element={<Navigate to="/leads" replace />} />
-        <Route path="/reports" element={<AdminDashboard user={user} onLogout={handleLogout} />} />
-        <Route path="/reports/:reportSlug" element={<AdminDashboard user={user} onLogout={handleLogout} />} />
-        <Route path="/discount-approvals" element={<AdminDashboard user={user} onLogout={handleLogout} />} />
-        <Route path="/users" element={<AdminDashboard user={user} onLogout={handleLogout} />} />
+        <Route path="/reports" element={<AdminDashboard user={user} onLogout={handleLogout} onUserUpdated={setUser} />} />
+        <Route path="/reports/:reportSlug" element={<AdminDashboard user={user} onLogout={handleLogout} onUserUpdated={setUser} />} />
+        <Route path="/discount-approvals" element={<AdminDashboard user={user} onLogout={handleLogout} onUserUpdated={setUser} />} />
+        <Route path="/users" element={<AdminDashboard user={user} onLogout={handleLogout} onUserUpdated={setUser} />} />
         <Route path="/team" element={<Navigate to="/users" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

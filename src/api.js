@@ -51,6 +51,26 @@ export const api = {
     })
   },
 
+  getMyProfile: async () => {
+    return await request('/auth/profile', {
+      method: 'GET',
+    })
+  },
+
+  updateMyProfile: async payload => {
+    return await request('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  testMyTelegram: async payload => {
+    return await request('/auth/profile/telegram-test', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
   // Leads API Handlers (Supports backend pagination by 30)
   getLeads: async (params = {}) => {
     const query = new URLSearchParams()
