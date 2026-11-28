@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react'
-import { X, Settings, Plus, Trash2, Save, RotateCcw, GraduationCap, Shield, Edit2, IndianRupee } from 'lucide-react'
+import { X, Settings, Plus, Trash2, Save, RotateCcw, GraduationCap, Shield, Edit2, IndianRupee, Send, Bell, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { api } from '../api'
+
+const FALLBACK_TELEGRAM_EVENTS = [
+  { key: 'newLead', label: 'New Lead Captured', audience: 'Admins (Telegram-enabled)', placeholders: ['leadName', 'phone', 'course', 'source', 'assignedTo'] },
+  { key: 'leadAssigned', label: 'Lead Assigned / Auto-Assigned', audience: 'Assigned Sales Counselor', placeholders: ['leadName', 'phone', 'course', 'assignedBy', 'count'] },
+  { key: 'discountRequested', label: 'Discount Approval Requested', audience: 'Admins (Telegram-enabled)', placeholders: ['leadName', 'phone', 'course', 'standardFee', 'agreedAmount', 'discountAmount', 'reason', 'requestedBy'] },
+  { key: 'discountApproved', label: 'Discount Approved by Admin', audience: 'Requesting Counselor', placeholders: ['leadName', 'phone', 'targetStatus', 'agreedAmount', 'discountAmount', 'decidedBy', 'remarks'] },
+  { key: 'discountRejected', label: 'Discount Rejected by Admin', audience: 'Requesting Counselor', placeholders: ['leadName', 'phone', 'agreedAmount', 'decidedBy', 'remarks'] },
+  { key: 'businessMilestone', label: 'Business Milestone Reached', audience: 'Admins (Telegram-enabled)', placeholders: ['status', 'leadName', 'phone', 'course', 'agreedAmount', 'paidAmount', 'assignedTo'] },
+]
 
 export default function AdminLifecycleSettingsModal({
   isOpen,
@@ -21,6 +30,23 @@ export default function AdminLifecycleSettingsModal({
   const [allowSalesFinancialEdit, setAllowSalesFinancialEdit] = useState(true)
   const [lostReasonsText, setLostReasonsText] = useState('')
   const [outcomeCategories, setOutcomeCategories] = useState([])
+
+  // Telegram Notification Settings & Message Templates
+  const [telegramBotStatus, setTelegramBotStatus] = useState({ configured: false, botUsername: '', botName: '' })
+  const [defaultTelegramTemplates, setDefaultTelegramTemplates] = useState({})
+  const [telegramEventMeta, setTelegramEventMeta] = useState(FALLBACK_TELEGRAM_EVENTS)
+  const [telegramEnabled, setTelegramEnabled] = useState(true)
+  const [telegramEvents, setTelegramEvents] = useState({
+    newLead: true,
+    leadAssigned: true,
+    discountRequested: true,
+    discountApproved: true,
+    discountRejected: true,
+    businessMilestone: true,
+  })
+  const [telegramTemplates, setTelegramTemplates] = useState({})
+  const [testChatId, setTestChatId] = useState('')
+  const [testingEventKey, setTestingEventKey] = useState('')
 
   // Program & Fee Structure Master
   const [programs, setPrograms] = useState([])
@@ -72,6 +98,29 @@ export default function AdminLifecycleSettingsModal({
       setLostReasonsText((s.lostReasons || []).join('\n'))
       setOutcomeCategories(s.outcomeCategories || [])
       setPrograms(res.programs || [])
+      if (res.telegramBotStatus) {
+        setTelegramBotStatus(res.telegramBotStatus)
+      }
+      if (res.defaultTelegramTemplates) {
+        setDefaultTelegramTemplates(res.defaultTelegramTemplates)
+      }
+      if (Array.isArray(res.telegramEventMeta) && res.telegramEventMeta.length > 0) {
+        setTelegramEventMeta(res.telegramEventMeta)
+      }
+      const tg = s.telegramSettings || {}
+      setTelegramEnabled(tg.enabled !== false)
+      setTelegramEvents({
+        newLead: tg.events?.newLead !== false,
+        leadAssigned: tg.events?.leadAssigned !== false,
+        discountRequested: tg.events?.discountRequested !== false,
+        discountApproved: tg.events?.discountApproved !== false,
+        discountRejected: tg.events?.discountRejected !== false,
+        businessMilestone: tg.events?.businessMilestone !== false,
+      })
+      setTelegramTemplates({
+        ...(res.defaultTelegramTemplates || {}),
+        ...(tg.templates || {}),
+      })
     } catch (err) {
       showNotify?.('error', err.message || 'Failed to load CRM settings')
     } finally {
@@ -95,13 +144,38 @@ export default function AdminLifecycleSettingsModal({
         allowSalesFinancialEdit,
         lostReasons,
         outcomeCategories,
+        telegramSettings: {
+          enabled: telegramEnabled,
+          events: telegramEvents,
+          templates: telegramTemplates,
+        },
       })
-      showNotify?.('success', 'CRM Lifecycle & Recycle Policy saved!')
+      showNotify?.('success', tab === 'telegram' ? 'Telegram notification settings & templates saved!' : 'CRM Lifecycle & Recycle Policy saved!')
       onSaved?.()
     } catch (err) {
       showNotify?.('error', err.message || 'Failed to save policy')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleSendTestTemplate = async eventKey => {
+    if (!testChatId.trim()) {
+      showNotify?.('error', 'Enter a Telegram Chat ID in the test bar above first.')
+      return
+    }
+    setTestingEventKey(eventKey)
+    try {
+      const res = await api.testCrmTelegram({
+        chatId: testChatId.trim(),
+        eventKey,
+        customTemplate: telegramTemplates[eventKey] || defaultTelegramTemplates[eventKey] || '',
+      })
+      showNotify?.('success', res.message || 'Test Telegram notification sent!')
+    } catch (err) {
+      showNotify?.('error', err.message || 'Failed to send test Telegram alert')
+    } finally {
+      setTestingEventKey('')
     }
   }
 
@@ -307,6 +381,7 @@ export default function AdminLifecycleSettingsModal({
             { id: 'policy', label: 'Lost Cycles & Business Rules' },
             { id: 'programs', label: `Course & Fee Structure (${programs.length})` },
             { id: 'categories', label: `Outcome Categories (${outcomeCategories.length})` },
+            { id: 'telegram', label: 'Telegram Alerts & Templates' },
           ].map(t => (
             <button
               key={t.id}
@@ -688,7 +763,7 @@ export default function AdminLifecycleSettingsModal({
               </table>
               </div>
             </div>
-          ) : (
+          ) : tab === 'categories' ? (
             <div>
               <form
                 onSubmit={handleAddCategory}
@@ -915,6 +990,253 @@ export default function AdminLifecycleSettingsModal({
                 Click <strong>Save Policy</strong> below to persist category edits.
               </div>
             </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Bot Status Banner */}
+              <div
+                style={{
+                  border: `1px solid ${telegramBotStatus.configured ? '#bae6fd' : '#fecaca'}`,
+                  background: telegramBotStatus.configured ? '#f0f9ff' : '#fef2f2',
+                  borderRadius: 8,
+                  padding: '12px 14px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  {telegramBotStatus.configured ? (
+                    <CheckCircle2 size={18} color="#0284c7" style={{ flexShrink: 0, marginTop: 2 }} />
+                  ) : (
+                    <AlertTriangle size={18} color="#dc2626" style={{ flexShrink: 0, marginTop: 2 }} />
+                  )}
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: telegramBotStatus.configured ? '#0369a1' : '#991b1b' }}>
+                      {telegramBotStatus.configured
+                        ? `Telegram Bot Connected${telegramBotStatus.botUsername ? ` (${telegramBotStatus.botUsername})` : ''}`
+                        : 'Telegram Bot Token Not Found in Server .env'}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#475569', marginTop: 2, lineHeight: 1.45 }}>
+                      {telegramBotStatus.configured
+                        ? 'Bot token is loaded securely from server .env. Enable users and assign their Telegram Chat ID in User Management. Each user must send /start to the bot first to receive messages.'
+                        : 'Add telegram=<bot_token> or TELEGRAM_BOT_TOKEN=<bot_token> in LM-be/.env and restart the server.'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Master Global Switch */}
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 8,
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: telegramEnabled ? '#0f172a' : '#64748b',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={telegramEnabled}
+                    onChange={e => setTelegramEnabled(e.target.checked)}
+                  />
+                  <span>{telegramEnabled ? 'Master Alerts: ENABLED' : 'Master Alerts: DISABLED'}</span>
+                </label>
+              </div>
+
+              {/* Test Delivery Bar */}
+              <div
+                style={{
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  background: '#f8fafc',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <Bell size={14} color="#0284c7" />
+                  <span>Test Chat ID:</span>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Enter Chat ID (e.g. 123456789) to preview alerts..."
+                  value={testChatId}
+                  onChange={e => setTestChatId(e.target.value)}
+                  style={{
+                    flex: '1 1 200px',
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: 12,
+                    background: '#ffffff',
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn-pulse-secondary"
+                  disabled={Boolean(testingEventKey) || !testChatId.trim()}
+                  onClick={() => handleSendTestTemplate('newLead')}
+                  style={{ fontSize: 12, padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                >
+                  <Send size={13} />
+                  <span>{testingEventKey === 'newLead' ? 'Sending...' : 'Send Quick Test'}</span>
+                </button>
+              </div>
+
+              {/* Event Toggles & Customizable Message Templates */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {telegramEventMeta.map(ev => {
+                  const isOn = telegramEvents[ev.key] !== false
+                  const currentTemplate = telegramTemplates[ev.key] ?? defaultTelegramTemplates[ev.key] ?? ''
+                  return (
+                    <div
+                      key={ev.key}
+                      style={{
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 8,
+                        padding: 12,
+                        background: isOn ? '#ffffff' : '#f8fafc',
+                        opacity: telegramEnabled ? 1 : 0.65,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{ev.label}</div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>Recipients: {ev.audience}</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setTelegramTemplates(prev => ({
+                                ...prev,
+                                [ev.key]: defaultTelegramTemplates[ev.key] || prev[ev.key] || '',
+                              }))
+                            }
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              padding: '4px 8px',
+                              borderRadius: 6,
+                              border: '1px solid #cbd5e1',
+                              background: '#ffffff',
+                              color: '#475569',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Reset Default
+                          </button>
+                          <button
+                            type="button"
+                            disabled={Boolean(testingEventKey) || !testChatId.trim()}
+                            onClick={() => handleSendTestTemplate(ev.key)}
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              padding: '4px 8px',
+                              borderRadius: 6,
+                              border: '1px solid #bae6fd',
+                              background: '#f0f9ff',
+                              color: '#0369a1',
+                              cursor: testChatId.trim() ? 'pointer' : 'not-allowed',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                            title="Send sample preview of this template to the Test Chat ID above"
+                          >
+                            <Send size={11} />
+                            <span>{testingEventKey === ev.key ? 'Sending...' : 'Test'}</span>
+                          </button>
+                          <label
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: isOn ? '#15803d' : '#64748b',
+                              cursor: 'pointer',
+                              padding: '4px 8px',
+                              borderRadius: 6,
+                              background: isOn ? '#dcfce7' : '#e2e8f0',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isOn}
+                              onChange={e =>
+                                setTelegramEvents(prev => ({ ...prev, [ev.key]: e.target.checked }))
+                              }
+                            />
+                            <span>{isOn ? 'Enabled' : 'Disabled'}</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <textarea
+                        rows={4}
+                        value={currentTemplate}
+                        onChange={e =>
+                          setTelegramTemplates(prev => ({ ...prev, [ev.key]: e.target.value }))
+                        }
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: 6,
+                          border: '1px solid #cbd5e1',
+                          fontSize: 12,
+                          fontFamily: 'monospace',
+                          lineHeight: 1.45,
+                          boxSizing: 'border-box',
+                        }}
+                      />
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+                          Click variable to insert:
+                        </span>
+                        {(ev.placeholders || []).map(ph => (
+                          <button
+                            key={ph}
+                            type="button"
+                            onClick={() =>
+                              setTelegramTemplates(prev => ({
+                                ...prev,
+                                [ev.key]: `${prev[ev.key] ?? defaultTelegramTemplates[ev.key] ?? ''} {{${ph}}}`,
+                              }))
+                            }
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: '2px 7px',
+                              borderRadius: 4,
+                              border: '1px solid #cbd5e1',
+                              background: '#f1f5f9',
+                              color: '#1b2b6b',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {`{{${ph}}}`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           )}
         </div>
 
@@ -925,7 +1247,13 @@ export default function AdminLifecycleSettingsModal({
           {tab !== 'programs' && (
             <button type="button" className="btn-pulse" onClick={handleSavePolicy} disabled={saving}>
               <Save size={14} />
-              <span>{saving ? 'Saving...' : 'Save Policy & Categories'}</span>
+              <span>
+                {saving
+                  ? 'Saving...'
+                  : tab === 'telegram'
+                    ? 'Save Telegram Settings'
+                    : 'Save Policy & Categories'}
+              </span>
             </button>
           )}
         </div>

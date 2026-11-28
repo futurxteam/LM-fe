@@ -19,10 +19,15 @@ async function request(endpoint, options = {}) {
 
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}))
-    if (res.status === 403 && errData.code === 'ACCOUNT_DISABLED' && !endpoint.startsWith('/auth/login')) {
+    const isSessionInvalid =
+      !endpoint.startsWith('/auth/login') &&
+      (res.status === 401 || (res.status === 403 && errData.code === 'ACCOUNT_DISABLED'))
+    if (isSessionInvalid) {
       localStorage.removeItem('leadpulse_token')
       localStorage.removeItem('leadpulse_user')
-      window.location.href = '/'
+      if (!endpoint.startsWith('/auth/me') && window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
     }
     throw new Error(errData.message || `Request failed with status ${res.status}`)
   }
@@ -37,6 +42,12 @@ export const api = {
     return await request('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password, role }),
+    })
+  },
+
+  getMe: async () => {
+    return await request('/auth/me', {
+      method: 'GET',
     })
   },
 
@@ -343,6 +354,27 @@ export const api = {
   updateCrmSettings: async payload => {
     return await request('/crm/settings', {
       method: 'PUT',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  testCrmTelegram: async payload => {
+    return await request('/crm/telegram/test', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  updateUserTelegram: async (id, payload) => {
+    return await request(`/users/${id}/telegram`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  testUserTelegram: async (id, payload = {}) => {
+    return await request(`/users/${id}/telegram/test`, {
+      method: 'POST',
       body: JSON.stringify(payload),
     })
   },

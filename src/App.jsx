@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-
 import Login from './Login'
 import AdminDashboard from './admin/AdminDashboard'
 import SalesDashboard from './sales/SalesDashboard'
+import { api } from './api'
 
 export default function App() {
   const [user, setUser] = useState(null)
@@ -11,16 +12,42 @@ export default function App() {
   const location = useLocation()
 
   useEffect(() => {
-    // Check persisted session
-    const savedUser = localStorage.getItem('leadpulse_user')
-    if (savedUser) {
+    let active = true
+
+    const verifySession = async () => {
+      const token = localStorage.getItem('leadpulse_token')
+      if (!token) {
+        localStorage.removeItem('leadpulse_user')
+        if (active) {
+          setUser(null)
+          setInitialCheck(false)
+        }
+        return
+      }
+
       try {
-        setUser(JSON.parse(savedUser))
+        const res = await api.getMe()
+        if (active && res && res.success && res.user) {
+          localStorage.setItem('leadpulse_user', JSON.stringify(res.user))
+          setUser(res.user)
+        } else {
+          localStorage.removeItem('leadpulse_token')
+          localStorage.removeItem('leadpulse_user')
+          if (active) setUser(null)
+        }
       } catch (err) {
-        console.error('Failed to parse saved user', err)
+        localStorage.removeItem('leadpulse_token')
+        localStorage.removeItem('leadpulse_user')
+        if (active) setUser(null)
+      } finally {
+        if (active) setInitialCheck(false)
       }
     }
-    setInitialCheck(false)
+
+    verifySession()
+    return () => {
+      active = false
+    }
   }, [])
 
   const handleLoginSuccess = (authenticatedUser) => {

@@ -257,7 +257,18 @@ export default function AdminDashboard({ user, onLogout }) {
     title: 'Admissions Counselor',
     specialty: 'Healthcare Admissions',
     active: true,
+    telegramChatId: '',
+    telegramNotificationsEnabled: false,
+    telegramPreferences: {
+      newLead: true,
+      leadAssigned: true,
+      discountRequested: true,
+      discountDecision: true,
+      businessMilestone: true,
+    },
   })
+  const [testingUserTelegram, setTestingUserTelegram] = useState(false)
+  const [togglingTelegramUserId, setTogglingTelegramUserId] = useState(null)
   const [savingUser, setSavingUser] = useState(false)
   const [showDisableUserModal, setShowDisableUserModal] = useState(false)
   const [disablingUser, setDisablingUser] = useState(null)
@@ -1299,6 +1310,15 @@ export default function AdminDashboard({ user, onLogout }) {
       specialty: 'Healthcare Admissions',
       groupId: '',
       active: true,
+      telegramChatId: '',
+      telegramNotificationsEnabled: false,
+      telegramPreferences: {
+        newLead: true,
+        leadAssigned: true,
+        discountRequested: true,
+        discountDecision: true,
+        businessMilestone: true,
+      },
     })
     setShowUserModal(true)
   }
@@ -1314,8 +1334,58 @@ export default function AdminDashboard({ user, onLogout }) {
       specialty: u.specialty || 'Healthcare Admissions',
       groupId: u.groupId || '',
       active: u.active !== false,
+      telegramChatId: u.telegramChatId || '',
+      telegramNotificationsEnabled: Boolean(u.telegramNotificationsEnabled),
+      telegramPreferences: {
+        newLead: u.telegramPreferences?.newLead !== false,
+        leadAssigned: u.telegramPreferences?.leadAssigned !== false,
+        discountRequested: u.telegramPreferences?.discountRequested !== false,
+        discountDecision: u.telegramPreferences?.discountDecision !== false,
+        businessMilestone: u.telegramPreferences?.businessMilestone !== false,
+      },
     })
     setShowUserModal(true)
+  }
+
+  const handleToggleUserTelegram = async (e, u) => {
+    e.stopPropagation()
+    if (!u.telegramChatId) {
+      showNotify('error', `Set a Telegram Chat ID for ${u.name} first.`)
+      handleOpenEditUser(u)
+      return
+    }
+    setTogglingTelegramUserId(u.id)
+    try {
+      const nextEnabled = !u.telegramNotificationsEnabled
+      const res = await api.updateUserTelegram(u.id, {
+        telegramNotificationsEnabled: nextEnabled,
+      })
+      showNotify('success', res.message || `Telegram alerts ${nextEnabled ? 'enabled' : 'disabled'} for ${u.name}`)
+      await loadUsers(usersPage, showDisabledUsers, userRoleFilter, userSearch)
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to update Telegram setting')
+    } finally {
+      setTogglingTelegramUserId(null)
+    }
+  }
+
+  const handleTestUserTelegram = async () => {
+    const cleanChatId = String(userFormData.telegramChatId || '').trim()
+    if (!cleanChatId) {
+      showNotify('error', 'Enter a Telegram Chat ID first to send a test alert.')
+      return
+    }
+    setTestingUserTelegram(true)
+    try {
+      const res = editingUser
+        ? await api.testUserTelegram(editingUser.id, { chatId: cleanChatId })
+        : await api.testCrmTelegram({ chatId: cleanChatId, eventKey: 'newLead' })
+      showNotify('success', res.message || 'Test Telegram alert sent!')
+    } catch (err) {
+      showNotify('error', err.message || 'Failed to send test Telegram alert')
+    } finally {
+      setTestingUserTelegram(false)
+    }
   }
 
   const handleSaveUser = async e => {
@@ -3762,23 +3832,46 @@ export default function AdminDashboard({ user, onLogout }) {
                       </button>
                     </div>
 
-                    {/* Primary Add Button */}
-                    <button
-                      className="btn-pulse"
-                      onClick={handleOpenCreateUser}
-                      style={{
-                        background: 'linear-gradient(135deg, #1877f2 0%, #0d5cb6 100%)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '8px 16px',
-                        fontSize: 13,
-                        fontWeight: 700,
-                      }}
-                    >
-                      <UserPlus size={15} />
-                      <span>Add New Advisor / User</span>
-                    </button>
+                    {/* Telegram Settings + Primary Add Button */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn-pulse-secondary"
+                        onClick={() => openSettingsModal('telegram')}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '8px 13px',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: '#0369a1',
+                          borderColor: '#bae6fd',
+                          background: '#f0f9ff',
+                        }}
+                        title="Configure global Telegram alerts & customize notification message templates"
+                      >
+                        <Send size={14} />
+                        <span>Telegram Alerts &amp; Templates</span>
+                      </button>
+
+                      <button
+                        className="btn-pulse"
+                        onClick={handleOpenCreateUser}
+                        style={{
+                          background: 'linear-gradient(135deg, #1877f2 0%, #0d5cb6 100%)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '8px 16px',
+                          fontSize: 13,
+                          fontWeight: 700,
+                        }}
+                      >
+                        <UserPlus size={15} />
+                        <span>Add New Advisor / User</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Users Directory Card */}
@@ -3850,6 +3943,7 @@ export default function AdminDashboard({ user, onLogout }) {
                                 <th>Role &amp; Title</th>
                                 <th>Specialty / Territory</th>
                                 <th>{showDisabledUsers ? 'Historical Allocated Leads' : 'Lead Load & Contact Rate'}</th>
+                                <th>Telegram Alerts</th>
                                 <th>Status</th>
                                 <th style={{ textAlign: 'right' }}>Actions</th>
                               </tr>
@@ -3930,6 +4024,68 @@ export default function AdminDashboard({ user, onLogout }) {
                                       <span style={{ fontSize: 11, color: '#8b5cf6', fontWeight: 600 }}>
                                         Full System Admin Access
                                       </span>
+                                    )}
+                                  </td>
+                                  <td onClick={e => e.stopPropagation()}>
+                                    {u.telegramChatId ? (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
+                                        <button
+                                          type="button"
+                                          disabled={togglingTelegramUserId === u.id || !u.active}
+                                          onClick={e => handleToggleUserTelegram(e, u)}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 5,
+                                            padding: '3px 9px',
+                                            borderRadius: 12,
+                                            border: `1px solid ${u.telegramNotificationsEnabled ? '#7dd3fc' : '#cbd5e1'}`,
+                                            background: u.telegramNotificationsEnabled ? '#e0f2fe' : '#f1f5f9',
+                                            color: u.telegramNotificationsEnabled ? '#0369a1' : '#64748b',
+                                            fontSize: 11,
+                                            fontWeight: 700,
+                                            cursor: u.active ? 'pointer' : 'not-allowed',
+                                          }}
+                                          title="Click to enable or disable Telegram notifications for this user"
+                                        >
+                                          <Send size={11} />
+                                          <span>
+                                            {togglingTelegramUserId === u.id
+                                              ? 'Saving...'
+                                              : u.telegramNotificationsEnabled
+                                                ? 'Enabled'
+                                                : 'Disabled'}
+                                          </span>
+                                        </button>
+                                        <span style={{ fontSize: 10, color: '#64748b' }}>
+                                          Chat ID: {u.telegramChatId}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={e => {
+                                          e.stopPropagation()
+                                          handleOpenEditUser(u)
+                                        }}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                          padding: '3px 8px',
+                                          borderRadius: 10,
+                                          border: '1px dashed #cbd5e1',
+                                          background: '#f8fafc',
+                                          color: '#64748b',
+                                          fontSize: 11,
+                                          fontWeight: 600,
+                                          cursor: 'pointer',
+                                        }}
+                                        title="Set Telegram Chat ID to enable alerts for this user"
+                                      >
+                                        <Send size={11} />
+                                        <span>Setup Chat ID</span>
+                                      </button>
                                     )}
                                   </td>
                                   <td>
@@ -5908,6 +6064,152 @@ export default function AdminDashboard({ user, onLogout }) {
                       }}
                     />
                     <Lock size={15} style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }} />
+                  </div>
+                </div>
+
+                {/* Telegram Notifications Configuration for this User */}
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 8,
+                    background: '#f0f9ff',
+                    border: '1px solid #bae6fd',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#0369a1', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <Send size={14} />
+                        <span>Telegram Notifications</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: '#475569' }}>
+                        Enable or disable instant Telegram bot alerts for this user
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setUserFormData(prev => ({
+                          ...prev,
+                          telegramNotificationsEnabled: !prev.telegramNotificationsEnabled,
+                        }))
+                      }
+                      style={{
+                        background: userFormData.telegramNotificationsEnabled ? '#0284c7' : '#cbd5e1',
+                        border: 'none',
+                        width: 44,
+                        height: 24,
+                        borderRadius: 12,
+                        padding: 2,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: userFormData.telegramNotificationsEnabled ? 'flex-end' : 'flex-start',
+                        transition: 'background 0.2s',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: '50%',
+                          background: '#ffffff',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                        }}
+                      />
+                    </button>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      Telegram Chat ID (User must press /start on the bot first)
+                    </label>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <input
+                        type="text"
+                        placeholder="e.g. 123456789"
+                        value={userFormData.telegramChatId || ''}
+                        onChange={e =>
+                          setUserFormData(prev => ({ ...prev, telegramChatId: e.target.value }))
+                        }
+                        style={{
+                          flex: '1 1 180px',
+                          padding: '8px 10px',
+                          borderRadius: 6,
+                          border: '1px solid #cbd5e1',
+                          fontSize: 12,
+                          background: '#ffffff',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleTestUserTelegram}
+                        disabled={testingUserTelegram || !String(userFormData.telegramChatId || '').trim()}
+                        className="btn-pulse-secondary"
+                        style={{
+                          fontSize: 11,
+                          padding: '7px 12px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          background: '#ffffff',
+                        }}
+                      >
+                        <Send size={12} />
+                        <span>{testingUserTelegram ? 'Sending...' : 'Send Test'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Per-user Event Preferences */}
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                      Notify This User On:
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 6 }}>
+                      {[
+                        { key: 'newLead', label: 'New Leads Captured' },
+                        { key: 'leadAssigned', label: 'Lead Assigned to Me' },
+                        { key: 'discountRequested', label: 'Discount Requests (Admin)' },
+                        { key: 'discountDecision', label: 'Discount Approved / Rejected' },
+                        { key: 'businessMilestone', label: 'Business Milestones' },
+                      ].map(pref => (
+                        <label
+                          key={pref.key}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            fontSize: 11,
+                            color: '#1e293b',
+                            background: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: 6,
+                            padding: '5px 8px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={userFormData.telegramPreferences?.[pref.key] !== false}
+                            onChange={e =>
+                              setUserFormData(prev => ({
+                                ...prev,
+                                telegramPreferences: {
+                                  ...(prev.telegramPreferences || {}),
+                                  [pref.key]: e.target.checked,
+                                },
+                              }))
+                            }
+                          />
+                          <span>{pref.label}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
