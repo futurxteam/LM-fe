@@ -271,6 +271,11 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
   })
   const [testingUserTelegram, setTestingUserTelegram] = useState(false)
   const [userTelegramFeedback, setUserTelegramFeedback] = useState(null)
+  const [fetchingBotChats, setFetchingBotChats] = useState(false)
+  const [detectedBotChats, setDetectedBotChats] = useState([])
+  const [detectedBotUsername, setDetectedBotUsername] = useState('')
+  const [generatingConnectLink, setGeneratingConnectLink] = useState(false)
+  const [userConnectUrl, setUserConnectUrl] = useState('')
   const [togglingTelegramUserId, setTogglingTelegramUserId] = useState(null)
   const [savingUser, setSavingUser] = useState(false)
   const [showDisableUserModal, setShowDisableUserModal] = useState(false)
@@ -1305,6 +1310,7 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
   const handleOpenCreateUser = () => {
     setEditingUser(null)
     setUserTelegramFeedback(null)
+    setUserConnectUrl('')
     setUserFormData({
       name: '',
       email: '',
@@ -1330,6 +1336,7 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
   const handleOpenEditUser = u => {
     setEditingUser(u)
     setUserTelegramFeedback(null)
+    setUserConnectUrl('')
     setUserFormData({
       name: u.name || '',
       email: u.email || '',
@@ -1371,6 +1378,56 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
       showNotify('error', err.message || 'Failed to update Telegram setting')
     } finally {
       setTogglingTelegramUserId(null)
+    }
+  }
+
+  const handleGenerateUserConnectLink = async () => {
+    if (!editingUser?.id) return
+    setGeneratingConnectLink(true)
+    setUserTelegramFeedback(null)
+    try {
+      const res = await api.getUserTelegramConnectLink(editingUser.id)
+      if (res?.connectUrl) {
+        setUserConnectUrl(res.connectUrl)
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(res.connectUrl).catch(() => {})
+        }
+        setUserTelegramFeedback({
+          type: 'success',
+          message: `Unique Connect Link copied! Share it with ${editingUser.name} — once they press Start in Telegram, their Chat ID saves automatically.`,
+        })
+      }
+    } catch (err) {
+      setUserTelegramFeedback({
+        type: 'error',
+        message: err.message || 'Failed to generate unique Telegram connection link.',
+      })
+    } finally {
+      setGeneratingConnectLink(false)
+    }
+  }
+
+  const handleFetchBotChats = async () => {
+    setFetchingBotChats(true)
+    setUserTelegramFeedback(null)
+    try {
+      const res = await api.getTelegramChats()
+      const chats = Array.isArray(res?.chats) ? res.chats : []
+      setDetectedBotChats(chats)
+      setDetectedBotUsername(res?.botUsername || '')
+      if (chats.length === 0) {
+        setUserTelegramFeedback({
+          type: 'error',
+          message: `No recent chats found. Ask the user to open ${res?.botUsername || 'your Telegram bot'} and press Start (/start), then click Fetch Chat IDs again.`,
+        })
+      }
+    } catch (err) {
+      setUserTelegramFeedback({
+        type: 'error',
+        message: err.message || 'Failed to fetch recent Telegram chats.',
+      })
+    } finally {
+      setFetchingBotChats(false)
     }
   }
 
@@ -6182,6 +6239,48 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
                           background: '#ffffff',
                         }}
                       />
+                      {editingUser && (
+                        <button
+                          type="button"
+                          onClick={handleGenerateUserConnectLink}
+                          disabled={generatingConnectLink}
+                          className="btn-pulse-secondary"
+                          style={{
+                            fontSize: 11,
+                            padding: '7px 10px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            background: '#0284c7',
+                            color: '#ffffff',
+                            borderColor: '#0284c7',
+                          }}
+                          title="Generate & copy unique Telegram auto-connect link for this user"
+                        >
+                          <ExternalLink size={12} />
+                          <span>{generatingConnectLink ? 'Generating...' : 'Copy Connect Link'}</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleFetchBotChats}
+                        disabled={fetchingBotChats}
+                        className="btn-pulse-secondary"
+                        style={{
+                          fontSize: 11,
+                          padding: '7px 10px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          background: '#ffffff',
+                          color: '#0369a1',
+                          borderColor: '#7dd3fc',
+                        }}
+                        title="Detect Chat IDs of users who sent /start to your Telegram bot"
+                      >
+                        <RefreshCw size={12} className={fetchingBotChats ? 'animate-spin' : ''} />
+                        <span>{fetchingBotChats ? 'Fetching...' : 'Fetch Chat IDs'}</span>
+                      </button>
                       <button
                         type="button"
                         onClick={handleTestUserTelegram}
@@ -6200,6 +6299,80 @@ export default function AdminDashboard({ user, onLogout, onUserUpdated }) {
                         <span>{testingUserTelegram ? 'Sending...' : 'Send Test'}</span>
                       </button>
                     </div>
+                    {userConnectUrl && (
+                      <div
+                        style={{
+                          marginTop: 8,
+                          background: '#ffffff',
+                          border: '1px solid #7dd3fc',
+                          borderRadius: 6,
+                          padding: '8px 10px',
+                          fontSize: 11,
+                          color: '#0369a1',
+                          wordBreak: 'break-all',
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, marginBottom: 3 }}>Unique Auto-Connect Link for {editingUser?.name}:</div>
+                        <a href={userConnectUrl} target="_blank" rel="noreferrer" style={{ color: '#0284c7', fontWeight: 600 }}>
+                          {userConnectUrl}
+                        </a>
+                      </div>
+                    )}
+                    {detectedBotChats.length > 0 && (
+                      <div
+                        style={{
+                          marginTop: 8,
+                          background: '#ffffff',
+                          border: '1px solid #bae6fd',
+                          borderRadius: 6,
+                          padding: '8px 10px',
+                        }}
+                      >
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#0369a1', marginBottom: 6 }}>
+                          Recent Bot Chats{detectedBotUsername ? ` (${detectedBotUsername})` : ''} — Click a person to fill their Chat ID:
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 150, overflowY: 'auto' }}>
+                          {detectedBotChats.map(c => (
+                            <button
+                              key={c.chatId}
+                              type="button"
+                              onClick={() => {
+                                setUserFormData(prev => ({ ...prev, telegramChatId: c.chatId }))
+                                setUserTelegramFeedback({
+                                  type: 'success',
+                                  message: `Selected Chat ID ${c.chatId} (${c.displayName}). Click Send Test or Save Changes.`,
+                                })
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 8,
+                                padding: '6px 9px',
+                                borderRadius: 6,
+                                border: userFormData.telegramChatId === c.chatId ? '1px solid #0284c7' : '1px solid #e2e8f0',
+                                background: userFormData.telegramChatId === c.chatId ? '#e0f2fe' : '#f8fafc',
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                                width: '100%',
+                              }}
+                            >
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                                  {c.displayName} {c.username ? <span style={{ color: '#64748b', fontWeight: 500 }}>({c.username})</span> : null}
+                                </div>
+                                <div style={{ fontSize: 10, color: '#64748b' }}>
+                                  ID: <strong>{c.chatId}</strong> • {c.type}{c.lastText ? ` • "${c.lastText}"` : ''}
+                                </div>
+                              </div>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#0284c7', flexShrink: 0 }}>
+                                Use ID
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {userTelegramFeedback && (
                       <div
                         role="alert"

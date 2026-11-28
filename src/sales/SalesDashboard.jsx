@@ -54,7 +54,7 @@ import DiscountReportView from '../components/DiscountReportView'
 import ResponseSlaReportView from '../components/ResponseSlaReportView'
 import { getSalesDisplayStatus } from '../constants/leadLifecycle'
 
-export default function SalesDashboard({ user, onLogout }) {
+export default function SalesDashboard({ user, onLogout, onUserUpdated }) {
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -66,6 +66,9 @@ export default function SalesDashboard({ user, onLogout }) {
     ? location.pathname.replace('/reports/', '').split('/')[0]
     : ''
   const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0)
+  const [telegramConnectUrl, setTelegramConnectUrl] = useState('')
+  const [waitingTelegramLink, setWaitingTelegramLink] = useState(false)
+  const [checkingTelegramLink, setCheckingTelegramLink] = useState(false)
   const [discountNotifications, setDiscountNotifications] = useState([])
   const [myPendingDiscountCount, setMyPendingDiscountCount] = useState(0)
 
@@ -182,6 +185,76 @@ export default function SalesDashboard({ user, onLogout }) {
     setTimeout(() => setNotification(null), 4000)
   }
 
+  // Pre-fetch unique Telegram deep-link whenever salesperson is not linked yet
+  useEffect(() => {
+    if (user?.telegramChatId) {
+      setTelegramConnectUrl('')
+      setWaitingTelegramLink(false)
+      return
+    }
+    api
+      .getMyTelegramConnectLink()
+      .then(res => {
+        if (res?.alreadyLinked) {
+          api.checkMyTelegramLinkStatus().then(st => {
+            if (st?.user) {
+              localStorage.setItem('leadpulse_user', JSON.stringify(st.user))
+              onUserUpdated?.(st.user)
+            }
+          }).catch(() => {})
+        } else if (res?.connectUrl) {
+          setTelegramConnectUrl(res.connectUrl)
+        }
+      })
+      .catch(() => {})
+  }, [user?.id, user?.telegramChatId])
+
+  // Poll automatically after clicking Connect Telegram so once they press Start, Chat ID saves & button hides
+  useEffect(() => {
+    if (!waitingTelegramLink || user?.telegramChatId) return
+    let attempts = 0
+    const interval = setInterval(async () => {
+      attempts++
+      if (attempts > 25) {
+        clearInterval(interval)
+        setWaitingTelegramLink(false)
+        return
+      }
+      try {
+        const res = await api.checkMyTelegramLinkStatus()
+        if (res?.linked && res?.user) {
+          localStorage.setItem('leadpulse_user', JSON.stringify(res.user))
+          onUserUpdated?.(res.user)
+          setTelegramConnectUrl('')
+          setWaitingTelegramLink(false)
+          showNotify('success', 'Telegram connected to your profile successfully!')
+          clearInterval(interval)
+        }
+      } catch (_) {}
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [waitingTelegramLink, user?.telegramChatId])
+
+  const handleCheckTelegramNow = async () => {
+    setCheckingTelegramLink(true)
+    try {
+      const res = await api.checkMyTelegramLinkStatus()
+      if (res?.linked && res?.user) {
+        localStorage.setItem('leadpulse_user', JSON.stringify(res.user))
+        onUserUpdated?.(res.user)
+        setTelegramConnectUrl('')
+        setWaitingTelegramLink(false)
+        showNotify('success', 'Telegram connected to your profile successfully!')
+      } else {
+        showNotify('error', 'Not linked yet — tap Start in Telegram first, then verify again.')
+      }
+    } catch (err) {
+      showNotify('error', err.message || 'Could not verify link status')
+    } finally {
+      setCheckingTelegramLink(false)
+    }
+  }
+
   const openCallModal = lead => {
     setCallModalLead(lead)
     setCallStatus(lead.status || 'Contacted')
@@ -284,6 +357,55 @@ export default function SalesDashboard({ user, onLogout }) {
             <span>Active Queue:</span>
             <strong style={{ color: '#00c6ff' }}>{leads.length} Leads</strong>
           </div>
+          {!user?.telegramChatId && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <a
+                href={telegramConnectUrl || 'https://t.me/Futureace_crm_Bot'}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setWaitingTelegramLink(true)}
+                style={{
+                  width: '100%',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  padding: '7px 10px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(56, 189, 248, 0.5)',
+                  background: '#0284c7',
+                  color: '#ffffff',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                <Send size={12} />
+                <span>Connect Telegram</span>
+              </a>
+              {waitingTelegramLink && (
+                <button
+                  type="button"
+                  onClick={handleCheckTelegramNow}
+                  disabled={checkingTelegramLink}
+                  style={{
+                    width: '100%',
+                    padding: '5px 8px',
+                    borderRadius: 6,
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    background: 'rgba(255,255,255,0.08)',
+                    color: '#cbd5e1',
+                    fontSize: 10,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {checkingTelegramLink ? 'Checking...' : 'Pressed Start? Verify Link'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Nav Items */}
@@ -382,7 +504,32 @@ export default function SalesDashboard({ user, onLogout }) {
                 </p>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {!user?.telegramChatId && (
+                <a
+                  href={telegramConnectUrl || 'https://t.me/Futureace_crm_Bot'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setWaitingTelegramLink(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 12px',
+                    borderRadius: 6,
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                  title="Open Telegram bot and press Start to link your account"
+                >
+                  <Send size={13} />
+                  <span>Connect Telegram</span>
+                </a>
+              )}
               <button
                 type="button"
                 className="btn-pulse"

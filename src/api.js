@@ -71,6 +71,18 @@ export const api = {
     })
   },
 
+  getMyTelegramConnectLink: async () => {
+    return await request('/auth/telegram/connect-link', {
+      method: 'GET',
+    })
+  },
+
+  checkMyTelegramLinkStatus: async () => {
+    return await request('/auth/telegram/status', {
+      method: 'GET',
+    })
+  },
+
   // Leads API Handlers (Supports backend pagination by 30)
   getLeads: async (params = {}) => {
     const query = new URLSearchParams()
@@ -385,6 +397,10 @@ export const api = {
     })
   },
 
+  getTelegramChats: async () => {
+    return await request('/crm/telegram/chats', { method: 'GET' })
+  },
+
   updateUserTelegram: async (id, payload) => {
     return await request(`/users/${id}/telegram`, {
       method: 'PATCH',
@@ -396,6 +412,12 @@ export const api = {
     return await request(`/users/${id}/telegram/test`, {
       method: 'POST',
       body: JSON.stringify(payload),
+    })
+  },
+
+  getUserTelegramConnectLink: async id => {
+    return await request(`/users/${id}/telegram/connect-link`, {
+      method: 'POST',
     })
   },
 

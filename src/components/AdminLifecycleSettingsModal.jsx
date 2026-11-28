@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Settings, Plus, Trash2, Save, RotateCcw, GraduationCap, Shield, Edit2, IndianRupee, Send, Bell, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { X, Settings, Plus, Trash2, Save, RotateCcw, GraduationCap, Shield, Edit2, IndianRupee, Send, Bell, CheckCircle2, AlertTriangle, RefreshCw, ExternalLink } from 'lucide-react'
 import { api } from '../api'
 
 const FALLBACK_TELEGRAM_EVENTS = [
@@ -48,6 +48,8 @@ export default function AdminLifecycleSettingsModal({
   const [testChatId, setTestChatId] = useState('')
   const [testingEventKey, setTestingEventKey] = useState('')
   const [telegramFeedback, setTelegramFeedback] = useState(null) // { type: 'error' | 'success', message: string }
+  const [fetchingChats, setFetchingChats] = useState(false)
+  const [detectedChats, setDetectedChats] = useState([])
 
   // Program & Fee Structure Master
   const [programs, setPrograms] = useState([])
@@ -165,6 +167,29 @@ export default function AdminLifecycleSettingsModal({
       }
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleFetchTelegramChats = async () => {
+    setFetchingChats(true)
+    setTelegramFeedback(null)
+    try {
+      const res = await api.getTelegramChats()
+      const chats = Array.isArray(res?.chats) ? res.chats : []
+      setDetectedChats(chats)
+      if (chats.length === 0) {
+        setTelegramFeedback({
+          type: 'error',
+          message: `No recent chats found yet. Open ${telegramBotStatus.botUsername || 'the bot'} in Telegram and tap Start (/start), then click Fetch Chat IDs again.`,
+        })
+      }
+    } catch (err) {
+      setTelegramFeedback({
+        type: 'error',
+        message: err.message || 'Failed to fetch recent Telegram chats.',
+      })
+    } finally {
+      setFetchingChats(false)
     }
   }
 
@@ -1036,9 +1061,33 @@ export default function AdminLifecycleSettingsModal({
                     </div>
                     <div style={{ fontSize: 11, color: '#475569', marginTop: 2, lineHeight: 1.45 }}>
                       {telegramBotStatus.configured
-                        ? 'Bot token is loaded securely from server .env. Enable users and assign their Telegram Chat ID in User Management. Each user must send /start to the bot first to receive messages.'
+                        ? 'Bot token is loaded securely from server .env. Have any staff member open the bot and press Start (/start), then click "Fetch Chat IDs" below or inside User Management to pick their numeric Chat ID in 1 click.'
                         : 'Add telegram=<bot_token> or TELEGRAM_BOT_TOKEN=<bot_token> in LM-be/.env and restart the server.'}
                     </div>
+                    {telegramBotStatus.configured && telegramBotStatus.botUsername && (
+                      <a
+                        href={`https://t.me/${telegramBotStatus.botUsername.replace(/^@/, '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          marginTop: 6,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: '#0284c7',
+                          background: '#ffffff',
+                          border: '1px solid #bae6fd',
+                          padding: '3px 9px',
+                          borderRadius: 6,
+                          textDecoration: 'none',
+                        }}
+                      >
+                        <span>Open {telegramBotStatus.botUsername} in Telegram</span>
+                        <ExternalLink size={11} />
+                      </a>
+                    )}
                   </div>
                 </div>
 
@@ -1101,6 +1150,25 @@ export default function AdminLifecycleSettingsModal({
                 <button
                   type="button"
                   className="btn-pulse-secondary"
+                  disabled={fetchingChats}
+                  onClick={handleFetchTelegramChats}
+                  style={{
+                    fontSize: 12,
+                    padding: '6px 12px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    color: '#0369a1',
+                    borderColor: '#7dd3fc',
+                    background: '#ffffff',
+                  }}
+                >
+                  <RefreshCw size={13} className={fetchingChats ? 'animate-spin' : ''} />
+                  <span>{fetchingChats ? 'Fetching...' : 'Fetch Chat IDs'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-pulse-secondary"
                   disabled={Boolean(testingEventKey) || !testChatId.trim()}
                   onClick={() => handleSendTestTemplate('newLead')}
                   style={{ fontSize: 12, padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
@@ -1109,6 +1177,59 @@ export default function AdminLifecycleSettingsModal({
                   <span>{testingEventKey === 'newLead' ? 'Sending...' : 'Send Quick Test'}</span>
                 </button>
               </div>
+
+              {/* Detected Recent Bot Chats Picker */}
+              {detectedChats.length > 0 && (
+                <div
+                  style={{
+                    border: '1px solid #bae6fd',
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                    background: '#ffffff',
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#0369a1', marginBottom: 8 }}>
+                    Detected Bot Chats ({detectedChats.length}) — Click any chat to fill Test Chat ID (or copy for User Management):
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 8 }}>
+                    {detectedChats.map(c => (
+                      <button
+                        key={c.chatId}
+                        type="button"
+                        onClick={() => {
+                          setTestChatId(c.chatId)
+                          setTelegramFeedback({
+                            type: 'success',
+                            message: `Selected Chat ID ${c.chatId} (${c.displayName}). Click Send Quick Test to verify.`,
+                          })
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 8,
+                          padding: '8px 10px',
+                          borderRadius: 6,
+                          border: testChatId === c.chatId ? '1px solid #0284c7' : '1px solid #e2e8f0',
+                          background: testChatId === c.chatId ? '#e0f2fe' : '#f8fafc',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                            {c.displayName} {c.username ? <span style={{ color: '#64748b', fontWeight: 500 }}>({c.username})</span> : null}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#475569' }}>
+                            Chat ID: <strong>{c.chatId}</strong> • {c.type}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#0284c7', flexShrink: 0 }}>Use</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Inline Error / Success Feedback inside Modal */}
               {telegramFeedback && (

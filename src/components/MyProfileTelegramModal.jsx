@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   ExternalLink,
   Bell,
+  RefreshCw,
 } from 'lucide-react'
 import { api } from '../api'
 
@@ -33,6 +34,8 @@ export default function MyProfileTelegramModal({
     businessMilestone: true,
   })
   const [feedback, setFeedback] = useState(null)
+  const [fetchingChats, setFetchingChats] = useState(false)
+  const [detectedChats, setDetectedChats] = useState([])
 
   useEffect(() => {
     if (!isOpen) return
@@ -64,6 +67,26 @@ export default function MyProfileTelegramModal({
   if (!isOpen) return null
 
   const cleanBotHandle = (botStatus.botUsername || '').replace(/^@/, '')
+
+  const handleFetchChats = async () => {
+    setFetchingChats(true)
+    setFeedback(null)
+    try {
+      const res = await api.getTelegramChats()
+      const chats = Array.isArray(res?.chats) ? res.chats : []
+      setDetectedChats(chats)
+      if (chats.length === 0) {
+        setFeedback({
+          type: 'error',
+          message: `No recent chats found yet. Open ${botStatus.botUsername || 'your bot'} and press Start (/start), then click Fetch Chat IDs again.`,
+        })
+      }
+    } catch (err) {
+      setFeedback({ type: 'error', message: err.message || 'Failed to fetch recent Telegram chats.' })
+    } finally {
+      setFetchingChats(false)
+    }
+  }
 
   const handleSendTest = async () => {
     const cleanId = String(telegramChatId || '').trim()
@@ -373,6 +396,26 @@ export default function MyProfileTelegramModal({
                         fontSize: 13,
                       }}
                     />
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        className="btn-pulse-secondary"
+                        onClick={handleFetchChats}
+                        disabled={fetchingChats}
+                        style={{
+                          fontSize: 12,
+                          padding: '8px 12px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          color: '#0369a1',
+                          borderColor: '#7dd3fc',
+                        }}
+                      >
+                        <RefreshCw size={13} className={fetchingChats ? 'animate-spin' : ''} />
+                        <span>{fetchingChats ? 'Fetching...' : 'Fetch Chat IDs'}</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn-pulse-secondary"
@@ -384,6 +427,61 @@ export default function MyProfileTelegramModal({
                       <span>{testing ? 'Sending...' : 'Send Test'}</span>
                     </button>
                   </div>
+                  {isAdmin && detectedChats.length > 0 && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        border: '1px solid #bae6fd',
+                        borderRadius: 6,
+                        padding: '8px 10px',
+                        background: '#f8fafc',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 5,
+                        maxHeight: 150,
+                        overflowY: 'auto',
+                      }}
+                    >
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#0369a1' }}>
+                        Click your chat to auto-fill Chat ID:
+                      </div>
+                      {detectedChats.map(c => (
+                        <button
+                          key={c.chatId}
+                          type="button"
+                          onClick={() => {
+                            setTelegramChatId(c.chatId)
+                            setFeedback({
+                              type: 'success',
+                              message: `Selected Chat ID ${c.chatId} (${c.displayName}). Click Send Test or Save Profile Settings.`,
+                            })
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 8,
+                            padding: '6px 9px',
+                            borderRadius: 6,
+                            border: telegramChatId === c.chatId ? '1px solid #0284c7' : '1px solid #e2e8f0',
+                            background: telegramChatId === c.chatId ? '#e0f2fe' : '#ffffff',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                              {c.displayName} {c.username ? <span style={{ color: '#64748b', fontWeight: 500 }}>({c.username})</span> : null}
+                            </div>
+                            <div style={{ fontSize: 10, color: '#64748b' }}>
+                              ID: <strong>{c.chatId}</strong> • {c.type}
+                            </div>
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#0284c7' }}>Use</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Inline Feedback Banner */}
